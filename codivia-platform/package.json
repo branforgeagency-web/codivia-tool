@@ -1,0 +1,21 @@
+{
+  "name": "codivia-platform",
+  "version": "1.0.0",
+  "description": "Medical-coding practice platform: students code real-format charts, get scored with a reason, track progress, and build a certificate and resume. Admins allocate charts and review performance; auditors have a read-only view.",
+  "scripts": {
+    "start": "serve public -l 8080",
+    "dev": "serve public -l 8080",
+    "export-charts": "node tools/export-charts-json.mjs"
+  },
+  "keywords": [
+    "medical-coding",
+    "icd-10",
+    "cpt",
+    "hcpcs"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "serve": "^14.2.6"
+  }
+}

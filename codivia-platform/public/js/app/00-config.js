@@ -1,0 +1,78 @@
+/* CODIVIA platform — React helpers, code systems, modifiers, departments (DEPTS) */
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+const e = React.createElement;
+const SYS = ['ICD10CM','ICD10PCS','CPT','HCPCS'];
+const SYS_SHORT = ['ICD','PCS','CPT','HCPCS'];
+
+const POA_OPTIONS = [
+  ['Y','Y — Present'],
+  ['N','N — Not present'],
+  ['U','U — Insufficient doc'],
+  ['W','W — Undetermined'],
+  ['1','1 — Exempt']
+];
+
+const MODIFIERS = [
+  ['25','Significant, separately identifiable E/M same day'],
+  ['59','Distinct procedural service'],
+  ['51','Multiple procedures'],
+  ['50','Bilateral procedure'],
+  ['RT','Right side'],
+  ['LT','Left side'],
+  ['76','Repeat procedure, same physician'],
+  ['77','Repeat procedure, another physician'],
+  ['26','Professional component'],
+  ['TC','Technical component'],
+  ['24','Unrelated E/M during postop period'],
+  ['57','Decision for surgery'],
+  ['58','Staged/related procedure in postop period'],
+  ['78','Return to OR for related procedure'],
+  ['79','Unrelated procedure in postop period'],
+  ['91','Repeat clinical diagnostic lab test'],
+  ['GA','Waiver of liability on file (ABN)'],
+  ['XS','Separate structure'],
+  ['XE','Separate encounter']
+];
+
+
+const DEPTS = {
+  // Group A — Physician specialty tracks (by body system)
+  ED_PRO:{ name:'ED — Professional', icon:'🚑', pool:300, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  ED_FAC:{ name:'ED — Facility', icon:'🏥', pool:300, group:'specialty', elements:['ICD10CM','EM','CPT','APC','REVCODE'] },
+  EM:{ name:'Evaluation & Management', icon:'📋', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  IM:{ name:'Internal Medicine', icon:'🩺', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  FP:{ name:'Family Practice', icon:'👨‍👩‍👧', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  ORTHO:{ name:'Orthopaedic Surgery', icon:'🦴', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  CARDIO:{ name:'Cardiology', icon:'❤️', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  GI:{ name:'Gastroenterology', icon:'🔬', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  OBGYN:{ name:'Obstetrics & Gynecology', icon:'🤰', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  DERM:{ name:'Dermatology', icon:'🧴', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  ANES:{ name:'Anesthesia & Pain Mgmt', icon:'💉', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  GENSURG:{ name:'General Surgery', icon:'🔪', pool:600, group:'specialty', elements:['ICD10CM','CPT','HCPCS'] },
+  PEDS:{ name:'Pediatrics', icon:'🧒', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  URO:{ name:'Urology', icon:'💧', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  ENT:{ name:'Otolaryngology (ENT)', icon:'👂', pool:600, group:'specialty', elements:['ICD10CM','CPT','HCPCS'] },
+  HEMONC:{ name:'Hematology & Oncology', icon:'🎗️', pool:600, group:'specialty', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  // Group B — Setting / type coding domains (how RCM staffs & hires)
+  IP:{ name:'Inpatient (Facility)', icon:'🏥', pool:600, group:'setting', elements:['ICD10CM','ICD10PCS','DRG'] },
+  HCC:{ name:'HCC / Risk Adjustment', icon:'📈', pool:600, group:'setting', elements:['ICD10CM','HCC'] },
+  HH:{ name:'Home Health', icon:'🏠', pool:600, group:'setting', elements:['ICD10CM','OASIS'] },
+  OP:{ name:'Outpatient (Facility)', icon:'🏨', pool:600, group:'setting', elements:['ICD10CM','EM','CPT','HCPCS'] },
+  HOSP:{ name:'Hospice / Palliative', icon:'🕊️', pool:600, group:'setting', elements:['ICD10CM'] },
+  SNF:{ name:'Skilled Nursing (SNF)', icon:'🛏️', pool:600, group:'setting', elements:['ICD10CM','MDS'] },
+  CDI:{ name:'Clinical Doc Integrity', icon:'📝', pool:600, group:'setting', elements:['ICD10CM'] },
+  AUDIT:{ name:'Auditing & Compliance', icon:'🔎', pool:600, group:'setting', elements:['ICD10CM','CPT'] },
+  RAD:{ name:'Radiology', icon:'🩻', pool:600, group:'setting', elements:['ICD10CM','CPT','MOD'] },
+  PATH:{ name:'Pathology', icon:'🧫', pool:600, group:'setting', elements:['ICD10CM','CPT'] },
+  ANCIL:{ name:'Ancillary (Rad/Path/Lab)', icon:'🩻', pool:600, group:'setting', elements:['CPT','ICD10CM'] },
+  IVR:{ name:'Interventional Radiology', icon:'🫀', pool:600, group:'setting', elements:['ICD10CM','CPT','MOD'] },
+  DENIAL:{ name:'Denials / AR Follow-up', icon:'⤴️', pool:600, group:'setting', elements:['CPT','ICD10CM'] },
+  DME:{ name:'DME', icon:'🦽', pool:600, group:'setting', elements:['ICD10CM','HCPCS','MOD'] },
+};
+// Friendly labels for element / code-set tiles
+
+const ELEMENT_LABELS = {
+  ICD10CM:'ICD-10-CM', ICD10PCS:'ICD-10-PCS', CPT:'CPT', HCPCS:'HCPCS',
+  DRG:'MS-DRG', HCC:'HCC', OASIS:'OASIS/PDGM', MDS:'MDS/PDPM',
+  APC:'APC', REVCODE:'Rev Codes', MOD:'Modifiers'
+};

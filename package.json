@@ -1,0 +1,10 @@
+{
+  "name": "codivia-platform-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix codivia-platform start",
+    "dev": "npm --prefix codivia-platform start",
+    "export-charts": "npm --prefix codivia-platform run export-charts"
+  }
+}
