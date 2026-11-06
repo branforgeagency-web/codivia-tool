@@ -1,3 +1,5 @@
+import { Loader } from './Loader.jsx';
+
 export function RouteLoading() {
-  return <div className="route-loading" role="status" aria-live="polite">Loading page...</div>;
+  return <div className="route-loading"><Loader label="Loading page..." /></div>;
 }

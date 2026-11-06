@@ -4,3 +4,8 @@ export/
 .firebase/
 *.log
 .DS_Store
+
+# environment files (keep .env.example committed)
+.env
+.env.*
+!.env.example
