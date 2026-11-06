@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CODIVIA — Coding Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Gochi+Hand&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- CODIVIA-BUILD-APP-1102A (source edition) -->
+</head>
+<body>
+<div id="root"></div>
+<!-- data: served as-is from public/data (classic scripts, run before the app module) -->
+<!-- code database + reference tables -->
+<script src="/data/codes/code-db.js"></script>
+<script src="/data/codes/icd-index.js"></script>
+<script src="/data/codes/icd-eindex.js"></script>
+<script src="/data/codes/icd-notes.js"></script>
+<script src="/data/codes/icd-neo.js"></script>
+<script src="/data/codes/icd-drug.js"></script>
+<!-- charts: one file per department (11,400 total) -->
+<script src="/data/charts/ED_PRO.js"></script>
+<script src="/data/charts/ED_FAC.js"></script>
+<script src="/data/charts/EM.js"></script>
+<script src="/data/charts/IM.js"></script>
+<script src="/data/charts/FP.js"></script>
+<script src="/data/charts/ORTHO.js"></script>
+<script src="/data/charts/CARDIO.js"></script>
+<script src="/data/charts/GI.js"></script>
+<script src="/data/charts/OBGYN.js"></script>
+<script src="/data/charts/DERM.js"></script>
+<script src="/data/charts/ANES.js"></script>
+<script src="/data/charts/GENSURG.js"></script>
+<script src="/data/charts/PEDS.js"></script>
+<script src="/data/charts/URO.js"></script>
+<script src="/data/charts/ENT.js"></script>
+<script src="/data/charts/HEMONC.js"></script>
+<script src="/data/charts/IP.js"></script>
+<script src="/data/charts/HH.js"></script>
+<script src="/data/charts/RAD.js"></script>
+<script src="/data/charts/PATH.js"></script>
+<script src="/data/charts/IVR.js"></script>
+<script src="/data/charts/DME.js"></script>
+<!-- content -->
+<script src="/data/coding-guide.js"></script>
+<!-- app (React, Firebase, styles): bundled by Vite from src/ -->
+<script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
