@@ -1,5 +1,6 @@
 /* CODIVIA platform — every URL in the app, in one place */
 export const PATHS = {
+  signIn: '/sign-in',
   // student
   dashboard: '/dashboard',
   charts: '/charts',

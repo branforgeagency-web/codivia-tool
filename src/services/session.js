@@ -28,9 +28,11 @@ export function cvxGuestSession() {
 }
 
 export function cvxWantsLogin() {
+  if (window.location.pathname === '/sign-in') return true;
   if (window.CVX_WANT_LOGIN) return true;
   try {
-    return new URLSearchParams(window.location.search).get('login') === '1';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('login') === '1' || params.get('signup') === '1';
   } catch (x) {
     return false;
   }

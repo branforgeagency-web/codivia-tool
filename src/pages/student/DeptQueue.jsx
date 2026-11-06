@@ -54,14 +54,14 @@ export function DeptQueue({ dept, stu, results, onBack, onOpen }) {
   const charts = pool.slice(_sA, _sB);
   const [shown, setShown] = useState(50);
   const [q, setQ] = useState('');
-  const filtered = q.trim()
-    ? charts.filter((c) => {
+  const [status, setStatus] = useState('all');
+  const filtered = charts.filter(c => status === 'all' || (status === 'worked' ? !!results[c.id] : !results[c.id])).filter((c) => {
+        if (!q.trim()) return true;
         const h = queueFields(c.record);
         return (c.id + ' ' + h.mrn + ' ' + h.dos + ' ' + h.payer + ' ' + h.facility)
           .toLowerCase()
           .includes(q.toLowerCase().trim());
-      })
-    : charts;
+      });
   const visible = filtered.slice(0, shown);
   const doneIds = Object.keys(results);
   const workedCount = charts.filter((c) => doneIds.includes(c.id)).length;
@@ -73,7 +73,7 @@ export function DeptQueue({ dept, stu, results, onBack, onOpen }) {
   const pct = allocCountForDept ? Math.round((workedCount / allocCountForDept) * 100) : 0;
 
   return (
-    <div>
+    <div className="chart-queue">
       <button className="backbtn" onClick={onBack}>
         ← All departments
       </button>
@@ -87,9 +87,9 @@ export function DeptQueue({ dept, stu, results, onBack, onOpen }) {
       </div>
       <div className="stat-row">
         <StatCard k="Allocated" v={allocCountForDept} s="assigned to you" />
-        <StatCard k="Worked" v={workedCount} s="this session" teal={true} />
+        <StatCard k="Worked" v={workedCount} s="in this allocation" teal={true} />
         <StatCard k="Avg Accuracy" v={(avgAcc || 0) + '%'} s="across worked" />
-        <StatCard k="Progress" v={pct + '%'} s="toward certificate" />
+        <StatCard k="Progress" v={pct + '%'} s="of allocated charts worked" />
       </div>
       <div className="card">
         <div
@@ -103,6 +103,8 @@ export function DeptQueue({ dept, stu, results, onBack, onOpen }) {
         >
           <h3>Your Chart Queue</h3>
           <input
+            type="search"
+            aria-label="Search chart ID, MRN, date, payer, or facility"
             value={q}
             placeholder="Search MRN, date, payer, facility…"
             style={{
@@ -118,11 +120,20 @@ export function DeptQueue({ dept, stu, results, onBack, onOpen }) {
             }}
           />
         </div>
+        <div className="queue-toolbar">
+          <div className="charts-filters" role="group" aria-label="Filter charts by status">
+            {[['all', 'All charts', charts.length], ['pending', 'Not started', charts.length - workedCount], ['worked', 'Worked', workedCount]].map(([value, label, count]) =>
+              <button type="button" key={value} aria-pressed={status === value} onClick={() => { setStatus(value); setShown(50); }}>{label}<span>{count}</span></button>)}
+          </div>
+          <span className="charts-result-count" role="status">Showing {visible.length} of {filtered.length} charts</span>
+        </div>
+        <div className="queue-table-scroll" role="region" aria-label="Chart queue" tabIndex={0}>
         <table>
+          <caption className="sr-only">Allocated charts for {d.name}</caption>
           <thead>
             <tr>
               {['MRN', 'Date of Service', 'Insurance', 'Facility', 'Status', 'Action'].map((h) => (
-                <th key={h}>{h}</th>
+                <th key={h} scope="col">{h}</th>
               ))}
             </tr>
           </thead>
@@ -214,6 +225,7 @@ export function DeptQueue({ dept, stu, results, onBack, onOpen }) {
             })}
           </tbody>
         </table>
+        </div>
         {shown < filtered.length ? (
           <div style={{ textAlign: 'center', padding: '14px' }}>
             <button className="btn btn-ghost" onClick={() => setShown(shown + 50)}>
@@ -224,7 +236,9 @@ export function DeptQueue({ dept, stu, results, onBack, onOpen }) {
           <div
             style={{ textAlign: 'center', padding: '14px', color: 'var(--muted)', fontSize: 13 }}
           >
-            No charts match your search.
+            <strong>{charts.length ? 'No matching charts' : 'No charts allocated yet'}</strong>
+            <p>{charts.length ? 'Try a different search or status filter.' : 'Your trainer can assign charts to this department.'}</p>
+            {charts.length > 0 && <button className="btn btn-ghost" onClick={() => { setQ(''); setStatus('all'); setShown(50); }}>Clear filters</button>}
           </div>
         ) : null}
       </div>

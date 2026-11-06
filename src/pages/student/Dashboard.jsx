@@ -1,3 +1,4 @@
+import { DeptIcon } from '../../components/ui/DeptIcon.jsx';
 import { Card } from '../../components/ui/Card.jsx';
 import { GuidelinesPanel } from '../../components/guidelines/GuidelinesPanel.jsx';
 import { ElementTiles } from '../../components/ui/ElementTiles.jsx';
@@ -65,9 +66,11 @@ export function Dashboard({ stu, stats, onGoDept }) {
                   const d = DEPTS[dk];
                   const st = stats.perDept[dk] || { worked: 0, avg: 0 };
                   return (
-                    <div key={dk} className="dept-card" onClick={() => onGoDept(dk)}>
-                      <div className="ico">{d.icon}</div>
-                      <h3>{d.name}</h3>
+                    <button type="button" key={dk} className="dept-card" onClick={() => onGoDept(dk)} aria-label={'Open ' + d.name + ' charts'}>
+                      <div className="dept-card-head">
+                        <div className="ico"><DeptIcon dept={dk} /></div>
+                        <h3>{d.name}</h3>
+                      </div>
                       <ElementTiles dept={d} setting={d.group === 'setting'} />
                       <div className="alloc">
                         <span>Progress</span>
@@ -76,7 +79,7 @@ export function Dashboard({ stu, stats, onGoDept }) {
                       <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
                         {st.worked > 0 ? st.avg + '% avg accuracy' : 'Not started'}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>

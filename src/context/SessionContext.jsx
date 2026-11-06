@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { loadCodeDB } from '../services/codeDb.js';
 import { cvxGuestSession, cvxWantsLogin } from '../services/session.js';
+import { useNavigate } from 'react-router-dom';
+import { PATHS } from '../routes/paths.js';
 
 const SessionContext = createContext(null);
 
@@ -11,6 +13,7 @@ export function useSession() {
 }
 
 export function SessionProvider({ children }) {
+  const navigate = useNavigate();
   const [session, setSession] = useState(null); // {role, user}
   const [codeDB, setCodeDB] = useState(null);
   const [dbStatus, setDbStatus] = useState('idle');
@@ -125,6 +128,8 @@ export function SessionProvider({ children }) {
   }, [session, codeDB, dbStatus]);
 
   const logout = () => {
+    window.CVX_WANT_LOGIN = true;
+    navigate(PATHS.signIn);
     if (session && session.role === 'student') {
       window.CVX_WANT_LOGIN = true;
       if (session.user && session.user.guest) {

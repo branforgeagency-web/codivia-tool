@@ -28,7 +28,7 @@ export function CodeSection({ title, sub, rows, setRows, codeDB, filterSys, mods
         {onLookup && (
           <button
             onClick={onLookup}
-            title="Open the floating code lookup"
+            title="Go to CODIVIA Code Search (your codes are kept)"
             style={{
               marginLeft: 'auto',
               fontSize: 10,

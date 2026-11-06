@@ -16,11 +16,11 @@ export const colors = {
   gold: '#E5A82E',
   white: '#fff',
   // surfaces + text
-  bg: '#F5F1EC',
+  bg: '#F6F7F9',
   ink: '#141210',
   muted: '#726B63',
-  line: '#e6ddd2',
-  lineSoft: '#f1ebe2',
+  line: '#E5E7EB',
+  lineSoft: '#F0F1F3',
   // difficulty levels
   beginner: '#2563eb',
   beginnerLight: '#eff6ff',

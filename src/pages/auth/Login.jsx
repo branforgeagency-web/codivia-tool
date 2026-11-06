@@ -1,6 +1,7 @@
 import { Tabs, useTabPanel } from '../../components/ui/Tabs.jsx';
 import { brand } from '../../config/brand.js';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DEPTS } from '../../config/constants.js';
 import { cvxGuestSession } from '../../services/session.js';
 import { activeDeptKeys } from '../../utils/allocation.js';
@@ -90,6 +91,7 @@ export function CvxIcon({ d }) {
 }
 
 export function Login({ onLogin }) {
+  const navigate = useNavigate();
   const accountTabs = useTabPanel();
   const start = useMemo(cvxParams, []);
   const [mode, setMode] = useState(start.signup ? 'register' : 'login'); // login | register
@@ -138,7 +140,7 @@ export function Login({ onLogin }) {
       if (m === 'register') p.set('signup', '1');
       else p.delete('signup');
       const q = p.toString();
-      window.history.replaceState(null, '', window.location.pathname + (q ? '?' + q : ''));
+      navigate(window.location.pathname + (q ? '?' + q : ''), { replace: true });
     } catch (x) {}
   };
 

@@ -1,14 +1,41 @@
 import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { DEPTS } from '../../../config/constants.js';
+import { PATHS } from '../../../routes/paths.js';
 import { CodeSection } from './CodeSection.jsx';
-import { FloatingLookup } from './FloatingLookup.jsx';
 import { RecordTabs } from './RecordTabs.jsx';
 import { ResultModal } from './ResultModal.jsx';
 import { DRG_OPTIONS } from './constants.js';
 import { chartHeaderFields } from './recordSections.js';
-import { openCodeSearchWindow } from '../../../utils/codeSearchWindow.js';
+
+// Codes typed so far are kept while the student visits Code Search, so
+// coming back to the chart does not start from scratch.
+const draftKey = (path) => 'codivia_draft:' + path;
+function takeDraft(path) {
+  try {
+    const raw = sessionStorage.getItem(draftKey(path));
+    sessionStorage.removeItem(draftKey(path));
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+function saveDraft(path, draft) {
+  try {
+    sessionStorage.setItem(draftKey(path), JSON.stringify(draft));
+  } catch (e) {}
+}
+function clearDraft(path) {
+  try {
+    sessionStorage.removeItem(draftKey(path));
+  } catch (e) {}
+}
 
 export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState }) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [draft] = useState(() => takeDraft(pathname));
+  const blankRows = () => [{ code: '', desc: '' }];
   const isIP = chart.dept === 'IP' || !!chart.isInpatient;
   const isHH = chart.dept === 'HH'; // Home Health: ICD-10-CM diagnoses only (PDGM), no E/M or CPT
   // Level of Service (E/M) is only valid where the department actually bills an
@@ -17,54 +44,18 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
   // to unbundle. DEPTS[].elements is the source of truth; 'EM' must be listed.
   const deptEls = (DEPTS[chart.dept] && DEPTS[chart.dept].elements) || [];
   const hasEM = deptEls.indexOf('EM') !== -1;
-  const [dx, setDx] = useState([{ code: '', desc: '' }]); // Principal dx (IP) / Diagnoses (OP)
-  const [sdx, setSdx] = useState([{ code: '', desc: '' }]); // Secondary diagnoses (IP)
-  const [pcs, setPcs] = useState([{ code: '', desc: '' }]); // Principal procedure ICD-10-PCS (IP)
-  const [spcs, setSpcs] = useState([{ code: '', desc: '' }]); // Secondary procedures ICD-10-PCS (IP)
-  const [cpt, setCpt] = useState([{ code: '', desc: '' }]); // CPT/HCPCS
-  const [em, setEm] = useState([{ code: '', desc: '' }]); // E/M level of service
-  const [drg, setDrg] = useState(''); // MS-DRG (inpatient only)
-  const [lookupOpen, setLookupOpen] = useState(false);
-  const [popupBlocked, setPopupBlocked] = useState(false);
-  // Prefer a real browser window. If the browser blocks popups, fall back to
-  // the in-page floating panel so the coder is never left with nothing.
+  const [dx, setDx] = useState(draft.dx || blankRows()); // Principal dx (IP) / Diagnoses (OP)
+  const [sdx, setSdx] = useState(draft.sdx || blankRows()); // Secondary diagnoses (IP)
+  const [pcs, setPcs] = useState(draft.pcs || blankRows()); // Principal procedure ICD-10-PCS (IP)
+  const [spcs, setSpcs] = useState(draft.spcs || blankRows()); // Secondary procedures ICD-10-PCS (IP)
+  const [cpt, setCpt] = useState(draft.cpt || blankRows()); // CPT/HCPCS
+  const [em, setEm] = useState(draft.em || blankRows()); // E/M level of service
+  const [drg, setDrg] = useState(draft.drg || ''); // MS-DRG (inpatient only)
+  // Go to the CODIVIA Code Search module in the same tab. The chart's codes
+  // are saved first and the page offers a "Back to chart" button.
   const openLookup = () => {
-    const win = openCodeSearchWindow();
-    if (win) {
-      setPopupBlocked(false);
-      return;
-    }
-    setPopupBlocked(true);
-    setLookupOpen(true);
-  };
-  // Insert a code picked in the floating lookup straight into the matching
-  // section, so the coder never types the same query twice.
-  const insertFromLookup = (row) => {
-    const sys = row[0],
-      code = row[2],
-      desc = row[3];
-    const addTo = (rows, setRows) => {
-      const blank = rows.findIndex((r) => !r.code);
-      const next = rows.slice();
-      if (blank >= 0) next[blank] = Object.assign({}, next[blank], { code, desc });
-      else next.push({ code, desc });
-      setRows(next);
-    };
-    if (sys === 0) {
-      // ICD-10-CM
-      if (isIP && dx[0] && dx[0].code) addTo(sdx, setSdx);
-      else addTo(dx, setDx);
-    } else if (sys === 1) {
-      // ICD-10-PCS
-      if (isIP && pcs[0] && pcs[0].code) addTo(spcs, setSpcs);
-      else addTo(pcs, setPcs);
-    } else if (/^99[2-4]\d\d$/.test(code)) {
-      // E/M level
-      addTo(em, setEm);
-    } else {
-      // CPT / HCPCS
-      addTo(cpt, setCpt);
-    }
+    saveDraft(pathname, { dx, sdx, pcs, spcs, cpt, em, drg });
+    navigate(PATHS.codeSearch, { state: { returnTo: pathname } });
   };
   const [drgSearch, setDrgSearch] = useState('');
   const [drgOpen, setDrgOpen] = useState(false);
@@ -136,6 +127,7 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
       pdgmKey,
     };
     setResult(res);
+    clearDraft(pathname);
     // Persist IMMEDIATELY on scoring. Previously the save only ran from
     // "Save & Continue"; a student who read the score and hit "Back to queue"
     // (or Esc, or browser-back) lost the chart silently.
@@ -234,7 +226,7 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button
                 onClick={openLookup}
-                title="Open the full CODIVIA Code Search in a separate window"
+                title="Go to CODIVIA Code Search (your codes are kept)"
                 style={{
                   fontSize: 11,
                   fontWeight: 800,
@@ -243,9 +235,9 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
                   cursor: 'pointer',
                   letterSpacing: 0.3,
                   textTransform: 'none',
-                  border: '1px solid ' + (lookupOpen ? 'var(--teal)' : 'var(--line)'),
-                  background: lookupOpen ? 'var(--teal)' : 'var(--color-white)',
-                  color: lookupOpen ? 'var(--color-white)' : 'var(--teal-d)',
+                  border: '1px solid var(--line)',
+                  background: 'var(--color-white)',
+                  color: 'var(--teal-d)',
                 }}
               >
                 ⌕ CODIVIA Code Search
@@ -397,7 +389,7 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
           <div className="submitbar" style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={openLookup}
-              title="Open the full CODIVIA Code Search in a separate window"
+              title="Go to CODIVIA Code Search (your codes are kept)"
               style={{
                 flex: '0 0 auto',
                 padding: '0 16px',
@@ -406,8 +398,8 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
                 fontSize: 12.5,
                 fontWeight: 800,
                 border: '1px solid var(--line)',
-                background: lookupOpen ? 'var(--tone-eefaf8)' : 'var(--color-white)',
-                color: lookupOpen ? 'var(--teal-d)' : 'var(--ink)',
+                background: 'var(--color-white)',
+                color: 'var(--ink)',
               }}
             >
               ⌕ Code Search
@@ -418,20 +410,6 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
           </div>
         </div>
       </div>
-      {lookupOpen && (
-        <FloatingLookup
-          codeDB={codeDB}
-          dbStatus={dbStatus}
-          onInsert={insertFromLookup}
-          isHH={isHH}
-          notice={
-            popupBlocked
-              ? 'Your browser blocked the pop-up window, so Code Search opened here instead. Allow pop-ups for this site to use a separate window.'
-              : ''
-          }
-          onClose={() => setLookupOpen(false)}
-        />
-      )}
       {result && (
         <ResultModal
           result={result}
