@@ -332,8 +332,6 @@
   .cvx-card{padding:22px 18px 18px}
 }
 
-.cvx-guest{width:100%;height:46px;margin-top:12px;border:1px solid var(--tone-dad7d1);border-radius:11px;background:var(--color-white);color:var(--ink);font:600 15px var(--font-auth);cursor:pointer}
-.cvx-guest:hover{border-color:var(--o);color:var(--od)}
 /* Keep authentication within the viewport; decorative content yields to the form. */
 .cvx-auth{height:100vh;height:100dvh;min-height:0;overflow:hidden}
 .cvx-side{min-height:0;padding:clamp(20px,3vh,36px) clamp(24px,4vw,64px);gap:clamp(12px,2vh,26px)}
@@ -358,8 +356,8 @@
   .cvx-sub{margin-bottom:12px;font-size:13px}
   .cvx-f{margin-bottom:10px}
   .cvx-f input{height:40px}
-  .cvx-btn,.cvx-guest{height:40px}
-  .cvx-switch,.cvx-guest{margin-top:10px}
+  .cvx-btn{height:40px}
+  .cvx-switch{margin-top:10px}
   .cvx-secure{margin-top:10px;padding-top:10px}
 }
 @media(max-width:900px){
@@ -380,7 +378,6 @@
   .cvx-f{margin-bottom:8px}
   .cvx-f input{height:36px}
 }
-.topbar .cvx-guestbar{font-size:12px;color:var(--tone-ffb27a);margin-right:6px}
 
 .route-loading{padding:32px;color:var(--muted);text-align:center}
 [role="tab"]:focus-visible{outline:2px solid var(--teal);outline-offset:-2px}

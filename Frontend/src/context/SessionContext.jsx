@@ -2,7 +2,6 @@
    Everything below <SessionProvider> can read it with useSession(). */
 import { createContext, useContext, useEffect, useState } from 'react';
 import { loadCodeDB } from '../services/codeDb.js';
-import { cvxGuestSession, cvxWantsLogin } from '../services/session.js';
 import { useNavigate } from 'react-router-dom';
 import { PATHS } from '../routes/paths.js';
 
@@ -80,7 +79,7 @@ export function SessionProvider({ children }) {
     if (!fbReady) return;
     const unsub = window.CV_FB.onAuth(async (fbUser) => {
       if (!fbUser) {
-        setSession(cvxWantsLogin() ? null : cvxGuestSession());
+        setSession(null);
         setAuthChecked(true);
         return;
       }
@@ -128,15 +127,7 @@ export function SessionProvider({ children }) {
   }, [session, codeDB, dbStatus]);
 
   const logout = () => {
-    window.CVX_WANT_LOGIN = true;
     navigate(PATHS.signIn);
-    if (session && session.role === 'student') {
-      window.CVX_WANT_LOGIN = true;
-      if (session.user && session.user.guest) {
-        setSession(null);
-        return;
-      }
-    }
     window.CV_FB.logout();
   };
 

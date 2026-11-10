@@ -19,12 +19,12 @@ export function StudentLayout() {
     return item;
   });
 
-  const headerExtra = (
-    <span className="who">
-      {'CODIVIA Score '}
-      <b>{hasScore ? codScore : '—'}</b>
-    </span>
-  );
+  // const headerExtra = (
+  //   <span className="who">
+  //     {'CODIVIA Score '}
+  //     <b>{hasScore ? codScore : '—'}</b>
+  //   </span>
+  // );
 
   const sidebarFooter = (
     <>
@@ -66,7 +66,7 @@ export function StudentLayout() {
     <DashboardLayout
       session={session}
       onLogout={logout}
-      headerExtra={headerExtra}
+      // headerExtra={headerExtra}
       navItems={navItems}
       sidebarFooter={sidebarFooter}
     />

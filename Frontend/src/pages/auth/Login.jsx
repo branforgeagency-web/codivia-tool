@@ -3,7 +3,6 @@ import { brand } from '../../config/brand.js';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEPTS } from '../../config/constants.js';
-import { cvxGuestSession } from '../../services/session.js';
 import { activeDeptKeys } from '../../utils/allocation.js';
 
 // ---------------- LOGIN ----------------
@@ -69,7 +68,6 @@ const ICON = {
   user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   mail: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM3.5 6.5l8.5 6 8.5-6',
   key: 'M7.5 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM11 12h10M18 12v3M21 12v2',
-  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
 };
 
 export function cvxParams() {
@@ -100,7 +98,7 @@ export function CvxIcon({ d }) {
   );
 }
 
-export function Login({ onLogin }) {
+export function Login() {
   const navigate = useNavigate();
   const accountTabs = useTabPanel();
   const start = useMemo(cvxParams, []);
@@ -280,9 +278,9 @@ export function Login({ onLogin }) {
       </aside>
       {/* ---------- right: form ---------- */}
       <main className="cvx-main">
-        <a className="cvx-back" href="/">
+        {/* <a className="cvx-back" href="/">
           ← Back to home
-        </a>
+        </a> */}
         <form className="cvx-card" onSubmit={submit} noValidate={true}>
           <Tabs id={accountTabs.id} label="Account" className="cvx-tabs" activeClassName="on"
             value={reg ? 'register' : 'login'} onChange={switchMode}
@@ -372,20 +370,6 @@ export function Login({ onLogin }) {
           <button type="submit" className="cvx-btn" disabled={busy}>
             {busy ? 'Please wait…' : reg ? 'Create account' : 'Sign in'}
             {!busy && <CvxIcon d="M5 12h14M13 6l6 6-6 6" />}
-          </button>
-          <div className="cvx-or">
-            <span>or</span>
-          </div>
-          <button
-            type="button"
-            className="cvx-guest"
-            onClick={() => {
-              window.CVX_WANT_LOGIN = false;
-              onLogin(cvxGuestSession());
-            }}
-          >
-            <CvxIcon d={ICON.eye} />
-            Continue without signing in
           </button>
           <div className="cvx-switch">
             {reg ? 'Already have an account? ' : 'New to CODIVIA? '}

@@ -63,11 +63,6 @@ export function StudentProvider() {
     resultsRef.current = next;
     setResults(next);
 
-    if (stu.guest) {
-      try {
-        localStorage.setItem('cvx-guest-results', JSON.stringify(next));
-      } catch (x) {}
-    }
     if (stu.uid && window.CV_FB) {
       setSaveState('saving');
       window.CV_FB.saveProgress(stu.uid, next)

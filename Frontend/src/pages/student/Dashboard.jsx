@@ -4,7 +4,7 @@ import { GuidelinesPanel } from '../../components/guidelines/GuidelinesPanel.jsx
 import { ElementTiles } from '../../components/ui/ElementTiles.jsx';
 import { StatCard } from '../../components/ui/StatCard.jsx';
 import { CERT_THRESHOLD, DEPTS } from '../../config/constants.js';
-import { deptHasCharts } from '../../utils/allocation.js';
+import { allocCount, deptHasCharts } from '../../utils/allocation.js';
 import { useNavigate } from 'react-router-dom';
 import { useStudent } from '../../context/StudentContext.jsx';
 import { deptQueuePath } from '../../routes/paths.js';
@@ -74,7 +74,9 @@ export function Dashboard({ stu, stats, onGoDept }) {
                       <ElementTiles dept={d} setting={d.group === 'setting'} />
                       <div className="alloc">
                         <span>Progress</span>
-                        <b>{st.worked + ' / ' + alloc}</b>
+                        <b>
+                          {st.worked + ' / ' + allocCount(alloc, window.CHART_DATA[dk].length)}
+                        </b>
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
                         {st.worked > 0 ? st.avg + '% avg accuracy' : 'Not started'}
