@@ -41,7 +41,7 @@ const refreshAuth = async (refreshToken, meta) => {
 
   const tokens = await tokenService.generateAuthTokens(user, meta, stored.family);
   await tokenService.markReplaced(stored, tokens.refresh.token);
-  return { user, tokens };
+  return { tokens };
 };
 
 const logout = (refreshToken) => tokenService.revokeByToken(refreshToken);

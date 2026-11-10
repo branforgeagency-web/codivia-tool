@@ -24,7 +24,9 @@ const sign = (payload, secret, expiresAt, options = {}) =>
 const verify = (token, secret, type) => {
   try {
     const payload = jwt.verify(token, secret, { issuer: config.jwt.issuer, algorithms: [ALGORITHM] });
-    return payload.type === type ? payload : null;
+    return payload.type === type && typeof payload.sub === 'string' && Number.isFinite(payload.exp) &&
+      (type !== TOKEN_TYPES.REFRESH || (typeof payload.jti === 'string' && payload.jti.length > 0 &&
+        typeof payload.fam === 'string' && payload.fam.length > 0)) ? payload : null;
   } catch {
     return null;
   }
@@ -68,24 +70,34 @@ const revokeUserTokens = (userId) => Token.updateMany({ user: userId, revokedAt:
 // Marks a refresh token used (atomically) and returns its record.
 // A token that was already used means it may have been stolen, so the whole family is revoked.
 const consumeRefreshToken = async (token) => {
-  if (!verifyRefreshToken(token)) throw sessionExpired();
+  const payload = verifyRefreshToken(token);
+  if (!payload || !/^[a-f\d]{24}$/i.test(payload.sub)) throw sessionExpired();
   const tokenHash = sha256(token);
   const now = new Date();
 
   const stored = await Token.findOneAndUpdate(
-    { tokenHash, revokedAt: null, expiresAt: { $gt: now } },
-    { revokedAt: now },
+    { tokenHash, user: payload.sub, family: payload.fam, consumedAt: null, revokedAt: null, expiresAt: { $gt: now } },
+    { consumedAt: now },
     { returnDocument: 'after' }
   );
   if (stored) return stored;
 
-  const reused = await Token.findOne({ tokenHash, revokedAt: { $ne: null } });
+  const reused = await Token.findOne({ tokenHash, $or: [{ consumedAt: { $ne: null } }, { revokedAt: { $ne: null } }] });
   if (reused) await revokeFamily(reused.family);
   throw sessionExpired();
 };
 
-const markReplaced = (stored, newRefreshToken) =>
-  Token.updateOne({ _id: stored._id }, { replacedByHash: sha256(newRefreshToken) });
+// Recheck after insertion so concurrent replay/logout cannot leave a live replacement.
+const markReplaced = async (stored, newRefreshToken) => {
+  const result = await Token.updateOne(
+    { _id: stored._id, revokedAt: null },
+    { replacedByHash: sha256(newRefreshToken) }
+  );
+  if (result.matchedCount !== 1) {
+    await revokeFamily(stored.family);
+    throw sessionExpired();
+  }
+};
 
 // Logout: works even with an expired token, and never says whether the token existed.
 const revokeByToken = async (token) => {

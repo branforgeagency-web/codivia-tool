@@ -10,6 +10,7 @@ const tokenSchema = new mongoose.Schema(
     user: { type: ObjectId, ref: 'User', required: true, index: true },
     family: { type: String, required: true, index: true },
     expiresAt: { type: Date, required: true },
+    consumedAt: { type: Date, default: null },
     revokedAt: { type: Date, default: null },
     replacedByHash: { type: String, default: null, private: true },
     createdByIp: { type: String, default: '' },

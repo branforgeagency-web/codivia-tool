@@ -242,28 +242,21 @@
   .rescode .c{font-weight:800;font-family:'SF Mono',monospace;min-width:64px}
   .result-actions{display:flex;gap:10px;padding:0 20px 20px}
   .result-actions button{flex:1;padding:11px;border-radius:9px;font-weight:800;font-size:13px;border:none}
-  /* ---- PRINT: isolate the résumé / certificate card only ---- */
   @media print{
     @page{ margin:14mm; }
     body{ background:var(--color-white) !important; }
     .dashboard-layout{height:auto;overflow:visible}
     .dashboard-layout .shell,.dashboard-layout .main{overflow:visible}
-    /* hide everything by default */
     body.printing * { visibility:hidden !important; }
-    /* show only the active print area and its contents */
     body.printing .print-area, body.printing .print-area * { visibility:visible !important; }
-    /* lift the print area out of the app layout to top-left, full width */
     body.printing .print-area{
       position:absolute !important; left:0; top:0; width:100%;
       margin:0 !important; padding:0 !important; box-shadow:none !important; border:none !important;
     }
-    /* keep the dark certificate background when printing */
     body.printing .print-area .cert-body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    /* hide any button inside the print area (e.g. Export/Download) */
     body.printing .print-area .btn{ display:none !important; }
   }
 
-/* ===== CODIVIA-BUILD-APP-1026A: split sign-in / Sign up ===== */
 .cvx-auth{
   min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);background:var(--tone-f6f5f2);
   font-family:var(--font-auth);color:var(--ink)}
