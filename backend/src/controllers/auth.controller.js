@@ -2,6 +2,10 @@ const { authService } = require('../services');
 const httpStatus = require('../utils/httpStatus');
 const requestMeta = require('../utils/requestMeta');
 
+const register = async (req, res) => {
+  res.status(httpStatus.CREATED).json(await authService.register(req.body, requestMeta(req)));
+};
+
 const login = async (req, res) => {
   const { email, password } = req.body;
   res.status(httpStatus.OK).json(await authService.login(email, password, requestMeta(req)));
@@ -25,4 +29,4 @@ const getMe = (req, res) => {
   res.status(httpStatus.OK).json(req.user);
 };
 
-module.exports = { login, refreshTokens, logout, logoutAll, getMe };
+module.exports = { register, login,refreshTokens, logout, logoutAll, getMe };

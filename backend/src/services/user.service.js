@@ -1,6 +1,9 @@
 const { User } = require('../models');
 const { USER_STATUS } = require('../config/userStatus');
+const { ROLES } = require('../config/roles');
+const { STUDENT_ID, formatStudentId } = require('../config/students');
 const tokenService = require('./token.service');
+const counterService = require('./counter.service');
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('../utils/httpStatus');
 
@@ -30,9 +33,14 @@ const findLiveUser = async (id) => {
   return user;
 };
 
-const createUser = async (body, actor) => {
+const nextStudentId = async () => formatStudentId(await counterService.nextSequence(STUDENT_ID.counter));
+
+// actor is null for self sign-up.
+const createUser = async (body, actor = null) => {
   if (await User.isEmailTaken(body.email)) throw emailTaken();
-  return saveOrEmailTaken(() => User.create({ ...body, createdBy: actor?._id ?? null }));
+  const role = body.role || ROLES.STUDENT;
+  const studentId = role === ROLES.STUDENT ? await nextStudentId() : null;
+  return saveOrEmailTaken(() => User.create({ ...body, role, studentId, createdBy: actor?._id ?? null }));
 };
 
 const queryUsers = async ({ search, role, status, sortBy = 'name', order = 'asc', page = 1, limit = 20 }) => {
@@ -64,6 +72,8 @@ const updateUser = async (id, updates, actor) => {
   if (updates.email && (await User.isEmailTaken(updates.email, user._id))) throw emailTaken();
 
   Object.assign(user, updates);
+  // A user moved to the student role keeps an existing ID or gets a new one.
+  if (user.role === ROLES.STUDENT && !user.studentId) user.studentId = await nextStudentId();
   const saved = await saveOrEmailTaken(() => user.save());
 
   // A new password or a disabled account ends every open session.

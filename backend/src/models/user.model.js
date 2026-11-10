@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, trim: true, lowercase: true, maxlength: USER_LIMITS.email },
     password: { type: String, required: true, select: false, private: true },
     role: { type: String, enum: ALL_ROLES, default: ROLES.STUDENT },
+    studentId: { type: String, default: null }, // STU-00001, set for students only
     status: { type: String, enum: ALL_USER_STATUSES, default: USER_STATUS.ACTIVE },
     passwordChangedAt: { type: Date, default: null, private: true },
     lastLoginAt: { type: Date, default: null },
@@ -25,6 +26,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { deletedAt: null } });
+userSchema.index({ studentId: 1 }, { unique: true, partialFilterExpression: { studentId: { $type: 'string' } } });
 userSchema.plugin(toJSON);
 
 userSchema.pre('save', async function hashPasswordOnChange() {

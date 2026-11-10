@@ -1,4 +1,5 @@
 const { User } = require('../models');
+const { ROLES } = require('../config/roles');
 const tokenService = require('./token.service');
 const userService = require('./user.service');
 const { verifyPassword, needsRehash, hashPassword } = require('../utils/password');
@@ -22,6 +23,13 @@ const login = async (email, password, meta) => {
   return { user, tokens };
 };
 
+// Public sign-up ("Sign up"): always a student, signed in straight away.
+const register = async ({ name, email, password }, meta) => {
+  const user = await userService.createUser({ name, email, password, role: ROLES.STUDENT });
+  const tokens = await tokenService.generateAuthTokens(user, meta);
+  return { user, tokens };
+};
+
 // Rotation: the old refresh token is used up and a new pair is issued in the same family.
 const refreshAuth = async (refreshToken, meta) => {
   const stored = await tokenService.consumeRefreshToken(refreshToken);
@@ -40,4 +48,4 @@ const logout = (refreshToken) => tokenService.revokeByToken(refreshToken);
 
 const logoutAll = (user) => tokenService.revokeUserTokens(user._id);
 
-module.exports = { login, refreshAuth, logout, logoutAll };
+module.exports = { register, login, refreshAuth, logout, logoutAll };

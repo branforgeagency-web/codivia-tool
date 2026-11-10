@@ -78,7 +78,7 @@ export function DeptQueue({ dept, stu, results, onBack, onOpen }) {
         ← All departments
       </button>
       <div className="page-head">
-        <h1>{d.icon + ' ' + d.name}</h1>
+        <h1>{d.name}</h1>
         <p>
           {allocCountForDept +
             ' charts allocated to you \u00b7 ' +

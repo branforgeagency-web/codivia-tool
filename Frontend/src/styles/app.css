@@ -263,7 +263,7 @@
     body.printing .print-area .btn{ display:none !important; }
   }
 
-/* ===== CODIVIA-BUILD-APP-1026A: split sign-in / Start free ===== */
+/* ===== CODIVIA-BUILD-APP-1026A: split sign-in / Sign up ===== */
 .cvx-auth{
   min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);background:var(--tone-f6f5f2);
   font-family:var(--font-auth);color:var(--ink)}

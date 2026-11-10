@@ -7,10 +7,10 @@ import { cvxGuestSession } from '../../services/session.js';
 import { activeDeptKeys } from '../../utils/allocation.js';
 
 // ---------------- LOGIN ----------------
-// CODIVIA-BUILD-APP-1102A — split sign-in / Start free screen (matches the black + orange homepage).
+// CODIVIA-BUILD-APP-1102A — split sign-in / Sign up screen (matches the black + orange homepage).
 //   /app.html                    -> Sign in
-//   /app.html?signup=1           -> Start free (create account)
-//   /app.html?signup=1&dept=KEY  -> Start free, with that department shown (KEY = DEPTS key, e.g. CARDIO)
+//   /app.html?signup=1           -> Sign up (create account)
+//   /app.html?signup=1&dept=KEY  -> Sign up, with that department shown (KEY = DEPTS key, e.g. CARDIO)
 // Auth calls are unchanged: window.CV_FB.register / login / resetPassword.
 export const CVX_IMG = {
   '01': '/assets/departments/01.webp',
@@ -215,7 +215,7 @@ export function Login({ onLogin }) {
         <div className="cvx-pitch">
           <span className="cvx-eyebrow">
             <i />
-            {reg ? 'Start free' : 'Welcome back'}
+            {reg ? 'Sign up' : 'Welcome back'}
           </span>
           <h1>
             Code real charts.
@@ -267,7 +267,7 @@ export function Login({ onLogin }) {
         <form className="cvx-card" onSubmit={submit} noValidate={true}>
           <Tabs id={accountTabs.id} label="Account" className="cvx-tabs" activeClassName="on"
             value={reg ? 'register' : 'login'} onChange={switchMode}
-            items={[{ value: 'login', label: 'Sign in' }, { value: 'register', label: 'Start free' }]} />
+            items={[{ value: 'login', label: 'Sign in' }, { value: 'register', label: 'Sign up' }]} />
           <div {...accountTabs.panelProps}>
           <h2>{reg ? 'Create your free account' : 'Sign in to your workspace'}</h2>
           <p className="cvx-sub">
@@ -351,7 +351,7 @@ export function Login({ onLogin }) {
               className="cvx-link"
               onClick={() => switchMode(reg ? 'login' : 'register')}
             >
-              {reg ? 'Sign in' : 'Start free'}
+              {reg ? 'Sign in' : 'Sign up'}
             </button>
           </div>
           <button

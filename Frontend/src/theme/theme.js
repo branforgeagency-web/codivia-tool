@@ -35,7 +35,7 @@ export const colors = {
   dangerLight: '#fef2f2',
 };
 
-// sign-in / Start free screen
+// sign-in / Sign up screen
 export const authColors = {
   accent: colors.brand,
   accentDark: colors.brandDark,

@@ -16,5 +16,6 @@ const loginLimiter = limiter(15 * 60 * 1000, 10, 'Too many failed login attempts
   skipSuccessfulRequests: true,
 });
 const refreshLimiter = limiter(15 * 60 * 1000, 60, 'Too many token refresh requests. Try again later.');
+const registerLimiter = limiter(60 * 60 * 1000, 10, 'Too many sign-ups from this network. Try again in an hour.');
 
-module.exports = { loginLimiter, refreshLimiter };
+module.exports = { loginLimiter, refreshLimiter, registerLimiter };
