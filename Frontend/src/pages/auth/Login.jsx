@@ -62,6 +62,16 @@ export const CVX_DEPT_IMG = {
   PATH: '21',
 };
 
+// Icon paths used in the sign-in card
+const ICON = {
+  lock: 'M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1zM8 11V7a4 4 0 0 1 8 0v4M12 15v2',
+  userPlus: 'M15 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M8.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6',
+  user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  mail: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM3.5 6.5l8.5 6 8.5-6',
+  key: 'M7.5 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM11 12h10M18 12v3M21 12v2',
+  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+};
+
 export function cvxParams() {
   try {
     const p = new URLSearchParams(window.location.search);
@@ -190,21 +200,30 @@ export function Login({ onLogin }) {
   };
 
   const reg = mode === 'register';
-  const CHECK = 'M20 6 9 17l-5-5';
+  // [title, detail, icon path]
   const perks = [
     [
       liveDepts + ' departments with real charts',
       'Cardiology to pathology, outpatient to inpatient.',
+      'M3 21h18M5 21V8l7-5 7 5v13M10 21v-5h4v5M12 7v5M9.5 9.5h5',
     ],
     [
       '171,568 live codes built in',
       'ICD-10-CM, CPT®, HCPCS and ICD-10-PCS, searchable while you code.',
+      'm8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16',
     ],
-    ['Every chart scored with a reason', 'See what you missed and why, in plain language.'],
-    ['Certificate at 200 charts', 'Your accuracy record and resume are built as you go.'],
+    [
+      'Every chart scored with a reason',
+      'See what you missed and why, in plain language.',
+      'M21 12a9 9 0 1 1-9-9M17 12a5 5 0 1 1-5-5M12 12l7-7M16 5h3v3',
+    ],
+    [
+      'Certificate at 200 charts',
+      'Your accuracy record and resume are built as you go.',
+      'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.2 13.9 7 22l5-3 5 3-1.2-8.1',
+    ],
   ];
   const mosaic = ['01', '09', '11', '02', '06', '13'];
-
   return (
     <div className="cvx-auth">
       {/* ---------- left: brand + value ---------- */}
@@ -248,7 +267,7 @@ export function Login({ onLogin }) {
           {perks.map((p, i) => (
             <li key={i}>
               <span className="cvx-ck">
-                <CvxIcon d={CHECK} />
+                <CvxIcon d={p[2]} />
               </span>
               <div>
                 <b>{p[0]}</b>
@@ -269,6 +288,9 @@ export function Login({ onLogin }) {
             value={reg ? 'register' : 'login'} onChange={switchMode}
             items={[{ value: 'login', label: 'Sign in' }, { value: 'register', label: 'Sign up' }]} />
           <div {...accountTabs.panelProps}>
+          <div className="cvx-card-ico" aria-hidden={true}>
+            <CvxIcon d={reg ? ICON.userPlus : ICON.lock} />
+          </div>
           <h2>{reg ? 'Create your free account' : 'Sign in to your workspace'}</h2>
           <p className="cvx-sub">
             {reg
@@ -285,23 +307,29 @@ export function Login({ onLogin }) {
           {reg && (
             <label className="cvx-f">
               <span>Full name</span>
-              <input
-                value={name}
-                onChange={(ev) => setName(ev.target.value)}
-                placeholder="e.g. Jordan Miller"
-                autoComplete="name"
-              />
+              <div className="cvx-in">
+                <CvxIcon d={ICON.user} />
+                <input
+                  value={name}
+                  onChange={(ev) => setName(ev.target.value)}
+                  placeholder="e.g. Jordan Miller"
+                  autoComplete="name"
+                />
+              </div>
             </label>
           )}
           <label className="cvx-f">
             <span>Email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(ev) => setEmail(ev.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-            />
+            <div className="cvx-in">
+              <CvxIcon d={ICON.mail} />
+              <input
+                type="email"
+                value={email}
+                onChange={(ev) => setEmail(ev.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+              />
+            </div>
           </label>
           <label className="cvx-f">
             <span>
@@ -312,7 +340,8 @@ export function Login({ onLogin }) {
                 </button>
               )}
             </span>
-            <div className="cvx-pw">
+            <div className="cvx-pw cvx-in">
+              <CvxIcon d={ICON.key} />
               <input
                 type={showPw ? 'text' : 'password'}
                 value={pw}
@@ -344,6 +373,20 @@ export function Login({ onLogin }) {
             {busy ? 'Please wait…' : reg ? 'Create account' : 'Sign in'}
             {!busy && <CvxIcon d="M5 12h14M13 6l6 6-6 6" />}
           </button>
+          <div className="cvx-or">
+            <span>or</span>
+          </div>
+          <button
+            type="button"
+            className="cvx-guest"
+            onClick={() => {
+              window.CVX_WANT_LOGIN = false;
+              onLogin(cvxGuestSession());
+            }}
+          >
+            <CvxIcon d={ICON.eye} />
+            Continue without signing in
+          </button>
           <div className="cvx-switch">
             {reg ? 'Already have an account? ' : 'New to CODIVIA? '}
             <button
@@ -354,16 +397,6 @@ export function Login({ onLogin }) {
               {reg ? 'Sign in' : 'Sign up'}
             </button>
           </div>
-          <button
-            type="button"
-            className="cvx-guest"
-            onClick={() => {
-              window.CVX_WANT_LOGIN = false;
-              onLogin(cvxGuestSession());
-            }}
-          >
-            Continue without signing in
-          </button>
           <div className="cvx-secure">
             <CvxIcon d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6z" />
             Secured with Firebase Authentication

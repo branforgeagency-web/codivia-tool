@@ -1064,3 +1064,417 @@ tbody tr:hover {
   flex-shrink: 0;
   margin-top: 4px;
 }
+
+/* ---- Student dashboard hero: welcome + stats on one hospital banner ---- */
+.dash-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  min-height: 280px;
+  margin-bottom: 24px;
+  padding: 36px clamp(20px, 3vw, 40px) 26px;
+  border-radius: 18px;
+  overflow: hidden;
+  background:
+    linear-gradient(100deg, rgba(8, 22, 46, 0.9) 0%, rgba(8, 22, 46, 0.7) 45%, rgba(8, 22, 46, 0.3) 100%),
+    url('/assets/images/Hospital.png') center 40% / cover no-repeat;
+  box-shadow: 0 10px 30px rgba(8, 22, 46, 0.18);
+}
+.dash-hero .page-head,
+.dash-hero .stat-row {
+  margin-bottom: 0;
+}
+.dash-hero .page-head h1 {
+  color: #fff;
+}
+.dash-hero .page-head p {
+  color: rgba(255, 255, 255, 0.82);
+}
+.dash-hero .stat {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.dash-hero .stat .k,
+.dash-hero .stat .s {
+  color: rgba(255, 255, 255, 0.75);
+}
+.dash-hero .stat .v,
+.dash-hero .stat.teal .v {
+  color: #fff;
+}
+.dash-hero .stat.teal {
+  border-top: 3px solid var(--teal);
+}
+@media (max-width: 600px) {
+  .dash-hero {
+    min-height: 0;
+    padding: 24px 16px 16px;
+    gap: 20px;
+    border-radius: 14px;
+  }
+}
+
+/* ---- Login: one full-page hospital background behind both columns ---- */
+.cvx-auth {
+  background:
+    linear-gradient(90deg, rgba(8, 10, 14, 0.9) 0%, rgba(8, 10, 14, 0.72) 48%, rgba(8, 10, 14, 0.45) 100%),
+    url('/assets/images/Hospital.png') center / cover no-repeat;
+  background-color: #0b0b0c;
+}
+.cvx-side,
+.cvx-main {
+  background: transparent;
+}
+.cvx-side::before,
+.cvx-mosaic {
+  display: none;
+}
+.cvx-pitch {
+  margin-top: auto;
+}
+.cvx-side-ft {
+  color: rgba(255, 255, 255, 0.55);
+}
+.cvx-back,
+.cvx-roles {
+  color: rgba(255, 255, 255, 0.8);
+}
+.cvx-back:hover {
+  color: #fff;
+}
+.cvx-card {
+  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.55);
+}
+
+/* Login: larger left-side text on screens with room for it */
+@media (min-width: 901px) and (min-height: 781px) {
+  .cvx-eyebrow {
+    font-size: 14px;
+  }
+  .cvx-pitch h1 {
+    font-size: clamp(54px, 6.4vw, 96px);
+  }
+  .cvx-pitch p {
+    font-size: 21px;
+    max-width: 32em;
+  }
+  .cvx-perks {
+    max-width: 680px;
+    gap: 20px;
+  }
+  .cvx-perks b {
+    font-size: 19px;
+  }
+  .cvx-perks span {
+    font-size: 16.5px;
+  }
+  .cvx-ck {
+    width: 34px;
+    height: 34px;
+  }
+  .cvx-side-ft {
+    font-size: 13px;
+  }
+}
+/* Short laptop screens: bigger than before, still fits without scrolling */
+@media (min-width: 901px) and (max-height: 780px) {
+  .cvx-eyebrow {
+    font-size: 12.5px;
+  }
+  .cvx-pitch h1 {
+    font-size: clamp(42px, 6.4vh, 64px);
+  }
+  .cvx-pitch p {
+    font-size: 17px;
+  }
+  .cvx-perks b {
+    font-size: 17px;
+  }
+}
+/* Phones / tablets */
+@media (max-width: 900px) {
+  .cvx-pitch h1 {
+    font-size: 40px;
+  }
+}
+
+/* Login perks: per-perk icon in a glowing orange badge.
+   `.cvx-perks .cvx-ck` beats the old `.cvx-perks span {display:block}` that pushed the icon off-center. */
+.cvx-perks li {
+  align-items: center;
+  gap: 16px;
+}
+.cvx-perks .cvx-ck {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, #ff9d5c 0%, #f26722 55%, #c94a10 100%);
+  box-shadow:
+    0 0 0 3px rgba(242, 103, 34, 0.18),
+    0 6px 16px -5px rgba(242, 103, 34, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.cvx-perks .cvx-ck::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 157, 92, 0.35);
+}
+.cvx-perks .cvx-ck svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+.cvx-perks li > div > b {
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+}
+@media (max-height: 780px) {
+  .cvx-perks .cvx-ck {
+    width: 28px;
+    height: 28px;
+  }
+  .cvx-perks .cvx-ck::after {
+    inset: -5px;
+  }
+  .cvx-perks .cvx-ck svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Login perks: keep enough space between rows that the badge rings never touch */
+.cvx-perks {
+  gap: 24px;
+}
+@media (max-height: 780px) {
+  .cvx-perks {
+    gap: 18px;
+  }
+}
+
+/* ---- Login card polish ---- */
+.cvx-card {
+  position: relative;
+  max-width: 450px;
+  padding: 34px 34px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 40px 80px -24px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+/* orange accent along the top edge */
+.cvx-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #ff9d5c, #f26722 50%, #c94a10);
+}
+.cvx-tabs {
+  background: #f3f2ef;
+  border-radius: 14px;
+  padding: 5px;
+}
+.cvx-tabs button {
+  border-radius: 10px;
+}
+.cvx-tabs button.on {
+  color: #f26722;
+  box-shadow: 0 2px 8px rgba(20, 18, 16, 0.1);
+}
+.cvx-card-ico {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(145deg, #ff9d5c, #f26722 55%, #c94a10);
+  box-shadow: 0 10px 22px -8px rgba(242, 103, 34, 0.7);
+}
+.cvx-card-ico svg {
+  width: 22px;
+  height: 22px;
+}
+.cvx-card h2 {
+  font-size: 26px;
+}
+.cvx-sub {
+  margin-bottom: 22px;
+}
+.cvx-f > span {
+  font-size: 13px;
+  color: #3c3a36;
+}
+/* inputs with a leading icon */
+.cvx-in {
+  position: relative;
+}
+.cvx-in > svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: #a19d95;
+  pointer-events: none;
+  transition: color 0.15s;
+}
+.cvx-in:focus-within > svg {
+  color: #f26722;
+}
+.cvx-f .cvx-in input {
+  height: 48px;
+  padding-left: 44px;
+  border: 1.5px solid #e6e3dd;
+  border-radius: 12px;
+  background: #faf9f7;
+}
+.cvx-f .cvx-in input:hover {
+  border-color: #d6d2ca;
+}
+.cvx-f .cvx-in input:focus {
+  background: #fff;
+  border-color: #f26722;
+  box-shadow: 0 0 0 4px rgba(242, 103, 34, 0.14);
+}
+.cvx-pw.cvx-in input {
+  padding-right: 64px;
+}
+.cvx-eye {
+  border-radius: 8px;
+  color: #f26722;
+}
+.cvx-eye:hover {
+  background: rgba(242, 103, 34, 0.08);
+}
+.cvx-btn {
+  height: 50px;
+  margin-top: 8px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff8a3d 0%, #f26722 50%, #d9540f 100%);
+  box-shadow: 0 14px 28px -12px rgba(242, 103, 34, 0.9);
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s,
+    filter 0.15s;
+}
+.cvx-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff8a3d 0%, #f26722 50%, #d9540f 100%);
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 18px 32px -12px rgba(242, 103, 34, 1);
+}
+.cvx-btn svg {
+  transition: transform 0.15s;
+}
+.cvx-btn:hover:not(:disabled) svg {
+  transform: translateX(3px);
+}
+/* "or" divider */
+.cvx-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #a19d95;
+}
+.cvx-or::before,
+.cvx-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #ebe8e2;
+}
+.cvx-guest {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 48px;
+  margin-top: 14px;
+  border: 1.5px solid #e6e3dd;
+  border-radius: 12px;
+  background: #fff;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+.cvx-guest svg {
+  color: #a19d95;
+}
+.cvx-guest:hover {
+  background: #fff8f3;
+}
+.cvx-guest:hover svg {
+  color: #f26722;
+}
+.cvx-switch {
+  margin-top: 18px;
+}
+.cvx-secure {
+  border-top-color: #f0eee9;
+}
+@media (max-width: 900px) {
+  .cvx-card {
+    padding: 26px 20px 18px;
+    border-radius: 20px;
+  }
+}
+/* short screens: drop the extras so the form still fits without scrolling */
+@media (max-height: 780px) {
+  .cvx-card-ico {
+    display: none;
+  }
+  .cvx-card {
+    padding-top: 22px;
+  }
+  .cvx-f .cvx-in input,
+  .cvx-btn,
+  .cvx-guest {
+    height: 42px;
+  }
+  .cvx-or {
+    margin-top: 10px;
+  }
+  .cvx-guest {
+    margin-top: 10px;
+  }
+  .cvx-switch {
+    margin-top: 10px;
+  }
+}
+@media (max-height: 560px) {
+  .cvx-or {
+    display: none;
+  }
+  .cvx-f .cvx-in input,
+  .cvx-btn,
+  .cvx-guest {
+    height: 36px;
+  }
+}
