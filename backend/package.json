@@ -10,7 +10,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed:admin": "node src/scripts/seedAdmin.js",
-    "seed:charts": "node src/scripts/seedCharts.js"
+    "seed:charts": "node src/scripts/seedCharts.js",
+    "seed:departments": "node src/scripts/seedDepartments.js"
   },
   "private": true,
   "engines": {

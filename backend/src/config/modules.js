@@ -4,12 +4,15 @@ const ALL_ACTIONS = Object.freeze(Object.values(ACTIONS));
 const MODULES = Object.freeze({
   USERS: 'users',
   ACCESS_CONTROL: 'access-control',
+  DEPARTMENTS: 'departments',
 });
 
 // selfService: staff manage their own records ; restricted: closed by default ; adminOnly: Admin only
 const MODULE_LIST = Object.freeze([
   { key: MODULES.ACCESS_CONTROL, label: 'Access Control', restricted: true },
   { key: MODULES.USERS, label: 'Users', restricted: true, adminOnly: true },
+  // Not restricted: students and auditors can view (active departments only); Admin manages.
+  { key: MODULES.DEPARTMENTS, label: 'Departments' },
 ]);
 
 const MODULE_KEYS = Object.freeze(MODULE_LIST.map((m) => m.key));
