@@ -1,7 +1,7 @@
-/* CODIVIA platform — reusable pager: "Showing 1–6 of 22", « ‹ page numbers › », page size.
-   Keyboard: with focus anywhere in the pager, ← / → change page, Home / End jump to first / last.
-   Works with usePagination() (client-side) or with API totals (server-side): it only needs
-   page, pageSize, total and the change handlers. Styles: .pager-* in styles/refinements.css */
+/* CODIVIA platform — reusable pager, shown bottom-right: "1–8 of 22 departments" + a pill with
+   « ‹ page numbers › ». Keyboard: with focus in the pager, ← / → change page, Home / End jump to
+   first / last. Works with usePagination() (client-side) or API totals (server-side): it only
+   needs page, pageSize, total and onPageChange. Styles: .pager-* in styles/refinements.css */
 
 // Page numbers with ellipses, e.g. [1, '…', 4, 5, 6, '…', 12].
 function pageItems(page, count) {
@@ -26,11 +26,11 @@ const ARROWS = {
 const Arrow = ({ dir }) => (
   <svg
     viewBox="0 0 24 24"
-    width={16}
-    height={16}
+    width={15}
+    height={15}
     fill="none"
     stroke="currentColor"
-    strokeWidth={2.2}
+    strokeWidth={2.4}
     strokeLinecap="round"
     strokeLinejoin="round"
     aria-hidden={true}
@@ -44,8 +44,6 @@ export function Pagination({
   pageSize,
   total,
   onPageChange,
-  onPageSizeChange,
-  pageSizeOptions = [6, 12, 24],
   itemLabel = 'items',
   showFirstLast = true,
   className = '',
@@ -62,7 +60,6 @@ export function Pagination({
   const atEnd = page === pageCount;
 
   const onKeyDown = (ev) => {
-    if (ev.target.tagName === 'SELECT') return; // arrows change the page-size dropdown there
     const keys = { ArrowLeft: page - 1, ArrowRight: page + 1, Home: 1, End: pageCount };
     if (!(ev.key in keys)) return;
     ev.preventDefault();
@@ -85,57 +82,39 @@ export function Pagination({
   return (
     <nav className={'pager ' + className} aria-label="Pagination" onKeyDown={onKeyDown}>
       <span className="pager-info">
-        Showing{' '}
         <b>
           {start}–{end}
         </b>{' '}
-        of <b>{total}</b> {itemLabel}
-        {pageCount > 1 && (
-          <span className="pager-of">
-            {' · Page '}
-            {page} of {pageCount}
-          </span>
-        )}
+        of {total} {itemLabel}
       </span>
 
       {pageCount > 1 && (
         <div className="pager-pages">
           {showFirstLast && arrowBtn('first', 1, atStart, 'First page')}
           {arrowBtn('prev', page - 1, atStart, 'Previous page (←)')}
-          {pageItems(page, pageCount).map((p, i) =>
-            p === '…' ? (
-              <span key={'gap' + i} className="pager-gap" aria-hidden="true">
-                …
-              </span>
-            ) : (
-              <button
-                key={p}
-                type="button"
-                className={'pager-btn num' + (p === page ? ' on' : '')}
-                onClick={() => go(p)}
-                aria-current={p === page ? 'page' : undefined}
-                aria-label={'Page ' + p}
-              >
-                {p}
-              </button>
-            ),
-          )}
+          <span className="pager-nums">
+            {pageItems(page, pageCount).map((p, i) =>
+              p === '…' ? (
+                <span key={'gap' + i} className="pager-gap" aria-hidden="true">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  className={'pager-btn num' + (p === page ? ' on' : '')}
+                  onClick={() => go(p)}
+                  aria-current={p === page ? 'page' : undefined}
+                  aria-label={'Page ' + p}
+                >
+                  {p}
+                </button>
+              ),
+            )}
+          </span>
           {arrowBtn('next', page + 1, atEnd, 'Next page (→)')}
           {showFirstLast && arrowBtn('last', pageCount, atEnd, 'Last page')}
         </div>
-      )}
-
-      {onPageSizeChange && (
-        <label className="pager-size">
-          Per page
-          <select value={pageSize} onChange={(ev) => onPageSizeChange(Number(ev.target.value))}>
-            {pageSizeOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
       )}
     </nav>
   );

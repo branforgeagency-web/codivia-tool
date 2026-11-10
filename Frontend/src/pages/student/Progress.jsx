@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { DeptProgressCard } from '../../components/progress/DeptProgressCard.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
 import { ProgressRing } from '../../components/ui/ProgressRing.jsx';
+import { StatTile, StatTiles } from '../../components/ui/StatTile.jsx';
 import { CERT_THRESHOLD, DEPTS } from '../../config/constants.js';
 import { useStudent } from '../../context/StudentContext.jsx';
 import { usePagination } from '../../hooks/usePagination.js';
@@ -106,20 +107,11 @@ export function ProgressView({ stats }) {
         </div>
       </header>
 
-      <div className="pg-tiles">
+      <StatTiles>
         {tiles.map(([ico, k, v, s], i) => (
-          <div key={k} className={'pg-tile' + (i === 0 ? ' lead' : '')}>
-            <span className="pg-tile-ico">
-              <Icon d={ICON[ico]} />
-            </span>
-            <div>
-              <span className="k">{k}</span>
-              <b className="v">{v}</b>
-              <span className="s">{s}</span>
-            </div>
-          </div>
+          <StatTile key={k} lead={i === 0} icon={ICON[ico]} label={k} value={v} caption={s} />
         ))}
-      </div>
+      </StatTiles>
 
       <div className="pg-section">
         <div>
@@ -159,7 +151,7 @@ export function ProgressView({ stats }) {
               <DeptProgressCard key={r.dk} deptKey={r.dk} name={r.name} stats={r.st} />
             ))}
           </div>
-          <Pagination {...pager.props} itemLabel="departments" pageSizeOptions={[6, 12, 24]} />
+          <Pagination {...pager.props} itemLabel="departments" />
         </>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import React from 'react';
+import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { useStudent } from '../../context/StudentContext.jsx';
 
 // ---- Student certificate uploads (AAPC + educational certs) ----
@@ -108,7 +109,7 @@ export function MyCertificates({ stu }) {
           <h3>Uploaded certificates</h3>
         </div>
         {items === null ? (
-          <div style={{ padding: 20, color: 'var(--muted)', fontSize: 13 }}>Loading…</div>
+          <PageLoader variant="inline" label="Loading certificates" />
         ) : items.length === 0 ? (
           <div style={{ padding: 20, color: 'var(--muted)', fontSize: 13 }}>
             No certificates uploaded yet.

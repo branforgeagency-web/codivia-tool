@@ -1,5 +1,6 @@
-import { Loader } from './Loader.jsx';
+import { PageLoader } from './PageLoader.jsx';
 
+// Suspense fallback while a lazy-loaded page downloads.
 export function RouteLoading() {
-  return <div className="route-loading"><Loader label="Loading page..." /></div>;
+  return <PageLoader label="Loading page" />;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import React from 'react';
+import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { DEPTS } from '../../config/constants.js';
 import { activeDeptKeys } from '../../utils/allocation.js';
 import { validateCode } from '../../utils/codes.js';
@@ -470,7 +471,7 @@ export function AdminUpload() {
         </div>
         <div style={{ padding: '12px 16px' }}>
           {loadingDrafts ? (
-            <div style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</div>
+            <PageLoader variant="inline" label="Loading uploads" />
           ) : drafts.length === 0 ? (
             <div style={{ color: 'var(--muted)', fontSize: 13 }}>Nothing uploaded yet.</div>
           ) : (

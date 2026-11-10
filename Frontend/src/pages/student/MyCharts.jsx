@@ -58,7 +58,7 @@ export function DeptSelect({ stu, stats, onSelect }) {
         <div className="charts-departments">
           {pager.items.map(d => <DeptChartCard key={d.key} dept={d} onOpen={onSelect} />)}
         </div>
-        <Pagination {...pager.props} itemLabel="departments" pageSizeOptions={[8, 16, 24]} />
+        <Pagination {...pager.props} itemLabel="departments" />
         {!visible.length && <div className="charts-empty"><NavIcon name="findcode" /><h3>No departments found</h3><p>Try another search or show all departments.</p>
           <button className="btn btn-ghost" onClick={() => { setQuery(''); setFilter('all'); }}>Clear filters</button></div>}
       </> : <div className="charts-empty"><NavIcon name="charts" /><h2>Your charts will appear here</h2><p>Your trainer will allocate departments to your account. Once assigned, you can start coding and track your progress here.</p></div>}
