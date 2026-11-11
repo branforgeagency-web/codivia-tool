@@ -11,7 +11,8 @@
     "dev": "nodemon src/index.js",
     "seed:admin": "node src/scripts/seedAdmin.js",
     "seed:charts": "node src/scripts/seedCharts.js",
-    "seed:departments": "node src/scripts/seedDepartments.js"
+    "seed:departments": "node src/scripts/seedDepartments.js",
+    "seed:codes": "node src/scripts/seedCodes.js"
   },
   "private": true,
   "engines": {

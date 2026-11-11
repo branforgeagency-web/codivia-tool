@@ -4,6 +4,7 @@ const authRoute = require('./auth.route');
 const userRoute = require('./user.route');
 const accessRoute = require('./access.route');
 const departmentRoute = require('./department.route');
+const codeRoute = require('./code.route');
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ const routes = [
   { path: '/users', route: userRoute },
   { path: '/access', route: accessRoute },
   { path: '/departments', route: departmentRoute },
+  { path: '/codes', route: codeRoute },
 ];
 
 routes.forEach(({ path, route }) => router.use(path, route));
