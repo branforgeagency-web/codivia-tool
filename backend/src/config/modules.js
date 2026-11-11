@@ -6,9 +6,11 @@ const MODULES = Object.freeze({
   ACCESS_CONTROL: 'access-control',
   DEPARTMENTS: 'departments',
   CODES: 'codes',
+  RESUMES: 'resumes',
 });
 
 // selfService: staff manage their own records ; restricted: closed by default ; adminOnly: Admin only
+// ownRecords: full access by default, but only to records the user owns (enforced in the service)
 const MODULE_LIST = Object.freeze([
   { key: MODULES.ACCESS_CONTROL, label: 'Access Control', restricted: true },
   { key: MODULES.USERS, label: 'Users', restricted: true, adminOnly: true },
@@ -16,6 +18,8 @@ const MODULE_LIST = Object.freeze([
   { key: MODULES.DEPARTMENTS, label: 'Departments' },
   // Not restricted: every signed-in role can search codes (read-only reference data).
   { key: MODULES.CODES, label: 'Code Search' },
+  // ownRecords: every role adds / edits / deletes its own resumes; the service hides other people's.
+  { key: MODULES.RESUMES, label: 'Resumes', ownRecords: true },
 ]);
 
 const MODULE_KEYS = Object.freeze(MODULE_LIST.map((m) => m.key));

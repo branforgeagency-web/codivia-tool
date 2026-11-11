@@ -3230,3 +3230,750 @@ tbody tr:hover {
   bottom: 20%;
   font-size: 8.5px;
 }
+
+/* ---- Resume Builder (pages/student/resume/ResumeBuilder.jsx, formParts.jsx) ---- */
+.rb {
+  --rb-or: #f26722;
+  --rb-or-lt: #fff1e7;
+  --rb-or-line: #f6d4bd;
+}
+/* hero */
+.rb-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.rb-hero-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1 1 380px;
+  min-width: 0;
+}
+.rb-hero-ico {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  font-size: 24px;
+  color: #fff;
+  background: linear-gradient(145deg, #ff9d5c, #f26722 55%, #c94a10);
+  box-shadow: 0 12px 24px -10px rgba(242, 103, 34, 0.8);
+}
+.rb-hero h1 {
+  margin: 0;
+  font-size: clamp(22px, 2.2vw, 28px);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.rb-hero p {
+  margin: 6px 0 0;
+  max-width: 560px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.rb-hero-acts {
+  display: flex;
+  gap: 10px;
+}
+/* buttons */
+.rb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+.rb-btn.sm {
+  padding: 7px 12px;
+  font-size: 12px;
+  border-radius: 9px;
+}
+.rb-btn.primary {
+  color: #fff;
+  background: linear-gradient(90deg, #ff8a3d, #f26722);
+  box-shadow: 0 10px 20px -12px rgba(242, 103, 34, 0.95);
+}
+.rb-btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 24px -12px rgba(242, 103, 34, 0.95);
+}
+.rb-btn.ghost {
+  color: var(--ink);
+  background: #fff;
+  border-color: var(--line);
+}
+.rb-btn.ghost:hover {
+  border-color: #d9d4cc;
+  background: #faf9f7;
+}
+.rb-btn.soft {
+  color: #c2510f;
+  background: var(--rb-or-lt);
+  border-color: var(--rb-or-line);
+}
+.rb-btn.soft:hover,
+.rb-btn.soft.on {
+  background: #ffe6d4;
+}
+.rb-btn:focus-visible,
+.rb-link:focus-visible,
+.rb-swatch:focus-visible,
+.rb-layout:focus-visible,
+.rb-sec-head:focus-visible {
+  outline: 2px solid var(--rb-or);
+  outline-offset: 2px;
+}
+.rb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  font-weight: 650;
+  color: #c2510f;
+  cursor: pointer;
+}
+.rb-link:hover {
+  text-decoration: underline;
+}
+.rb-link.danger {
+  color: #c0392b;
+  margin-left: 10px;
+}
+/* template bar */
+.rb-tpl {
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(20, 18, 16, 0.04);
+  overflow: hidden;
+}
+.rb-tpl-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+}
+.rb-tpl-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  flex: 1 1 180px;
+}
+.rb-tpl-info .k {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.rb-tpl-info strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.rb-tpl-info .s {
+  font-size: 12px;
+  color: var(--muted);
+}
+.rb-swatches {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f7f6f3;
+}
+.rb-swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--sw);
+  box-shadow: 0 0 0 1px rgba(20, 18, 16, 0.12);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.rb-swatch:hover {
+  transform: scale(1.12);
+}
+.rb-swatch.on {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px var(--sw);
+}
+.rb-thumb {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  pointer-events: none;
+}
+.rb-thumb > div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+}
+.rb-layouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+  padding: 16px;
+  border-top: 1px solid var(--line);
+  background: #faf9f7;
+}
+.rb-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+.rb-layout:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px -18px rgba(20, 18, 16, 0.35);
+}
+.rb-layout.on {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px var(--acc);
+}
+.rb-layout .rb-thumb {
+  margin-bottom: 6px;
+}
+.rb-layout-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.rb-layout-check {
+  color: var(--acc);
+}
+.rb-layout-desc {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+/* editor + preview */
+.rb-body {
+  display: grid;
+  grid-template-columns: minmax(340px, 440px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+/* The page scrolls inside .main (below the 64px top bar). The editor sticks to the top of that
+   scroll area and scrolls on its own; the preview is never a scroll box, it grows with the resume. */
+.rb-editor {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: calc(100dvh - 64px - 40px);
+  overflow-y: auto;
+  /* no overscroll-behavior: at the editor's end the wheel must carry on scrolling the page */
+  padding: 2px 6px 12px 2px;
+  scrollbar-width: thin;
+}
+.rb-editor-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+}
+.rb-editor-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.rb-editor-title i {
+  color: var(--rb-or);
+}
+/* sections */
+.rb-sec {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.rb-sec.open {
+  border-color: var(--rb-or-line);
+  box-shadow: 0 10px 24px -18px rgba(242, 103, 34, 0.6);
+}
+.rb-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.rb-sec-ico {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 16px;
+  color: var(--rb-or);
+  background: var(--rb-or-lt);
+}
+.rb-sec.open .rb-sec-ico {
+  color: #fff;
+  background: linear-gradient(145deg, #ff9d5c, #f26722);
+}
+.rb-sec-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.rb-sec-meta {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: #f3f2ef;
+}
+.rb-sec-chev {
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+.rb-sec.open .rb-sec-chev {
+  transform: rotate(180deg);
+}
+.rb-sec-body {
+  padding: 4px 14px 16px;
+}
+/* fields */
+.rb-field {
+  margin-bottom: 12px;
+}
+.rb-field-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+.rb-field label {
+  font-size: 11.5px;
+  font-weight: 650;
+  color: #57534e;
+}
+.rb-count {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.rb-count.over {
+  color: #c0392b;
+  font-weight: 700;
+}
+.rb-field input,
+.rb-field textarea,
+.rb-bullet textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.rb-field textarea,
+.rb-bullet textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+.rb-field input:focus,
+.rb-field textarea:focus,
+.rb-bullet textarea:focus {
+  outline: none;
+  border-color: var(--rb-or);
+  box-shadow: 0 0 0 3px rgba(242, 103, 34, 0.14);
+}
+.rb-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.rb-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 10px;
+}
+/* photo */
+.rb-photo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: #faf9f7;
+}
+.rb-photo img,
+.rb-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.rb-avatar {
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+}
+/* repeating items */
+.rb-item {
+  margin-bottom: 10px;
+  padding: 10px 12px 2px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fcfbfa;
+}
+.rb-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.rb-item-no {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #c2510f;
+  background: var(--rb-or-lt);
+}
+.rb-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.rb-item-acts {
+  display: flex;
+  gap: 4px;
+}
+.rb-item-acts button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rb-item-acts button:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: #d9d4cc;
+}
+.rb-item-acts button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.rb-item-acts button.rm:hover {
+  color: #c0392b;
+  border-color: #f3c4bd;
+  background: #fff5f3;
+}
+.rb-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border: 1.5px dashed var(--rb-or-line);
+  border-radius: 11px;
+  background: #fffaf6;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #c2510f;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.rb-add:hover {
+  background: var(--rb-or-lt);
+}
+/* bullets */
+.rb-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.rb-bullet .dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-top: 15px;
+  border-radius: 50%;
+  background: var(--rb-or);
+}
+.rb-bullet textarea {
+  padding: 7px 10px;
+  font-size: 12.5px;
+}
+.rb-bullet button {
+  flex-shrink: 0;
+  margin-top: 6px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rb-bullet button:hover {
+  color: #c0392b;
+  background: #fff5f3;
+}
+/* tags */
+.rb-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.rb-tags:focus-within {
+  border-color: var(--rb-or);
+  box-shadow: 0 0 0 3px rgba(242, 103, 34, 0.14);
+}
+.rb-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 550;
+  color: #9a3f0c;
+  background: var(--rb-or-lt);
+  border: 1px solid var(--rb-or-line);
+}
+.rb-tag button {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.rb-tag button:hover {
+  background: rgba(194, 81, 15, 0.15);
+}
+.rb-field .rb-tags input {
+  flex: 1 0 120px;
+  width: auto;
+  padding: 4px;
+  border: 0;
+  box-shadow: none;
+  font-size: 12.5px;
+}
+.rb-field .rb-tags input:focus {
+  box-shadow: none;
+}
+/* preview */
+.rb-preview {
+  min-width: 0;
+}
+.rb-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.rb-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+}
+.rb-live .pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0e9f6e;
+  box-shadow: 0 0 0 0 rgba(14, 159, 110, 0.5);
+  animation: rb-pulse 2s infinite;
+}
+@keyframes rb-pulse {
+  70% {
+    box-shadow: 0 0 0 7px rgba(14, 159, 110, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(14, 159, 110, 0);
+  }
+}
+.rb-preview-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.rb-preview-name .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.rb-canvas {
+  padding: 24px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #eeebe6, #e6e2dc);
+  border: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+.rb-paper {
+  max-width: 800px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow:
+    0 1px 3px rgba(20, 18, 16, 0.08),
+    0 18px 40px -20px rgba(20, 18, 16, 0.35);
+}
+.rb-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 10px 2px 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+/* narrow screens: stack editor above preview, no inner scrolling */
+@media (max-width: 1100px) {
+  .rb-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rb-editor {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+@media (max-width: 560px) {
+  .rb-grid2 {
+    grid-template-columns: 1fr;
+  }
+  .rb-hero-acts {
+    width: 100%;
+  }
+  .rb-hero-acts .rb-btn {
+    flex: 1;
+  }
+  .rb-canvas {
+    padding: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rb-live .pulse {
+    animation: none;
+  }
+}
+/* printing: only the paper, without the canvas styling */
+@media print {
+  body.printing .rb-canvas {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  body.printing .rb-paper {
+    border-radius: 0;
+    box-shadow: none !important;
+  }
+}

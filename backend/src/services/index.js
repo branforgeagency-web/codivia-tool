@@ -6,3 +6,4 @@ module.exports.authService = require('./auth.service');
 module.exports.accessService = require('./access.service');
 module.exports.departmentService = require('./department.service');
 module.exports.codeService = require('./code.service');
+module.exports.resumeService = require('./resume.service');

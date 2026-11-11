@@ -893,9 +893,282 @@ export function L_compact(R, P) {
   );
 }
 
+// ============ MORE LAYOUTS ============
+// Accent colour at a given strength over transparent (palette colours are CSS variables).
+function _soft(c, pct) {
+  return 'color-mix(in srgb, ' + c + ' ' + pct + '%, transparent)';
+}
+
+// Contact details as stacked lines with icons-as-labels (for sidebars / headers).
+function _contactLines(R, color, labelColor) {
+  var rows = [
+    ['Phone', R.phone],
+    ['Email', R.email],
+    ['Location', R.location],
+    ['LinkedIn', R.linkedin],
+  ].filter(function (r) {
+    return r[1] && ('' + r[1]).trim();
+  });
+  return rows.map(function (r) {
+    return (
+      <div key={r[0]} style={{ fontSize: 10.5, lineHeight: 1.35, marginBottom: 6, color: color, wordBreak: 'break-word' }}>
+        <div style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase', color: labelColor }}>
+          {r[0]}
+        </div>
+        {r[1]}
+      </div>
+    );
+  });
+}
+
+function _summary(R, size) {
+  return R.summary ? (
+    <div style={{ fontSize: size || 12, lineHeight: 1.6, color: 'var(--tone-334)' }}>{R.summary}</div>
+  ) : null;
+}
+
+// Skills as "Title: a · b · c" lines (ATS friendly).
+function _inlineSkills(R, P, labelColor) {
+  return [
+    ['Core Coding Skills', R.coreSkills],
+    ['Clinical Knowledge', R.clinical],
+    ['Tools', R.tools],
+    ['Professional Strengths', R.strengths],
+    ['Languages', R.languages],
+  ]
+    .filter(function (r) {
+      return _mono(r[1]).length;
+    })
+    .map(function (r) {
+      return (
+        <div key={r[0]} style={{ fontSize: 11.5, lineHeight: 1.55, marginBottom: 4, color: 'var(--tone-334)' }}>
+          <b style={{ color: labelColor || P.ink }}>{r[0] + ': '}</b>
+          {_mono(r[1]).join(' · ')}
+        </div>
+      );
+    });
+}
+
+// Classic: serif type, centred header, single column. Traditional and ATS friendly.
+export function L_classic(R, P) {
+  var serif = "Georgia, 'Times New Roman', serif";
+  var H = function (txt) {
+    return (
+      <div
+        style={{
+          fontFamily: serif,
+          fontSize: 13,
+          fontWeight: 700,
+          letterSpacing: 1.6,
+          textTransform: 'uppercase',
+          color: P.deep,
+          margin: '16px 0 8px',
+          paddingBottom: 4,
+          borderBottom: '1px solid ' + _soft(P.accent, 45),
+        }}
+      >
+        {txt}
+      </div>
+    );
+  };
+  return (
+    <div style={{ background: 'var(--color-white)', padding: '34px 40px', fontFamily: serif }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: 1, color: P.ink }}>{R.name}</div>
+        <div style={{ fontSize: 12, letterSpacing: 2.4, marginTop: 4, color: P.accent, fontWeight: 700 }}>
+          {R.role || ''}
+        </div>
+        <div style={{ fontSize: 11, marginTop: 8, color: 'var(--tone-556)' }}>{_contact(R, '  •  ')}</div>
+        <div style={{ margin: '14px auto 0', height: 3, borderTop: '1px solid ' + P.accent, borderBottom: '1px solid ' + P.accent }} />
+      </div>
+      {R.summary ? H('Professional Summary') : null}
+      {_summary(R, 12)}
+      {_expBlock(R, P, H)}
+      {_certEduProj(R, P, H)}
+      {H('Skills')}
+      {_inlineSkills(R, P)}
+    </div>
+  );
+}
+
+// Executive: big name left, contact right, thick accent rule, 65 / 35 body with a tinted side panel.
+export function L_executive(R, P) {
+  return (
+    <div style={{ background: 'var(--color-white)', padding: '30px 32px 30px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 18, paddingBottom: 14, borderBottom: '5px solid ' + P.accent }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.5, lineHeight: 1, color: P.ink }}>{R.name}</div>
+          <div style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: 1.2, marginTop: 7, color: P.accent }}>
+            {R.role || ''}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', fontSize: 10.5, lineHeight: 1.6, color: 'var(--tone-556)' }}>
+          {[R.phone, R.email, R.location, R.linkedin]
+            .filter(function (x) {
+              return x && ('' + x).trim();
+            })
+            .map(function (x) {
+              return <div key={x}>{x}</div>;
+            })}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 22, marginTop: 6 }}>
+        <div style={{ flex: '1 1 65%' }}>
+          {R.summary ? _hBar('Profile', P) : null}
+          {_summary(R, 12)}
+          {_expBlock(R, P, _hBar)}
+          {_certEduProj(R, P, _hBar)}
+        </div>
+        <div style={{ flex: '1 1 35%', marginTop: 14 }}>
+          {_mono(R.stats3).map(function (s, i) {
+            return (
+              <div key={i} style={{ padding: '9px 12px', marginBottom: 8, borderRadius: 8, background: P.tint, borderLeft: '4px solid ' + P.accent }}>
+                <div style={{ fontSize: 13, fontWeight: 900, color: P.deep }}>{s.big}</div>
+                <div style={{ fontSize: 10, color: 'var(--tone-556)' }}>{s.small}</div>
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 10 }}>{_rightStack(R, P, false)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Split Header: accent name block + tinted contact block side by side, single-column body.
+export function L_splitHeader(R, P) {
+  return (
+    <div style={{ background: 'var(--color-white)', border: '0.5px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ display: 'flex' }}>
+        <div style={{ flex: '1 1 62%', padding: '26px 26px', background: P.accent, color: 'var(--color-white)' }}>
+          <div style={{ fontSize: 27, fontWeight: 900, lineHeight: 1.05 }}>{R.name}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, marginTop: 6, opacity: 0.95 }}>{R.role || ''}</div>
+          {R.summary ? <div style={{ fontSize: 11.5, lineHeight: 1.55, marginTop: 12, opacity: 0.95 }}>{R.summary}</div> : null}
+        </div>
+        <div style={{ flex: '1 1 38%', padding: '22px 20px', background: P.tint, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ marginBottom: 12 }}>{_photoTint(R, 78, P, true)}</div>
+          <div style={{ alignSelf: 'stretch' }}>{_contactLines(R, 'var(--tone-334)', P.accent)}</div>
+        </div>
+      </div>
+      <div style={{ padding: '16px 26px 26px' }}>
+        {_statBoxes(R, P)}
+        {_expBlock(R, P, _hUnderline)}
+        {_certEduProj(R, P, _hUnderline)}
+        {_hUnderline('Skills', P)}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 18px' }}>{_rightStack(R, P, false)}</div>
+      </div>
+    </div>
+  );
+}
+
+// Soft Sidebar: light tinted rail with photo, contact and skill chips; content on the right.
+export function L_softSidebar(R, P) {
+  var chipBlock = function (title, items) {
+    if (!_mono(items).length) return null;
+    return (
+      <div key={title} style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase', color: P.deep, marginBottom: 6 }}>
+          {title}
+        </div>
+        {_skillChips(items, P)}
+      </div>
+    );
+  };
+  return (
+    <div style={{ display: 'flex', background: 'var(--color-white)', border: '0.5px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ width: '34%', padding: '26px 18px', background: P.tint, borderRight: '3px solid ' + P.accent }}>
+        <div style={{ textAlign: 'center', marginBottom: 16 }}>{_photoTint(R, 92, P, true)}</div>
+        <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase', color: P.deep, marginBottom: 8 }}>Contact</div>
+        {_contactLines(R, 'var(--tone-334)', P.accent)}
+        <div style={{ height: 8 }} />
+        {chipBlock('Core Coding Skills', R.coreSkills)}
+        {chipBlock('Clinical Knowledge', R.clinical)}
+        {chipBlock('Tools', R.tools)}
+        {chipBlock('Strengths', R.strengths)}
+        {chipBlock('Languages', R.languages)}
+      </div>
+      <div style={{ flex: 1, padding: '26px 24px' }}>
+        <div style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.05, color: P.ink }}>{R.name}</div>
+        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, marginTop: 5, color: P.accent }}>{R.role || ''}</div>
+        {R.summary ? _hPill('Summary', P) : null}
+        {_summary(R, 11.8)}
+        <div style={{ marginTop: 10 }}>{_statBoxes(R, P)}</div>
+        {_expBlock(R, P, _hPill)}
+        {_certEduProj(R, P, _hPill)}
+      </div>
+    </div>
+  );
+}
+
+// Modern Cards: centred header with round photo, every section in its own card.
+export function L_modernCards(R, P) {
+  var card = function (title, body, key) {
+    return (
+      <div
+        key={key || title}
+        style={{
+          background: 'var(--color-white)',
+          border: '1px solid ' + _soft(P.accent, 22),
+          borderTop: '3px solid ' + P.accent,
+          borderRadius: 10,
+          padding: '12px 14px',
+          marginBottom: 12,
+          breakInside: 'avoid',
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase', color: P.deep, marginBottom: 8 }}>
+          {title}
+        </div>
+        {body}
+      </div>
+    );
+  };
+  var noHead = function () {
+    return null;
+  };
+  var exp = _expBlock(R, P, noHead);
+  var rest = _certEduProj(R, P, _hPlain);
+  return (
+    <div style={{ background: P.tint, padding: '26px 24px', borderRadius: 12 }}>
+      <div style={{ textAlign: 'center', marginBottom: 18 }}>
+        <div style={{ display: 'inline-block', marginBottom: 8 }}>{_photoTint(R, 84, P, true)}</div>
+        <div style={{ fontSize: 26, fontWeight: 900, color: P.ink, lineHeight: 1.1 }}>{R.name}</div>
+        <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, color: P.accent, marginTop: 4 }}>{R.role || ''}</div>
+        <div style={{ fontSize: 10.5, color: 'var(--tone-556)', marginTop: 7 }}>{_contact(R, '  ·  ')}</div>
+      </div>
+      {R.summary ? card('Professional Summary', _summary(R, 11.8)) : null}
+      {_mono(R.stats3).length ? <div style={{ marginBottom: 12 }}>{_statBoxes(R, P)}</div> : null}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ flex: '1 1 60%' }}>
+          {exp.length ? card('Practical Medical Coding Experience', exp.slice(1)) : null}
+          {rest.length ? card('Credentials & Education', rest) : null}
+        </div>
+        <div style={{ flex: '1 1 40%' }}>
+          {_mono(R.coreSkills).length ? card('Core Skills', _skillChips(R.coreSkills, P)) : null}
+          {_mono(R.clinical).length ? card('Clinical Knowledge', _skillChips(R.clinical, P)) : null}
+          {_mono(R.tools).length ? card('Tools', _skillChips(R.tools, P)) : null}
+          {_mono(R.strengths).length || _mono(R.languages).length
+            ? card('Strengths & Languages', _skillChips(_mono(R.strengths).concat(_mono(R.languages)), P))
+            : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // dispatcher
 export function renderResume(layoutKey, R, P) {
   switch (layoutKey) {
+    case 'classic':
+      return L_classic(R, P);
+    case 'executive':
+      return L_executive(R, P);
+    case 'split-header':
+      return L_splitHeader(R, P);
+    case 'soft-sidebar':
+      return L_softSidebar(R, P);
+    case 'modern-cards':
+      return L_modernCards(R, P);
     case 'left-rail':
       return L_rail(R, P, 'left');
     case 'right-rail':

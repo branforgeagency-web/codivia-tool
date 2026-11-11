@@ -15,6 +15,7 @@ const defaultPermissions = (role, moduleKey) => {
   if (LOCKED_ROLES.includes(role)) return FULL;
   if (mod.adminOnly) return NONE;
   if (MANAGER_ROLES.includes(role)) return FULL;
+  if (mod.ownRecords) return FULL;
   if (mod.restricted) return NONE;
   if (mod.selfService) return SELF_SERVICE;
   return VIEW_ONLY;

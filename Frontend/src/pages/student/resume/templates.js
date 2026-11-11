@@ -79,7 +79,7 @@ export const RESUME_PALETTES = [
 ];
 
 // Color-only templates (one shared fresher structure)
-// 7 structural layouts × 5 palettes = 35 distinct résumé templates
+// 12 structural layouts × 5 palettes = 60 distinct résumé templates (layouts.jsx renders each layout)
 export const RESUME_LAYOUTS = [
   { key: 'header-band', name: 'Header Band', desc: 'Bold colour header, 2-col body' },
   { key: 'left-rail', name: 'Left Rail', desc: 'Dark sidebar left, content right' },
@@ -88,10 +88,15 @@ export const RESUME_LAYOUTS = [
   { key: 'minimal', name: 'Minimal ATS', desc: 'Clean single column, ATS-friendly' },
   { key: 'timeline', name: 'Timeline', desc: 'Accent timeline down the experience' },
   { key: 'compact', name: 'Compact Grid', desc: 'Tight two-column card grid' },
+  { key: 'classic', name: 'Classic Serif', desc: 'Traditional serif, centred, ATS-friendly' },
+  { key: 'executive', name: 'Executive', desc: 'Strong name block, side highlights' },
+  { key: 'split-header', name: 'Split Header', desc: 'Colour + contact header, 1-col body' },
+  { key: 'soft-sidebar', name: 'Soft Sidebar', desc: 'Light sidebar with skill chips' },
+  { key: 'modern-cards', name: 'Modern Cards', desc: 'Each section in its own card' },
 ];
 
 export const RESUME_TEMPLATES = (function () {
-  const pals = RESUME_PALETTES.slice(0, 5); // 5 palettes → 7×5 = 35
+  const pals = RESUME_PALETTES.slice(0, 5); // 5 palettes × 12 layouts = 60
   const out = [];
   RESUME_LAYOUTS.forEach(function (L) {
     pals.forEach(function (P) {
