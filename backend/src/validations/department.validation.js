@@ -4,6 +4,7 @@ const {
   CODE_ELEMENT_KEYS,
   DEPARTMENT_KEY_PATTERN,
   DEPARTMENT_LIMITS,
+  DEPARTMENT_POOL_SORT_FIELDS,
 } = require('../config/departments');
 
 const key = Joi.string()
@@ -32,6 +33,16 @@ const getDepartments = {
   }),
 };
 
+const getPools = {
+  query: Joi.object({
+    search: Joi.string().trim().max(100).allow(''),
+    sortBy: Joi.string().valid(...DEPARTMENT_POOL_SORT_FIELDS).default('order'),
+    order: Joi.string().valid('asc', 'desc').default('asc'),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(10),
+  }),
+};
+
 const createDepartment = {
   body: Joi.object({
     key: key.required(),
@@ -48,4 +59,4 @@ const getDepartment = { params: keyParam };
 const updateDepartment = { params: keyParam, body: Joi.object({ name, icon, group, elements, order, isActive }).min(1) };
 const deleteDepartment = { params: keyParam };
 
-module.exports = { getDepartments, createDepartment, getDepartment, updateDepartment, deleteDepartment };
+module.exports = { getDepartments, getPools, createDepartment, getDepartment, updateDepartment, deleteDepartment };

@@ -85,6 +85,13 @@ export const Footer = styled.div`
   color: ${vars.muted};
 
   b { color: ${vars.ink}; }
+
+  /* the shared pager sits on the right of the footer */
+  .pager { margin: 0 0 0 auto; }
+
+  @media (max-width: 600px) {
+    .pager { margin: 0; width: 100%; justify-content: center; }
+  }
 `;
 
 export const SizePicker = styled.label`
@@ -93,40 +100,4 @@ export const SizePicker = styled.label`
   gap: 6px;
 
   select { padding: 4px 8px; font-size: 12.5px; }
-`;
-
-export const Pager = styled.nav`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-
-  @media (max-width: 600px) {
-    margin-left: 0;
-    width: 100%;
-    justify-content: center;
-  }
-`;
-
-export const PageButton = styled.button`
-  min-width: 30px;
-  height: 30px;
-  padding: 0 8px;
-  border: 1px solid ${({ $active }) => ($active ? vars.brand : vars.line)};
-  border-radius: 7px;
-  background: ${({ $active }) => ($active ? vars.brand : 'var(--color-white)')};
-  color: ${({ $active }) => ($active ? 'var(--color-white)' : vars.ink)};
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    border-color: ${vars.brand};
-    color: ${({ $active }) => ($active ? 'var(--color-white)' : vars.brandDark)};
-  }
-  &:disabled { opacity: 0.4; cursor: default; }
-`;
-
-export const Gap = styled.span`
-  padding: 0 4px;
 `;

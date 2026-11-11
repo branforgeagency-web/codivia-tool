@@ -586,6 +586,11 @@ textarea::placeholder {
   box-shadow: 0 2px 5px rgba(20, 18, 16, 0.025);
   overflow-x: auto;
 }
+/* A DataTable inside a card: the card already draws the border */
+.card > .dt-flush {
+  border: 0;
+  border-radius: 0;
+}
 .card-h {
   padding: 16px 20px;
   background: #fff;

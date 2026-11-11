@@ -11,3 +11,4 @@ export const USER_BY_ID = (id) => `${USERS}/${encodeURIComponent(id)}`;
 export const ACCESS = '/access';
 export const ACCESS_PERMISSION = (role, module) =>
   `${ACCESS}/${encodeURIComponent(role)}/${encodeURIComponent(module)}`;
+export const DEPARTMENT_POOLS = '/departments/pools';

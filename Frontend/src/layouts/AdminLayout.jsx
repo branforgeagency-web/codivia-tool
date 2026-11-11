@@ -56,7 +56,7 @@ function AdminShell() {
       <div className="side-foot">
         Admin / TL
         <br />
-        {totalAllocated.toLocaleString() + ' of ' + totalPool.toLocaleString() + ' charts allocated'}
+        {/* {totalAllocated.toLocaleString() + ' of ' + totalPool.toLocaleString() + ' charts allocated'} */}
       </div>
     </>
   );
