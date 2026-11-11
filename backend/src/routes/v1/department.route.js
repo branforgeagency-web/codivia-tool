@@ -3,7 +3,6 @@ const auth = require('../../middlewares/auth');
 const permit = require('../../middlewares/permission');
 const validate = require('../../middlewares/validate');
 const { MODULES, ACTIONS } = require('../../config/modules');
-const { ROLES } = require('../../config/roles');
 const { departmentValidation } = require('../../validations');
 const { departmentController } = require('../../controllers');
 
@@ -13,9 +12,6 @@ const can = (action) => [auth(), permit(MODULES.DEPARTMENTS, action)];
 
 // Groups and code sets for building department forms. Declared before /:key.
 router.get('/meta', ...can(ACTIONS.VIEW), departmentController.getMeta);
-
-// Admin overview. Admin only, whatever Access Control says. Declared before /:key.
-router.get('/pools', auth(ROLES.ADMIN), validate(departmentValidation.getPools), departmentController.getPools);
 
 router
   .route('/')

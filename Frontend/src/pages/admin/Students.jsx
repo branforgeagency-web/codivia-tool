@@ -1,181 +1,143 @@
-import { DEPTS } from '../../config/constants.js';
-import { allocCount, allocRange } from '../../utils/allocation.js';
-import { progressOf } from '../../utils/progress.js';
+import { useMemo, useState } from 'react';
+import { STUDENT_STATUS, StudentCard, studentStatus } from '../../components/admin/StudentCard.jsx';
+import { PageLoader } from '../../components/ui/PageLoader.jsx';
+import { Pagination } from '../../components/ui/Pagination.jsx';
+import { StatTile, StatTiles } from '../../components/ui/StatTile.jsx';
 import { useAdmin } from '../../context/AdminContext.jsx';
+import { usePagination } from '../../hooks/usePagination.js';
+import { progressOf } from '../../utils/progress.js';
 
-export function AdminStudents({ students, onAllocate, onAdd, onPerf, onBulk }) {
-  const totals = students.reduce(
-    (acc, s) => {
-      const p = progressOf(s);
-      acc.worked += p.worked;
-      acc.allocated += p.allocated;
-      if (p.worked > 0) acc.active++;
-      if (s.progressError) acc.errors++;
-      return acc;
-    },
-    { worked: 0, allocated: 0, active: 0, errors: 0 },
+// ---- Admin: Students. Cards: StudentCard. Styles: .ad-* / .dc-* / .sc-* in refinements.css ----
+// Data: AdminContext.students, loaded from Firebase by window.CV_FB.listStudents().
+
+const PAGE_SIZE = 9;
+
+const ICON = {
+  users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  pulse: 'M22 12h-4l-3 9L9 3l-3 9H2',
+  check: 'M20 6 9 17l-5-5',
+  share: 'M16 3h5v5M21 3l-7 7M10 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4',
+  search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
+  inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z',
+  refresh: 'M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6',
+  layers: 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+};
+
+const Svg = ({ d, size = 18 }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden={true}>
+    <path d={d} />
+  </svg>
+);
+
+const FILTERS = [['all', 'All students'], ...Object.entries(STUDENT_STATUS).map(([k, v]) => [k, v.label])];
+
+export function AdminStudents({ students, loading, onAllocate, onRefresh, onPerf, onBulk }) {
+  const [filter, setFilter] = useState('all');
+  const [query, setQuery] = useState('');
+
+  // Progress and status are worked out once per student, not on every render of every card.
+  const rows = useMemo(
+    () =>
+      students.map((s) => {
+        const progress = progressOf(s);
+        return { s, progress, status: studentStatus(s, progress) };
+      }),
+    [students],
   );
-  const cell = (label, val, color) => (
-    <div>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: '.04em',
-          color: color || 'var(--muted)',
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: color || 'inherit' }}>{val}</div>
-    </div>
+
+  const q = query.trim().toLowerCase();
+  const shown = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          (filter === 'all' || r.status === filter) &&
+          (!q || (r.s.name + ' ' + r.s.id + ' ' + (r.s.email || '')).toLowerCase().includes(q)),
+      ),
+    [rows, filter, q],
   );
+  const pager = usePagination(shown, { pageSize: PAGE_SIZE, resetKey: filter + '|' + q });
+
+  const count = (k) => (k === 'all' ? rows.length : rows.filter((r) => r.status === k).length);
+  const totals = rows.reduce(
+    (acc, r) => ({ worked: acc.worked + r.progress.worked, allocated: acc.allocated + r.progress.allocated }),
+    { worked: 0, allocated: 0 },
+  );
+  // Hide the "unreadable" tab unless it applies, so the filters stay short.
+  const filters = FILTERS.filter(([k]) => k !== 'error' || count('error') > 0);
+
   return (
-    <div>
-      <div
-        className="page-head"
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}
-      >
+    <div className="ad">
+      <div className="page-head sc-head">
         <div>
           <h1>Students</h1>
-          <p>Students who have registered. Allocate department charts to each.</p>
+          <p>Students who have registered. Allocate department charts and follow their progress.</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            className="btn"
-            style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }}
-            onClick={onBulk}
-          >
-            ⚡ Bulk allocate
+        <div className="sc-head-acts">
+          <button type="button" className="sc-ghost" onClick={onBulk}>
+            <Svg d={ICON.layers} size={16} /> Bulk allocate
           </button>
-          <button className="btn btn-teal" onClick={onAdd}>
-            🔄 Refresh
+          <button type="button" className="dc-action" onClick={onRefresh} disabled={loading}>
+            <Svg d={ICON.refresh} size={16} /> {loading ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </div>
-      <div className="card" style={{ marginBottom: 14 }}>
-        <div
-          style={{
-            padding: '14px 16px',
-            display: 'flex',
-            gap: 26,
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
-          {cell('STUDENTS', students.length)}
-          {cell('HAVE WORKED CHARTS', totals.active)}
-          {cell('CHARTS COMPLETED', totals.worked)}
-          {cell('TOTAL ALLOCATED', totals.allocated)}
-          {totals.errors > 0 && cell('PROGRESS UNREADABLE', totals.errors, 'var(--tone-b4232a)')}
+
+      <StatTiles>
+        <StatTile lead icon={ICON.users} label="Students" value={rows.length} caption="registered" />
+        <StatTile icon={ICON.pulse} label="Active" value={count('active')} caption="have worked charts" />
+        <StatTile icon={ICON.check} label="Charts Completed" value={totals.worked.toLocaleString()} caption="across all students" />
+        <StatTile
+          icon={ICON.share}
+          label="Allocated"
+          value={totals.allocated.toLocaleString()}
+          caption={count('unallocated') + ' student' + (count('unallocated') === 1 ? '' : 's') + ' with no department'}
+        />
+      </StatTiles>
+
+      <div className="ad-toolbar">
+        <div className="pg-filters" role="tablist" aria-label="Student status">
+          {filters.map(([k, label]) => (
+            <button key={k} type="button" role="tab" aria-selected={filter === k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
+              {label}
+              <span>{count(k)}</span>
+            </button>
+          ))}
         </div>
+        <label className="ad-search">
+          <Svg d={ICON.search} size={16} />
+          <span className="sr-only">Search students</span>
+          <input type="search" value={query} onChange={(ev) => setQuery(ev.target.value)} placeholder="Search name, ID or email…" />
+        </label>
       </div>
-      {students.length === 0 ? (
-        <div className="card">
-          <div style={{ padding: 24, color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
-            No students have registered yet. Once a student creates an account, tap Refresh to see
-            them here.
+
+      {loading && rows.length === 0 ? (
+        <PageLoader variant="inline" label="Loading students" />
+      ) : shown.length ? (
+        <>
+          <div className="ad-grid">
+            {pager.items.map((r) => (
+              <StudentCard key={r.s.uid || r.s.id} student={r.s} progress={r.progress} onPerf={onPerf} onAllocate={onAllocate} />
+            ))}
           </div>
-        </div>
+          <Pagination {...pager.props} itemLabel="students" />
+        </>
       ) : (
-        students.map((s) => (
-          <div key={s.uid || s.id} className="card">
-            <div className="card-h">
-              <div>
-                <h3>{s.name}</h3>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                  {s.id + (s.email ? ' · ' + s.email : '')}
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                {(function () {
-                  const p = progressOf(s);
-                  if (s.progressError)
-                    return (
-                      <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--tone-b4232a)' }}>
-                        {'progress unreadable (' + s.progressError + ')'}
-                      </span>
-                    );
-                  return (
-                    <div style={{ textAlign: 'right' }}>
-                      <div
-                        style={{
-                          fontSize: 17,
-                          fontWeight: 800,
-                          color: p.worked > 0 ? 'var(--teal-d)' : 'var(--muted)',
-                        }}
-                      >
-                        {p.worked + ' / ' + p.allocated}
-                      </div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>
-                        {p.worked === 0
-                          ? 'not started'
-                          : 'worked' + (p.avg !== null ? ' · ' + p.avg + '% avg' : '')}
-                      </div>
-                    </div>
-                  );
-                })()}
-                <button
-                  className="btn"
-                  style={{
-                    background: 'var(--color-white)',
-                    border: '1px solid var(--line)',
-                    color: 'var(--ink)',
-                  }}
-                  onClick={() => onPerf(s.id)}
-                >
-                  View performance
-                </button>
-                <button className="btn btn-teal" onClick={() => onAllocate(s.id)}>
-                  Manage Access
-                </button>
-              </div>
-            </div>
-            <div style={{ padding: '12px 16px' }}>
-              {Object.keys(s.depts).length === 0 ? (
-                <div style={{ color: 'var(--muted)', fontSize: 13 }}>
-                  No departments allocated yet.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {Object.entries(s.depts).map(([dk, v]) => {
-                    if (!DEPTS[dk]) return null;
-                    const pool = ((window.CHART_DATA && window.CHART_DATA[dk]) || []).length;
-                    const rng = allocRange(v, pool);
-                    const done = progressOf(s).byDept[dk] || 0;
-                    const label = rng
-                      ? DEPTS[dk].name +
-                        ' · ' +
-                        rng.start +
-                        '\u2013' +
-                        rng.end +
-                        ' (' +
-                        done +
-                        '/' +
-                        allocCount(v, pool) +
-                        ')'
-                      : DEPTS[dk].name + ' · ' + done + '/0';
-                    return (
-                      <span
-                        key={dk}
-                        style={{
-                          background: 'var(--teal-lt)',
-                          color: 'var(--teal-d)',
-                          borderRadius: 7,
-                          padding: '6px 12px',
-                          fontSize: 12.5,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {DEPTS[dk].icon + ' ' + label}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        ))
+        <div className="pg-empty">
+          <span>
+            <Svg d={ICON.inbox} size={24} />
+          </span>
+          {rows.length === 0 ? (
+            <>
+              <h3>No students yet</h3>
+              <p>Once a student creates an account, press Refresh to see them here.</p>
+            </>
+          ) : (
+            <>
+              <h3>No students found</h3>
+              <p>Try another search or switch the filter.</p>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -183,12 +145,13 @@ export function AdminStudents({ students, onAllocate, onAdd, onPerf, onBulk }) {
 
 // route: /admin/students
 export default function StudentsPage() {
-  const { students, refreshStudents, setModal, setPerfId } = useAdmin();
+  const { students, loadingStudents, refreshStudents, setModal, setPerfId } = useAdmin();
   return (
     <AdminStudents
       students={students}
+      loading={loadingStudents}
       onAllocate={(sid) => setModal({ type: 'allocate', studentId: sid })}
-      onAdd={refreshStudents}
+      onRefresh={refreshStudents}
       onPerf={(sid) => setPerfId(sid)}
       onBulk={() => setModal({ type: 'bulkAllocate' })}
     />

@@ -9,3 +9,4 @@ module.exports.codeService = require('./code.service');
 module.exports.resumeService = require('./resume.service');
 module.exports.certificateService = require('./certificate.service');
 module.exports.chartResultService = require('./chartResult.service');
+module.exports.departmentPoolService = require('./departmentPool.service');

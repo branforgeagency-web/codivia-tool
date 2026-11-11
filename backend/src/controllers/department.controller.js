@@ -5,10 +5,6 @@ const getMeta = async (req, res) => {
   res.status(httpStatus.OK).json(departmentService.getMeta());
 };
 
-const getPools = async (req, res) => {
-  res.status(httpStatus.OK).json(await departmentService.queryPools(req.query));
-};
-
 const getDepartments = async (req, res) => {
   res.status(httpStatus.OK).json(await departmentService.queryDepartments(req.query, req.user));
 };
@@ -30,4 +26,4 @@ const deleteDepartment = async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 };
 
-module.exports = { getMeta, getPools, getDepartments, getDepartment, createDepartment, updateDepartment, deleteDepartment };
+module.exports = { getMeta, getDepartments, getDepartment, createDepartment, updateDepartment, deleteDepartment };

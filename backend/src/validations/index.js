@@ -6,3 +6,4 @@ module.exports.codeValidation = require('./code.validation');
 module.exports.resumeValidation = require('./resume.validation');
 module.exports.chartResultValidation = require('./chartResult.validation');
 module.exports.certificateValidation = require('./certificate.validation');
+module.exports.departmentPoolValidation = require('./departmentPool.validation');

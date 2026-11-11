@@ -6,9 +6,9 @@ import { DEPTS, ELEMENT_LABELS } from '../../config/constants.js';
 import { activeDeptKeys, deptHasCharts } from '../../utils/allocation.js';
 import { useAdmin } from '../../context/AdminContext.jsx';
 
-// Row fields match GET /departments/pools, so switching to the API only replaces `pools`.
+// Row fields match GET /department-pools, so switching to the API only replaces `pools`.
 const POOL_COLUMNS = [
-  { key: 'name', header: 'Department', sortable: true, render: (d) => d.icon + ' ' + d.name },
+  { key: 'name', header: 'Department', sortable: true, render: (d) => d.name },
   {
     key: 'elements',
     header: 'Code Sets',

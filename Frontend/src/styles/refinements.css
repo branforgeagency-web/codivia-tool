@@ -3236,6 +3236,123 @@ tbody tr:hover {
   font-size: 8.5px;
 }
 
+/* ---- Admin Students page (pages/admin/Students.jsx, components/admin/StudentCard.jsx) ---- */
+.sc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.sc-head-acts {
+  display: flex;
+  gap: 8px;
+}
+.sc-head-acts .dc-action:disabled {
+  opacity: 0.6;
+  cursor: progress;
+  transform: none;
+}
+.sc-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+.sc-ghost:hover {
+  border-color: rgba(242, 103, 34, 0.45);
+  color: #c94a10;
+}
+.sc-ghost:focus-visible {
+  outline: 2px solid #f26722;
+  outline-offset: 2px;
+}
+.sc-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(145deg, #ff9d5c, #f26722 60%, #d9540f);
+}
+.sc-card .dc-title h3,
+.sc-card .dc-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sc-card .dc-stats dd.acc-hi {
+  color: var(--acc-hi);
+}
+.sc-card .dc-stats dd.acc-mid {
+  color: var(--acc-mid);
+}
+.sc-card .dc-stats dd.acc-lo {
+  color: var(--acc-lo);
+}
+.sc-error {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #b23a23;
+  background: #fbe5e0;
+}
+.sc-depts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sc-chip {
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: #c94a10;
+  background: #fff1e7;
+}
+.sc-chip.done {
+  color: #0e7a5b;
+  background: #dff4ea;
+}
+.sc-chip.more {
+  color: var(--muted);
+  background: #f1efeb;
+  cursor: help;
+}
+.sc-none {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.sc-foot {
+  gap: 8px;
+}
+@media (max-width: 420px) {
+  .sc-foot {
+    flex-direction: column;
+  }
+  .sc-foot button {
+    justify-content: center;
+  }
+}
+
 /* ---- Resume Builder (pages/student/resume/ResumeBuilder.jsx, formParts.jsx) ---- */
 .rb {
   --rb-or: #f26722;

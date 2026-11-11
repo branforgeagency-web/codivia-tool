@@ -4,6 +4,7 @@ const authRoute = require('./auth.route');
 const userRoute = require('./user.route');
 const accessRoute = require('./access.route');
 const departmentRoute = require('./department.route');
+const departmentPoolRoute = require('./departmentPool.route');
 const codeRoute = require('./code.route');
 const resumeRoute = require('./resume.route');
 const chartResultRoute = require('./chartResult.route');
@@ -17,6 +18,7 @@ const routes = [
   { path: '/users', route: userRoute },
   { path: '/access', route: accessRoute },
   { path: '/departments', route: departmentRoute },
+  { path: '/department-pools', route: departmentPoolRoute },
   { path: '/codes', route: codeRoute },
   { path: '/resumes', route: resumeRoute },
   { path: '/chart-results', route: chartResultRoute },

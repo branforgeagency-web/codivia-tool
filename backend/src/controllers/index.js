@@ -7,3 +7,4 @@ module.exports.codeController = require('./code.controller');
 module.exports.resumeController = require('./resume.controller');
 module.exports.chartResultController = require('./chartResult.controller');
 module.exports.certificateController = require('./certificate.controller');
+module.exports.departmentPoolController = require('./departmentPool.controller');

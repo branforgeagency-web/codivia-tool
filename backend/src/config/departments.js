@@ -27,7 +27,6 @@ const CODE_ELEMENT_KEYS = Object.freeze(Object.keys(CODE_ELEMENTS));
 // Department key, e.g. CARDIO or ED_PRO. It is the document _id, so it can't change later.
 const DEPARTMENT_KEY_PATTERN = /^[A-Z][A-Z0-9_]{1,19}$/;
 const DEPARTMENT_LIMITS = Object.freeze({ name: 100, icon: 16 });
-const DEPARTMENT_POOL_SORT_FIELDS = Object.freeze(['order', 'name', 'pool', 'allocated', 'available']);
 
 module.exports = {
   DEPARTMENT_GROUPS,
@@ -37,5 +36,4 @@ module.exports = {
   CODE_ELEMENT_KEYS,
   DEPARTMENT_KEY_PATTERN,
   DEPARTMENT_LIMITS,
-  DEPARTMENT_POOL_SORT_FIELDS,
 };

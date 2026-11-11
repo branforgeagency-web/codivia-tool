@@ -1,4 +1,4 @@
-const { Department, Chart, Allocation } = require('../models');
+const { Department, Chart } = require('../models');
 const { MANAGER_ROLES } = require('../config/roles');
 const { CODE_ELEMENTS, DEPARTMENT_GROUP_LABELS } = require('../config/departments');
 const ApiError = require('../utils/ApiError');
@@ -46,63 +46,6 @@ const queryDepartments = async ({ search, group, isActive, hasCharts }, actor) =
   return { results, totalResults: results.length };
 };
 
-// { CARDIO: 120, ... }: charts assigned to students, each range clamped to the department's pool.
-const countAllocated = async (pools) => {
-  const ranges = await Allocation.aggregate([{ $group: { _id: { dept: '$dept', start: '$start', end: '$end' }, n: { $sum: 1 } } }]);
-  const allocated = {};
-  ranges.forEach(({ _id: { dept, start, end }, n }) => {
-    const pool = pools[dept] || 0;
-    if (!pool) return;
-    const from = Math.min(start, pool);
-    const to = Math.max(from, Math.min(end, pool));
-    allocated[dept] = (allocated[dept] || 0) + (to - from + 1) * n;
-  });
-  return allocated;
-};
-
-// Admin overview: every department that has charts, with its pool, allocated and available counts.
-// Students can share charts, so `allocated` can exceed `pool` and `available` can go negative.
-// `totals` covers all departments, whatever the search or page.
-const queryPools = async ({ search, sortBy = 'order', order = 'asc', page = 1, limit = 10 }) => {
-  const [departments, pools] = await Promise.all([Department.find().lean(), countCharts()]);
-  const allocated = await countAllocated(pools);
-
-  const all = departments
-    .filter((d) => pools[d._id] > 0)
-    .map((d) => {
-      const used = allocated[d._id] || 0;
-      return {
-        key: d._id,
-        name: d.name,
-        icon: d.icon,
-        elements: d.elements,
-        isActive: d.isActive,
-        order: d.order,
-        pool: pools[d._id],
-        allocated: used,
-        available: pools[d._id] - used,
-      };
-    });
-
-  const term = (search || '').toLowerCase();
-  const matched = term ? all.filter((d) => d.key.toLowerCase().includes(term) || d.name.toLowerCase().includes(term)) : all;
-  const dir = order === 'asc' ? 1 : -1;
-  const sorted = [...matched].sort((a, b) => {
-    const diff = sortBy === 'name' ? a.name.localeCompare(b.name) : a[sortBy] - b[sortBy];
-    return diff * dir || a.order - b.order;
-  });
-
-  const sum = (field) => all.reduce((n, d) => n + d[field], 0);
-  return {
-    results: sorted.slice((page - 1) * limit, page * limit),
-    page,
-    limit,
-    totalPages: Math.max(1, Math.ceil(sorted.length / limit)),
-    totalResults: sorted.length,
-    totals: { departments: all.length, pool: sum('pool'), allocated: sum('allocated'), available: sum('available') },
-  };
-};
-
 const getDepartment = async (key, actor) => {
   const dept = await findVisible(key, actor);
   return withChartCount(dept, await countCharts([dept._id]));
@@ -144,4 +87,4 @@ const deleteDepartment = async (key) => {
   await dept.deleteOne();
 };
 
-module.exports = { getMeta, queryDepartments, queryPools, getDepartment, createDepartment, updateDepartment, deleteDepartment };
+module.exports = { getMeta, queryDepartments, getDepartment, createDepartment, updateDepartment, deleteDepartment };

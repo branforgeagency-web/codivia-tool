@@ -34,7 +34,6 @@ export function AdminCharts({ onView }) {
                     setShown(50);
                   }}
                 >
-                  <div className="ico">{d.icon}</div>
                   <h3>{d.name}</h3>
                   <ElementTiles dept={d} setting={d.group === 'setting'} />
                   <div className="alloc">
@@ -77,7 +76,7 @@ export function AdminCharts({ onView }) {
         ← All departments
       </button>
       <div className="page-head">
-        <h1>{d.icon + ' ' + d.name}</h1>
+        <h1>{d.name}</h1>
         <p>{charts.length + ' charts in this department'}</p>
       </div>
       <div className="card">
@@ -137,7 +136,7 @@ export function AdminCharts({ onView }) {
                             padding: '1px 5px',
                           }}
                         >
-                          ✎ HANDWRITTEN
+                          HANDWRITTEN
                         </span>
                       ) : null}
                     </div>
