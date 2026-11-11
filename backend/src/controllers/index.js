@@ -5,3 +5,5 @@ module.exports.accessController = require('./access.controller');
 module.exports.departmentController = require('./department.controller');
 module.exports.codeController = require('./code.controller');
 module.exports.resumeController = require('./resume.controller');
+module.exports.chartResultController = require('./chartResult.controller');
+module.exports.certificateController = require('./certificate.controller');

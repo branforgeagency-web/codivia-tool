@@ -7,6 +7,8 @@ const MODULES = Object.freeze({
   DEPARTMENTS: 'departments',
   CODES: 'codes',
   RESUMES: 'resumes',
+  CHART_RESULTS: 'chart-results',
+  CERTIFICATES: 'certificates',
 });
 
 // selfService: staff manage their own records ; restricted: closed by default ; adminOnly: Admin only
@@ -20,6 +22,9 @@ const MODULE_LIST = Object.freeze([
   { key: MODULES.CODES, label: 'Code Search' },
   // ownRecords: every role adds / edits / deletes its own resumes; the service hides other people's.
   { key: MODULES.RESUMES, label: 'Resumes', ownRecords: true },
+  { key: MODULES.CHART_RESULTS, label: 'Chart Results', ownRecords: true },
+  // Not restricted: view only, and the service limits students to their own. Issued automatically.
+  { key: MODULES.CERTIFICATES, label: 'Certificates' },
 ]);
 
 const MODULE_KEYS = Object.freeze(MODULE_LIST.map((m) => m.key));
