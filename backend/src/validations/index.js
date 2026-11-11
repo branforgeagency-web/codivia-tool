@@ -7,3 +7,5 @@ module.exports.resumeValidation = require('./resume.validation');
 module.exports.chartResultValidation = require('./chartResult.validation');
 module.exports.certificateValidation = require('./certificate.validation');
 module.exports.departmentPoolValidation = require('./departmentPool.validation');
+module.exports.adminDepartmentValidation = require('./adminDepartment.validation');
+module.exports.adminChartValidation = require('./adminChart.validation');

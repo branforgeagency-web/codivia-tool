@@ -12,3 +12,12 @@ export const ACCESS = '/access';
 export const ACCESS_PERMISSION = (role, module) =>
   `${ACCESS}/${encodeURIComponent(role)}/${encodeURIComponent(module)}`;
 export const DEPARTMENT_POOLS = '/department-pools';
+// Admin Departments page + Manage allocation (admin only)
+export const ADMIN_DEPARTMENTS = '/admin/departments';
+export const DEPARTMENT_ALLOCATIONS = (deptKey) => `${ADMIN_DEPARTMENTS}/${encodeURIComponent(deptKey)}/allocations`;
+export const DEPARTMENT_ALLOCATION = (deptKey, userId) =>
+  `${DEPARTMENT_ALLOCATIONS(deptKey)}/${encodeURIComponent(userId)}`;
+// Admin Browse Charts (admin only)
+export const ADMIN_CHARTS = '/admin/charts';
+export const ADMIN_CHART_DEPARTMENTS = `${ADMIN_CHARTS}/departments`;
+export const ADMIN_CHART = (chartId) => `${ADMIN_CHARTS}/${encodeURIComponent(chartId)}`;

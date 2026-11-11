@@ -10,3 +10,6 @@ module.exports.resumeService = require('./resume.service');
 module.exports.certificateService = require('./certificate.service');
 module.exports.chartResultService = require('./chartResult.service');
 module.exports.departmentPoolService = require('./departmentPool.service');
+module.exports.allocationService = require('./allocation.service');
+module.exports.adminDepartmentService = require('./adminDepartment.service');
+module.exports.adminChartService = require('./adminChart.service');

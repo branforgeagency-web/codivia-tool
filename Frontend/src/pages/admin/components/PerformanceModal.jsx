@@ -1,241 +1,220 @@
+import { useMemo } from 'react';
+import { DataTable } from '../../../components/ui/DataTable.jsx';
+import { DeptIcon } from '../../../components/ui/DeptIcon.jsx';
+import { Avatar, Modal } from '../../../components/ui/Modal.jsx';
+import { ProgressRing } from '../../../components/ui/ProgressRing.jsx';
 import { DEPTS } from '../../../config/constants.js';
+import { accTone } from '../../../utils/progress.js';
 
-// Full performance breakdown for one student: score band distribution,
-// per-department accuracy, weakest codes, and a chart-by-chart list.
-export function AdminPerformance({ student, onClose }) {
-  const r = student.results || {};
-  const ids = Object.keys(r).sort((a, b) => (r[b].at || 0) - (r[a].at || 0));
-  const scored = ids.filter((id) => typeof r[id].accuracy === 'number');
-  const avg = scored.length
-    ? Math.round(scored.reduce((a, id) => a + r[id].accuracy, 0) / scored.length)
-    : null;
+// ---- Admin: one student's performance. Score bands, per-department accuracy, the codes they
+// miss or get wrong most, and every chart they submitted. Data: student.results (Firebase progress).
+// Styles: .md-* (modal) and .pf-* in styles/refinements.css ----
 
-  const bands = { ship: 0, solid: 0, polish: 0, weak: 0 };
-  scored.forEach((id) => {
-    const a = r[id].accuracy;
-    if (a >= 90) bands.ship++;
-    else if (a >= 75) bands.solid++;
-    else if (a >= 50) bands.polish++;
-    else bands.weak++;
+const BANDS = [
+  { key: 'ship', label: '90%+', min: 90, tone: 'hi' },
+  { key: 'solid', label: '75–89%', min: 75, tone: 'ok' },
+  { key: 'polish', label: '50–74%', min: 50, tone: 'mid' },
+  { key: 'weak', label: 'Under 50%', min: 0, tone: 'lo' },
+];
+const bandOf = (a) => BANDS.find((b) => a >= b.min);
+const deptName = (dk) => (DEPTS[dk] ? DEPTS[dk].name : dk || 'Unknown');
+const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+const top = (counts, n) => Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n);
+
+function summarize(results) {
+  const rows = Object.entries(results || {}).map(([id, v]) => ({ id, ...v, accuracy: typeof v.accuracy === 'number' ? v.accuracy : null }));
+  rows.sort((a, b) => (b.at || 0) - (a.at || 0));
+  const scored = rows.filter((r) => r.accuracy !== null);
+  const avg = scored.length ? Math.round(scored.reduce((n, r) => n + r.accuracy, 0) / scored.length) : null;
+
+  const bands = Object.fromEntries(BANDS.map((b) => [b.key, 0]));
+  scored.forEach((r) => (bands[bandOf(r.accuracy).key] += 1));
+
+  const byDept = {};
+  rows.forEach((r) => {
+    const d = (byDept[r.dept || '?'] ||= { dk: r.dept || '?', n: 0, sum: 0, scored: 0 });
+    d.n += 1;
+    if (r.accuracy !== null) {
+      d.sum += r.accuracy;
+      d.scored += 1;
+    }
   });
+  const depts = Object.values(byDept)
+    .map((d) => ({ ...d, avg: d.scored ? Math.round(d.sum / d.scored) : null }))
+    .sort((a, b) => b.n - a.n);
 
-  const perDept = {};
-  ids.forEach((id) => {
-    const v = r[id];
-    const dk = v.dept || '?';
-    if (!perDept[dk]) perDept[dk] = { n: 0, sum: 0 };
-    perDept[dk].n++;
-    if (typeof v.accuracy === 'number') perDept[dk].sum += v.accuracy;
-  });
-
-  // codes the student misses most often
-  const missCount = {};
-  ids.forEach((id) => {
-    (r[id].miss || []).forEach((c) => {
-      missCount[c] = (missCount[c] || 0) + 1;
+  const missed = {};
+  const wrong = {};
+  rows.forEach((r) => {
+    (r.miss || []).forEach((c) => (missed[c] = (missed[c] || 0) + 1));
+    (r.wrong || []).forEach(([code, fix]) => {
+      const k = code + '|' + (fix || '');
+      wrong[k] = (wrong[k] || 0) + 1;
     });
   });
-  const topMiss = Object.entries(missCount)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10);
 
-  const wrongCount = {};
-  ids.forEach((id) => {
-    (r[id].wrong || []).forEach((w) => {
-      const k = w[0] + (w[1] ? ' \u2192 ' + w[1] : '');
-      wrongCount[k] = (wrongCount[k] || 0) + 1;
-    });
-  });
-  const topWrong = Object.entries(wrongCount)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10);
+  return { rows, avg, bands, depts, scoredCount: scored.length, topMissed: top(missed, 8), topWrong: top(wrong, 8), lastAt: rows[0]?.at };
+}
 
-  const band = (a) => (a >= 90 ? 'var(--tone-0e7c66)' : a >= 75 ? 'var(--tone-2f855a)' : a >= 50 ? 'var(--tone-b7791f)' : 'var(--tone-b4232a)');
-  const box = (label, val, color) => (
-    <div style={{ minWidth: 96 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.04em', color: 'var(--muted)' }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: color || 'inherit' }}>{val}</div>
-    </div>
+const CHART_COLUMNS = [
+  { key: 'id', header: 'Chart', sortable: true, render: (r) => <b className="pf-id">{r.id}</b> },
+  { key: 'dept', header: 'Department', sortable: true, sortValue: (r) => deptName(r.dept), render: (r) => deptName(r.dept) },
+  { key: 'at', header: 'Submitted', sortable: true, sortValue: (r) => r.at || 0, render: (r) => fmtDate(r.at) },
+  { key: 'correct', header: 'Codes', align: 'right', render: (r) => (r.total ? (r.correct || 0) + ' / ' + r.total : '—') },
+  {
+    key: 'accuracy',
+    header: 'Accuracy',
+    align: 'right',
+    sortable: true,
+    sortValue: (r) => (r.accuracy === null ? -1 : r.accuracy),
+    render: (r) => (r.accuracy === null ? '—' : <span className={'pf-pill ' + bandOf(r.accuracy).tone}>{r.accuracy + '%'}</span>),
+  },
+];
+
+function CodeCount({ items, render, empty }) {
+  if (!items.length) return <p className="pf-none">{empty}</p>;
+  const max = items[0][1];
+  return (
+    <ul className="pf-codes">
+      {items.map(([k, n]) => (
+        <li key={k}>
+          <span className="pf-code-label">{render(k)}</span>
+          <span className="pf-count">
+            <i style={{ width: (n / max) * 100 + '%' }} />
+          </span>
+          <b>{n + '×'}</b>
+        </li>
+      ))}
+    </ul>
   );
+}
+
+export function AdminPerformance({ student, onClose }) {
+  const s = useMemo(() => summarize(student.results), [student.results]);
+  const total = s.rows.length;
 
   return (
-    <div
-      className="result-overlay"
-      onClick={(ev) => {
-        if (ev.target.className === 'result-overlay') onClose();
-      }}
+    <Modal
+      size="xl"
+      title={student.name}
+      subtitle={student.id + (student.email ? ' · ' + student.email : '')}
+      icon={<Avatar name={student.name} />}
+      onClose={onClose}
     >
-      <div className="result-card" style={{ maxWidth: 860, maxHeight: '86vh', overflowY: 'auto' }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            marginBottom: 14,
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0 }}>{student.name}</h2>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
-              {student.id + (student.email ? ' \u00b7 ' + student.email : '')}
-            </div>
-          </div>
-          <button
-            className="btn"
-            style={{ background: 'var(--color-white)', border: '1px solid var(--line)' }}
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </div>
-        {ids.length === 0 ? (
-          <div style={{ padding: '22px 4px', color: 'var(--muted)', fontSize: 13 }}>
+      {total === 0 ? (
+        <div className="pf-empty">
+          <i className={'bi ' + (student.progressError ? 'bi-exclamation-triangle' : 'bi-hourglass-split')} aria-hidden="true" />
+          <h3>{student.progressError ? 'Progress could not be read' : 'No charts submitted yet'}</h3>
+          <p>
             {student.progressError
-              ? 'Progress could not be read: ' + student.progressError
-              : 'This student has not completed any charts yet.'}
-          </div>
-        ) : (
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                gap: 22,
-                flexWrap: 'wrap',
-                padding: '12px 0 16px',
-                borderBottom: '1px solid var(--line)',
-              }}
-            >
-              {box('CHARTS DONE', ids.length)}
-              {box(
-                'AVG ACCURACY',
-                avg === null ? '\u2014' : avg + '%',
-                avg === null ? null : band(avg),
-              )}
-              {box('90%+', bands.ship, 'var(--tone-0e7c66)')}
-              {box('75\u201389%', bands.solid, 'var(--tone-2f855a)')}
-              {box('50\u201374%', bands.polish, 'var(--tone-b7791f)')}
-              {box('UNDER 50%', bands.weak, 'var(--tone-b4232a)')}
+              ? 'Reading this student’s progress failed (' + student.progressError + '). Try Refresh list.'
+              : 'Results appear here as soon as the student submits their first chart.'}
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* summary */}
+          <section className="pf-summary">
+            <div className="pf-ring">
+              <ProgressRing value={s.avg} tone={s.avg === null ? '' : accTone(s.avg)} size={96} stroke={9} label="accuracy" />
             </div>
-            <div style={{ padding: '14px 0', borderBottom: '1px solid var(--line)' }}>
-              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>BY DEPARTMENT</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {Object.entries(perDept).map(([dk, v]) => {
-                  const a = v.n ? Math.round(v.sum / v.n) : 0;
-                  return (
-                    <span
-                      key={dk}
-                      style={{
-                        background: 'var(--teal-lt)',
-                        borderRadius: 7,
-                        padding: '6px 12px',
-                        fontSize: 12.5,
-                        fontWeight: 700,
-                        color: band(a),
-                      }}
-                    >
-                      {(DEPTS[dk] ? DEPTS[dk].name : dk) +
-                        ' \u00b7 ' +
-                        v.n +
-                        ' charts \u00b7 ' +
-                        a +
-                        '%'}
-                    </span>
-                  );
-                })}
+            <dl className="pf-kpis">
+              <div>
+                <dt>Charts done</dt>
+                <dd>{total.toLocaleString()}</dd>
               </div>
+              <div>
+                <dt>Departments</dt>
+                <dd>{s.depts.length}</dd>
+              </div>
+              <div>
+                <dt>Last submitted</dt>
+                <dd className="sm">{fmtDate(s.lastAt)}</dd>
+              </div>
+            </dl>
+            <div className="pf-bands">
+              <div className="pf-bands-bar" aria-hidden="true">
+                {BANDS.map((b) => (s.bands[b.key] ? <span key={b.key} className={b.tone} style={{ width: (s.bands[b.key] / s.scoredCount) * 100 + '%' }} /> : null))}
+              </div>
+              <ul>
+                {BANDS.map((b) => (
+                  <li key={b.key}>
+                    <i className={b.tone} />
+                    {b.label}
+                    <b>{s.bands[b.key]}</b>
+                  </li>
+                ))}
+              </ul>
             </div>
-            {(topMiss.length > 0 || topWrong.length > 0) && (
-              <div style={{ padding: '14px 0', borderBottom: '1px solid var(--line)' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
-                  WHERE THEY LOSE MARKS
+          </section>
+
+          {/* departments */}
+          <section className="pf-section">
+            <h3>By department</h3>
+            <div className="pf-depts">
+              {s.depts.map((d) => (
+                <div key={d.dk} className="pf-dept">
+                  <span className="pf-dept-ico">
+                    <DeptIcon dept={d.dk} />
+                  </span>
+                  <div className="pf-dept-main">
+                    <div className="pf-dept-top">
+                      <b>{deptName(d.dk)}</b>
+                      <span>{d.n + (d.n === 1 ? ' chart' : ' charts')}</span>
+                    </div>
+                    <div className="pf-meter">
+                      <i className={d.avg === null ? '' : accTone(d.avg)} style={{ width: (d.avg || 0) + '%' }} />
+                    </div>
+                  </div>
+                  <b className={'pf-dept-avg ' + (d.avg === null ? '' : accTone(d.avg))}>{d.avg === null ? '—' : d.avg + '%'}</b>
                 </div>
-                <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap' }}>
-                  {topMiss.length > 0 && (
-                    <div style={{ minWidth: 250 }}>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          color: 'var(--muted)',
-                          marginBottom: 5,
-                        }}
-                      >
-                        MOST OFTEN MISSED
-                      </div>
-                      {topMiss.map(([c, n]) => (
-                        <div key={c} style={{ fontSize: 12.5, padding: '2px 0' }}>
-                          <b>{c}</b>
-                          <span style={{ color: 'var(--muted)' }}>
-                            {' \u00b7 missed ' + n + '\u00d7'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {topWrong.length > 0 && (
-                    <div style={{ minWidth: 250 }}>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          color: 'var(--muted)',
-                          marginBottom: 5,
-                        }}
-                      >
-                        CODED INCORRECTLY
-                      </div>
-                      {topWrong.map(([c, n]) => (
-                        <div key={c} style={{ fontSize: 12.5, padding: '2px 0' }}>
-                          <b>{c}</b>
-                          <span style={{ color: 'var(--muted)' }}>{' \u00b7 ' + n + '\u00d7'}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* mistakes */}
+          <section className="pf-section">
+            <h3>Where they lose marks</h3>
+            <div className="pf-mistakes">
+              <div className="pf-box">
+                <h4>
+                  <i className="bi bi-dash-circle" aria-hidden="true" /> Most often missed
+                </h4>
+                <CodeCount items={s.topMissed} empty="No missed codes recorded." render={(c) => <code>{c}</code>} />
               </div>
-            )}
-            <div style={{ padding: '14px 0' }}>
-              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>CHART BY CHART</div>
-              <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-                {ids.map((id) => {
-                  const v = r[id];
-                  return (
-                    <div
-                      key={id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '7px 0',
-                        borderBottom: '1px solid var(--line)',
-                      }}
-                    >
-                      <div>
-                        <b style={{ fontSize: 12.5 }}>{id}</b>
-                        <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>
-                          {(DEPTS[v.dept] ? DEPTS[v.dept].name : v.dept || '') +
-                            (v.at ? ' \u00b7 ' + new Date(v.at).toLocaleDateString() : '')}
-                        </span>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <b style={{ fontSize: 13, color: band(v.accuracy || 0) }}>
-                          {(v.accuracy || 0) + '%'}
-                        </b>
-                        <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>
-                          {(v.correct || 0) + '/' + (v.total || 0)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="pf-box">
+                <h4>
+                  <i className="bi bi-arrow-left-right" aria-hidden="true" /> Coded incorrectly
+                </h4>
+                <CodeCount
+                  items={s.topWrong}
+                  empty="No incorrect codes recorded."
+                  render={(k) => {
+                    const [code, fix] = k.split('|');
+                    return (
+                      <>
+                        <code className="bad">{code}</code>
+                        {fix ? (
+                          <>
+                            <i className="bi bi-arrow-right" aria-label="should be" />
+                            <code>{fix}</code>
+                          </>
+                        ) : null}
+                      </>
+                    );
+                  }}
+                />
               </div>
             </div>
-          </div>
-        )}
-      </div>
-    </div>
+          </section>
+
+          {/* charts */}
+          <section className="pf-section">
+            <h3>Chart by chart</h3>
+            <DataTable columns={CHART_COLUMNS} data={s.rows} rowKey="id" itemLabel="charts" defaultPageSize={8} pageSizeOptions={[8, 25, 50]} />
+          </section>
+        </>
+      )}
+    </Modal>
   );
 }

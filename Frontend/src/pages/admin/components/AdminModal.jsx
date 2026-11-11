@@ -14,6 +14,17 @@ export function AdminModal({
   bulkAllocate,
   onClose,
 }) {
+  // Manage access draws its own (wider) modal.
+  if (modal.type === 'allocate') {
+    return (
+      <AllocateForm
+        student={students.find((s) => s.id === modal.studentId)}
+        students={students}
+        allocateMany={allocateMany}
+        onClose={onClose}
+      />
+    );
+  }
   return (
     <div
       className="result-overlay"
@@ -22,15 +33,6 @@ export function AdminModal({
       }}
     >
       <div className="result-card" style={{ maxWidth: 520 }}>
-        {modal.type === 'allocate' && (
-          <AllocateForm
-            student={students.find((s) => s.id === modal.studentId)}
-            students={students}
-            allocate={allocate}
-            allocateMany={allocateMany}
-            onClose={onClose}
-          />
-        )}
         {modal.type === 'deptAllocate' && (
           <DeptAllocateForm
             deptKey={modal.dept}
