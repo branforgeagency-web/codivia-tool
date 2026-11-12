@@ -4,13 +4,9 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEPTS } from '../../config/constants.js';
 import { activeDeptKeys } from '../../utils/allocation.js';
+import { useSession } from '../../context/SessionContext.jsx';
+import * as authApi from '../../services/auth.service.js';
 
-// ---------------- LOGIN ----------------
-// CODIVIA-BUILD-APP-1102A — split sign-in / Sign up screen (matches the black + orange homepage).
-//   /app.html                    -> Sign in
-//   /app.html?signup=1           -> Sign up (create account)
-//   /app.html?signup=1&dept=KEY  -> Sign up, with that department shown (KEY = DEPTS key, e.g. CARDIO)
-// Auth calls are unchanged: window.CV_FB.register / login / resetPassword.
 export const CVX_IMG = {
   '01': '/assets/departments/01.webp',
   '02': '/assets/departments/02.webp',
@@ -100,6 +96,7 @@ export function CvxIcon({ d }) {
 
 export function Login() {
   const navigate = useNavigate();
+  const { startSession } = useSession();
   const accountTabs = useTabPanel();
   const start = useMemo(cvxParams, []);
   const [mode, setMode] = useState(start.signup ? 'register' : 'login'); // login | register
@@ -121,22 +118,15 @@ export function Login() {
     }
   }, []);
 
-  const nice = (code) => {
-    if (!code) return 'Something went wrong. Please try again.';
-    if (
-      code.includes('invalid-credential') ||
-      code.includes('wrong-password') ||
-      code.includes('user-not-found')
-    )
-      return 'Incorrect email or password.';
-    if (code.includes('email-already-in-use'))
-      return 'An account with this email already exists. Try signing in.';
-    if (code.includes('weak-password')) return 'Password should be at least 6 characters.';
-    if (code.includes('invalid-email')) return 'Please enter a valid email address.';
-    if (code.includes('too-many-requests'))
-      return 'Too many attempts. Please wait a moment and try again.';
-    if (code.includes('network')) return 'No connection. Check your internet and try again.';
-    return 'Error: ' + code;
+  // API errors carry { status, message, data.details: [{ field, message }] }.
+  const nice = (x) => {
+    if (!x) return 'Something went wrong. Please try again.';
+    if (x.status === undefined) return 'No connection. Check your internet and try again.';
+    if (x.status === 429) return 'Too many attempts. Please wait a moment and try again.';
+    if (x.status === 409) return 'An account with this email already exists. Try signing in.';
+    const detail = x.data && Array.isArray(x.data.details) && x.data.details[0];
+    if (detail && detail.message) return detail.message;
+    return x.message || 'Something went wrong. Please try again.';
   };
 
   const switchMode = (m) => {
@@ -164,37 +154,38 @@ export function Login() {
       setErr('Please enter your email and password.');
       return;
     }
-    if (mode === 'register' && pw.length < 6) {
-      setErr('Password should be at least 6 characters.');
+    if (mode === 'register' && pw.length < 8) {
+      setErr('Password must be at least 8 characters.');
       return;
     }
     setBusy(true);
     try {
       if (mode === 'register') {
-        const { studentId } = await window.CV_FB.register(email.trim(), pw, name.trim());
-        setNote('Account created. Your Student ID is ' + studentId + '. Signing you in…');
-      } else {
-        await window.CV_FB.login(email.trim(), pw);
+        // Create the account, then send the student to Sign in (email kept, password cleared).
+        const { user } = await authApi.register(name.trim(), email.trim(), pw);
+        switchMode('login');
+        setPw('');
+        setShowPw(false);
+        setNote(
+          'Account created. Your Student ID is ' +
+            user.studentId +
+            '. Sign in with your new password to continue.',
+        );
+        setBusy(false);
+        return;
       }
+      const { user } = await authApi.login(email.trim(), pw);
+      await startSession(user);
     } catch (x) {
-      setErr(nice((x && x.code) || (x && x.message) || ''));
+      setErr(nice(x));
       setBusy(false);
     }
   };
 
-  const forgot = async () => {
+  // No self-service reset in the API yet: an administrator sets a new password.
+  const forgot = () => {
     setErr('');
-    setNote('');
-    if (!email) {
-      setErr('Enter your email above first, then tap “Forgot password”.');
-      return;
-    }
-    try {
-      await window.CV_FB.resetPassword(email.trim());
-      setNote('Password reset email sent to ' + email.trim() + '.');
-    } catch (x) {
-      setErr(nice((x && x.code) || ''));
-    }
+    setNote('To reset your password, please contact your administrator.');
   };
 
   const reg = mode === 'register';
@@ -344,7 +335,7 @@ export function Login() {
                 type={showPw ? 'text' : 'password'}
                 value={pw}
                 onChange={(ev) => setPw(ev.target.value)}
-                placeholder={reg ? 'At least 6 characters' : '••••••••'}
+                placeholder={reg ? 'At least 8 characters' : '••••••••'}
                 autoComplete={reg ? 'new-password' : 'current-password'}
               />
               <button
@@ -383,7 +374,7 @@ export function Login() {
           </div>
           <div className="cvx-secure">
             <CvxIcon d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6z" />
-            Secured with Firebase Authentication
+            Secured sign-in
           </div>
         </div>
         </form>

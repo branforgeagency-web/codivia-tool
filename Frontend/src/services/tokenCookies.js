@@ -1,4 +1,5 @@
 const ACCESS_COOKIE = 'codivia_access_token';
+const REFRESH_KEY = 'codivia_refresh_token';
 
 export function getAccessToken() {
   const cookie = document.cookie.split('; ').find(value => value.startsWith(`${ACCESS_COOKIE}=`));
@@ -19,4 +20,40 @@ export function clearAccessToken() {
   document.cookie = `${ACCESS_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
 }
 
-// JavaScript cookies cannot be HttpOnly. Never store refresh tokens here.
+// The refresh token keeps the user signed in after the 15-minute access token expires.
+// It is never sent as a cookie; only POST /auth/refresh-tokens and /auth/logout receive it.
+// TODO: move it to an HttpOnly cookie set by the backend so page scripts cannot read it.
+export function getRefreshToken() {
+  try {
+    return localStorage.getItem(REFRESH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setRefreshToken(token) {
+  try {
+    localStorage.setItem(REFRESH_KEY, token);
+  } catch {
+    /* storage unavailable (private mode): the session lasts until the access token expires */
+  }
+}
+
+export function clearRefreshToken() {
+  try {
+    localStorage.removeItem(REFRESH_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// Store both tokens from a login / register / refresh response.
+export function saveTokens(tokens) {
+  setAccessToken(tokens.access.token, tokens.access.expiresAt);
+  if (tokens.refresh?.token) setRefreshToken(tokens.refresh.token);
+}
+
+export function clearTokens() {
+  clearAccessToken();
+  clearRefreshToken();
+}

@@ -1,4 +1,4 @@
-/* CODIVIA platform — loading screen shown while Firebase and the session start up */
+/* CODIVIA platform — loading screen shown while the session starts up */
 import { brand } from '../../config/brand.js';
 
 export function Splash() {

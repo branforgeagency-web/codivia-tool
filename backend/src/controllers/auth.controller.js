@@ -3,7 +3,7 @@ const httpStatus = require('../utils/httpStatus');
 const requestMeta = require('../utils/requestMeta');
 
 const register = async (req, res) => {
-  res.status(httpStatus.CREATED).json(await authService.register(req.body, requestMeta(req)));
+  res.status(httpStatus.CREATED).json(await authService.register(req.body));
 };
 
 const login = async (req, res) => {

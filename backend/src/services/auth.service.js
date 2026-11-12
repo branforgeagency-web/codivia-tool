@@ -23,11 +23,10 @@ const login = async (email, password, meta) => {
   return { user, tokens };
 };
 
-// Public sign-up ("Sign up"): always a student, signed in straight away.
-const register = async ({ name, email, password }, meta) => {
+// Public sign-up ("Sign up"): always a student. No tokens: the student signs in afterwards.
+const register = async ({ name, email, password }) => {
   const user = await userService.createUser({ name, email, password, role: ROLES.STUDENT });
-  const tokens = await tokenService.generateAuthTokens(user, meta);
-  return { user, tokens };
+  return { user };
 };
 
 // Rotation: the old refresh token is used up and a new pair is issued in the same family.

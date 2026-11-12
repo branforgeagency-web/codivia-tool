@@ -1,32 +1,22 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DeptChartCard } from '../../components/charts/DeptChartCard.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
 import { StatCard } from '../../components/ui/StatCard.jsx';
+import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { usePagination } from '../../hooks/usePagination.js';
 import { NavIcon } from '../../components/ui/NavIcon.jsx';
-import { DEPTS } from '../../config/constants.js';
-import { allocCount, allocRange, deptHasCharts } from '../../utils/allocation.js';
-import { useStudent } from '../../context/StudentContext.jsx';
 import { deptQueuePath } from '../../routes/paths.js';
+import { get } from '../../services/apiHelper.js';
+import { MY_CHARTS } from '../../services/endpoints.js';
 
-export function DeptSelect({ stu, stats, onSelect }) {
+// Data: GET /my-charts -> { results: [card], statistics: { assigned, worked, remaining, departments } }.
+// Each card is the DeptChartCard shape: { key, name, group, elements, assigned, worked, avg,
+// remaining, percent, range, status }. Search / filter / paging stay client-side.
+export function DeptSelect({ departments, statistics, onSelect }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
-  const departments = Object.entries(stu.depts || {})
-    .filter(([key]) => DEPTS[key] && deptHasCharts(key))
-    .map(([key, allocation]) => {
-      const pool = window.CHART_DATA[key].length;
-      const assigned = allocCount(allocation, pool);
-      const progress = stats.perDept[key] || { worked: 0, avg: 0 };
-      const worked = Math.min(assigned, progress.worked);
-      return { key, ...DEPTS[key], assigned, worked, avg: progress.avg,
-        remaining: assigned - worked, range: allocRange(allocation, pool),
-        percent: assigned ? Math.round(worked / assigned * 100) : 0,
-        status: assigned > 0 && worked === assigned ? 'complete' : worked ? 'active' : 'new' };
-    });
-  const assigned = departments.reduce((total, d) => total + d.assigned, 0);
-  const worked = departments.reduce((total, d) => total + d.worked, 0);
+  const { assigned, worked } = statistics;
   const filters = [['all', 'All departments'], ['active', 'In progress'], ['new', 'Not started'], ['complete', 'Completed']];
   const visible = departments.filter(d => (filter === 'all' || d.status === filter) &&
     (d.name + ' ' + d.key).toLowerCase().includes(query.trim().toLowerCase()));
@@ -67,7 +57,40 @@ export function DeptSelect({ stu, stats, onSelect }) {
 }
 
 export default function MyChartsPage() {
-  const { stu, stats } = useStudent();
   const navigate = useNavigate();
-  return <DeptSelect stu={stu} stats={stats} onSelect={key => navigate(deptQueuePath(key))} />;
+  const [data, setData] = useState(null); // { results, statistics }
+  const [error, setError] = useState('');
+
+  const load = useCallback(() => {
+    setError('');
+    setData(null);
+    return get(MY_CHARTS)
+      .then(setData)
+      .catch((e) => {
+        console.error('load my charts', e);
+        setError(e.message || 'Could not load your charts.');
+      });
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (error) {
+    return (
+      <div className="charts-empty" role="alert">
+        <NavIcon name="charts" />
+        <h2>Couldn't load your charts</h2>
+        <p>{error}</p>
+        <button className="btn btn-ghost" onClick={load}>Try again</button>
+      </div>
+    );
+  }
+  if (!data) return <PageLoader label="Loading your charts" />;
+  return (
+    <DeptSelect
+      departments={data.results}
+      statistics={data.statistics}
+      onSelect={(key) => navigate(deptQueuePath(key))}
+    />
+  );
 }

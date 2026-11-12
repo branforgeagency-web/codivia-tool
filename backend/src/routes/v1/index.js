@@ -11,6 +11,7 @@ const codeRoute = require('./code.route');
 const resumeRoute = require('./resume.route');
 const chartResultRoute = require('./chartResult.route');
 const certificateRoute = require('./certificate.route');
+const myChartRoute = require('./myChart.route');
 
 const router = express.Router();
 
@@ -27,6 +28,7 @@ const routes = [
   { path: '/resumes', route: resumeRoute },
   { path: '/chart-results', route: chartResultRoute },
   { path: '/certificates', route: certificateRoute },
+  { path: '/my-charts', route: myChartRoute },
 ];
 
 routes.forEach(({ path, route }) => router.use(path, route));
