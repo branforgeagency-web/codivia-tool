@@ -13,6 +13,7 @@
     "seed:charts": "node src/scripts/seedCharts.js",
     "seed:departments": "node src/scripts/seedDepartments.js",
     "seed:codes": "node src/scripts/seedCodes.js",
+    "seed:guidelines": "node src/scripts/seedCodingGuidelines.js",
     "seed:resume-templates": "node src/scripts/seedResumeTemplates.js"
   },
   "private": true,

@@ -12,16 +12,14 @@
 </head>
 <body>
 <div id="root"></div>
-<!-- data: served as-is from public/data (classic scripts, run before the app module) -->
-<!-- code database + reference tables (TODO: move to the /codes API; chart files in public/data/charts are kept but no longer loaded — charts come from the API) -->
+<!-- Code database and reference tables are served as classic scripts. -->
 <script src="/data/codes/code-db.js"></script>
 <script src="/data/codes/icd-index.js"></script>
 <script src="/data/codes/icd-eindex.js"></script>
 <script src="/data/codes/icd-notes.js"></script>
 <script src="/data/codes/icd-neo.js"></script>
 <script src="/data/codes/icd-drug.js"></script>
-<!-- content -->
-<script src="/data/coding-guide.js"></script>
+<!-- Coding guidelines are loaded from the API; coding-guide.js remains the seed source. -->
 <!-- app (React, styles): bundled by Vite from src/ -->
 <script type="module" src="/src/main.jsx"></script>
 </body>

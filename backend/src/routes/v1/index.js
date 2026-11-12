@@ -8,6 +8,7 @@ const departmentPoolRoute = require('./departmentPool.route');
 const adminDepartmentRoute = require('./adminDepartment.route');
 const adminChartRoute = require('./adminChart.route');
 const codeRoute = require('./code.route');
+const codingGuidelineRoute = require('./codingGuideline.route');
 const resumeRoute = require('./resume.route');
 const chartResultRoute = require('./chartResult.route');
 const certificateRoute = require('./certificate.route');
@@ -29,6 +30,7 @@ const routes = [
   { path: '/admin/students', route: adminStudentRoute },
   { path: '/admin/uploads', route: chartUploadRoute },
   { path: '/codes', route: codeRoute },
+  { path: '/guidelines', route: codingGuidelineRoute },
   { path: '/resumes', route: resumeRoute },
   { path: '/chart-results', route: chartResultRoute },
   { path: '/certificates', route: certificateRoute },

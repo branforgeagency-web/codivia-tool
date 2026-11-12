@@ -1,10 +1,10 @@
 import React from 'react';
+import { PageLoader } from '../../components/ui/PageLoader.jsx';
+import { get } from '../../services/apiHelper.js';
+import { CODING_GUIDELINES } from '../../services/endpoints.js';
 
 // ---- Coding Guidelines: reference for ICD-10-CM, CPT, HCPCS and ICD-10-PCS ----
-// Content: global CODING_GUIDE (public/data/coding-guide.js, loaded by index.html). Styles: .cg-* in styles/refinements.css.
-// Each code set's colour comes from the data and is passed to CSS as --gc.
-
-const ORDER = ['icd', 'cpt', 'pcs', 'hcpcs'];
+// Content is loaded from the API. Styles: .cg-* in styles/refinements.css.
 
 const Icon = ({ d, size = 18 }) => (
   <svg
@@ -47,12 +47,43 @@ function Hl({ text, re }) {
 }
 
 export function CodingGuide() {
-  // coding-guide.js declares a top-level `const CODING_GUIDE`: a global, but not a window property.
-  // eslint-disable-next-line no-undef
-  const GUIDE = (typeof CODING_GUIDE !== 'undefined' && CODING_GUIDE) || window.CODING_GUIDE || {};
+  const [guides, setGuides] = React.useState(null);
+  const [loadError, setLoadError] = React.useState('');
+  const [loadAttempt, setLoadAttempt] = React.useState(0);
   const [set, setSet] = React.useState('icd');
   const [open, setOpen] = React.useState({});
   const [q, setQ] = React.useState('');
+  React.useEffect(() => {
+    let active = true;
+    setLoadError('');
+    get(CODING_GUIDELINES)
+      .then((rows) => {
+        if (!Array.isArray(rows) || !rows.length) {
+          throw new Error('No coding guidelines are available.');
+        }
+        const data = Object.fromEntries(
+          rows.map((row) => {
+            if (!row.id || !Array.isArray(row.chapters)) {
+              throw new Error('The coding guidelines response is invalid.');
+            }
+            return [row.id, row];
+          })
+        );
+        if (active) {
+          setGuides(data);
+          setSet((current) => (data[current] ? current : Object.keys(data)[0]));
+        }
+      })
+      .catch((error) => {
+        if (active) setLoadError(error.message || 'Could not load coding guidelines.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [loadAttempt]);
+
+  const GUIDE = guides || {};
+  const ORDER = Object.keys(GUIDE);
   const g = GUIDE[set] || { label: '', sub: '', color: '#f26722', chapters: [] };
 
   const ql = q.trim().toLowerCase();
@@ -71,7 +102,7 @@ export function CodingGuide() {
   }, [g, ql]);
 
   const totals = React.useMemo(() => {
-    const sets = ORDER.filter((k) => GUIDE[k]);
+    const sets = Object.keys(GUIDE);
     const chapters = sets.reduce((n, k) => n + GUIDE[k].chapters.length, 0);
     const rules = sets.reduce((n, k) => n + GUIDE[k].chapters.reduce((m, c) => m + ruleCount(c), 0), 0);
     return { sets: sets.length, chapters, rules };
@@ -85,6 +116,22 @@ export function CodingGuide() {
       g.chapters.forEach((c, i) => (next[set + ':' + i] = value));
       return next;
     });
+
+  if (!guides) {
+    if (loadError) {
+      return (
+        <div className="page cg">
+          <div className="cvx-msg err" role="alert">
+            {loadError}
+          </div>
+          <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return <PageLoader label="Loading coding guidelines" />;
+  }
 
   return (
     <div className="page cg" style={{ '--gc': g.color }}>

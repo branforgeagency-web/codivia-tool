@@ -5,6 +5,7 @@ module.exports.Counter = require('./counter.model');
 module.exports.Chart = require('./chart.model');
 module.exports.Department = require('./department.model');
 module.exports.Code = require('./code.model');
+module.exports.CodingGuideline = require('./codingGuideline.model');
 module.exports.IcdIndexTerm = require('./icdIndexTerm.model');
 module.exports.IcdTableRow = require('./icdTableRow.model');
 module.exports.IcdNote = require('./icdNote.model');

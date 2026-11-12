@@ -11,6 +11,7 @@ export const USER_BY_ID = (id) => `${USERS}/${encodeURIComponent(id)}`;
 export const ACCESS = '/access';
 export const ACCESS_PERMISSION = (role, module) =>
   `${ACCESS}/${encodeURIComponent(role)}/${encodeURIComponent(module)}`;
+export const CODING_GUIDELINES = '/guidelines';
 export const DEPARTMENT_POOLS = '/department-pools';
 export const RESUMES = '/resumes';
 export const RESUME = (resumeId) => `${RESUMES}/${encodeURIComponent(resumeId)}`;

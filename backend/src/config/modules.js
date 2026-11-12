@@ -6,6 +6,7 @@ const MODULES = Object.freeze({
   ACCESS_CONTROL: 'access-control',
   DEPARTMENTS: 'departments',
   CODES: 'codes',
+  CODING_GUIDELINES: 'coding-guidelines',
   RESUMES: 'resumes',
   CHART_RESULTS: 'chart-results',
   CERTIFICATES: 'certificates',
@@ -20,6 +21,8 @@ const MODULE_LIST = Object.freeze([
   { key: MODULES.DEPARTMENTS, label: 'Departments' },
   // Not restricted: every signed-in role can search codes (read-only reference data).
   { key: MODULES.CODES, label: 'Code Search' },
+  // Not restricted: every signed-in role can view coding guidelines.
+  { key: MODULES.CODING_GUIDELINES, label: 'Coding Guidelines' },
   // ownRecords: every role adds / edits / deletes its own resumes; the service hides other people's.
   { key: MODULES.RESUMES, label: 'Resumes', ownRecords: true },
   { key: MODULES.CHART_RESULTS, label: 'Chart Results', ownRecords: true },
