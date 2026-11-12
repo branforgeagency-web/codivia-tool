@@ -1,9 +1,10 @@
 /* CODIVIA platform — student workspace state: results, saving, per-department stats, score.
    Shared by every student page through useStudent(). */
-import { createContext, useContext, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { CERT_THRESHOLD } from '../config/constants.js';
-import { deptHasCharts } from '../utils/allocation.js';
+import { put } from '../services/apiHelper.js';
+import { CHART_RESULT } from '../services/endpoints.js';
 import { useSession } from './SessionContext.jsx';
 
 const StudentContext = createContext(null);
@@ -19,65 +20,37 @@ export function StudentProvider() {
   const [results, setResults] = useState(stu.initialResults || {}); // chartId -> {accuracy, dept, ...}
   const [demoCert, setDemoCert] = useState(false); // preview: simulate a certified department
 
-  // Saving is idempotent: re-submitting the same chart overwrites its entry.
+  // Submitting is idempotent: re-submitting the same chart overwrites its entry.
   const [saveState, setSaveState] = useState(''); // '' | 'saving' | 'saved' | 'error'
-  const resultsRef = useRef(null);
-  if (resultsRef.current === null) resultsRef.current = stu.initialResults || {};
 
-  const recordResult = (chartId, res, dk) => {
-    // Only the fields needed for progress/scoring are persisted. The full
-    // correct/missed/wrong arrays carry every rationale string and would push
-    // the progress document past the Firestore 1 MiB limit once a student
-    // approaches the 200-chart certificate threshold in more than one dept.
-    const slim = {
-      accuracy: typeof res.accuracy === 'number' ? res.accuracy : 0,
-      total: typeof res.total === 'number' ? res.total : 0,
-      correct: Array.isArray(res.correct) ? res.correct.length : 0,
-      dept: dk,
-      at: Date.now(),
-    };
-    if (res.drgOk === true || res.drgOk === false) slim.drgOk = res.drgOk;
-    // Store CODES ONLY for missed / wrong answers so admin can see where a
-    // student is going wrong. Rationale text is deliberately excluded — it is
-    // what would blow the Firestore 1 MiB document limit at scale.
-    // missed[] entries carry .raw (dotted code) and .code (normalised).
-    // wrong[]  entries carry .code (what the student submitted) and, when the
-    // grader could pair it, .correctedTo.code (the audited code).
-    if (Array.isArray(res.missed) && res.missed.length) {
-      slim.miss = res.missed
-        .map((k) => String((k && (k.raw || k.code)) || ''))
-        .filter(Boolean)
-        .slice(0, 12);
-    }
-    if (Array.isArray(res.wrong) && res.wrong.length) {
-      slim.wrong = res.wrong
-        .map((w) => [
-          String((w && w.code) || ''),
-          String((w && w.correctedTo && w.correctedTo.code) || ''),
-        ])
-        .filter((x) => x[0])
-        .slice(0, 12);
-    }
-
-    const next = { ...resultsRef.current, [chartId]: slim };
-    resultsRef.current = next;
-    setResults(next);
-
-    if (stu.uid && window.CV_FB) {
-      setSaveState('saving');
-      window.CV_FB.saveProgress(stu.uid, next)
-        .then(() => setSaveState('saved'))
-        .catch((e) => {
-          console.error('save progress', e);
-          setSaveState('error');
-        });
+  // The server scores the chart against its answer key and saves the result:
+  // PUT /chart-results/:chartId { rows: [{code, desc, mod, poa}], drg } -> { result, saved, certificate }.
+  // Returns the full result for the result screen.
+  const submitChart = async (chartId, rows, drg) => {
+    setSaveState('saving');
+    try {
+      const body = {
+        rows: rows
+          .filter((r) => r && (r.code || r.mod))
+          .slice(0, 200)
+          .map((r) => ({ code: String(r.code || '').slice(0, 30), desc: String(r.desc || '').slice(0, 500), mod: String(r.mod || '').slice(0, 10), poa: String(r.poa || '').slice(0, 5) })),
+        drg: drg || '',
+      };
+      const { result, saved } = await put(CHART_RESULT(chartId), body);
+      setResults((cur) => ({ ...cur, [chartId]: saved }));
+      setSaveState('saved');
+      return result;
+    } catch (e) {
+      console.error('submit chart', e);
+      setSaveState('error');
+      throw e;
     }
   };
 
   // aggregate stats per department
   const stats = useMemo(() => {
     const perDept = {};
-    const allocEntries = Object.entries(stu.depts).filter(([dk]) => deptHasCharts(dk));
+    const allocEntries = Object.entries(stu.depts); // only departments with charts (GET /my-charts)
     const firstDept = allocEntries.length ? allocEntries[0][0] : undefined;
     allocEntries.forEach(([dk, alloc]) => {
       const worked = Object.entries(results).filter(([id, r]) => r.dept === dk);
@@ -119,7 +92,7 @@ export function StudentProvider() {
     codeDB,
     dbStatus,
     results,
-    recordResult,
+    submitChart,
     saveState,
     stats,
     demoCert,

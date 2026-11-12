@@ -12,3 +12,4 @@ module.exports.Resume = require('./resume.model');
 module.exports.ChartResult = require('./chartResult.model');
 module.exports.Certificate = require('./certificate.model');
 module.exports.Allocation = require('./allocation.model');
+module.exports.ChartUpload = require('./chartUpload.model');

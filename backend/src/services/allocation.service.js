@@ -72,7 +72,7 @@ const overlapsOf = (userId, start, end, allocations, students) =>
 const allocationView = (a, pool) => (a ? { start: a.start, end: a.end, count: rangeCount(a.start, a.end, pool) } : null);
 
 // Every active student with their range in this department (or null), for the Manage allocation screen.
-const queryAllocations = async (deptKey, { search, assigned = 'all', page = 1, limit = 20 }) => {
+const queryAllocations = async (deptKey, { search, assigned = 'all', page = 1, limit = 10 }) => {
   const department = await findDepartment(deptKey);
   const [students, allocations] = await Promise.all([
     User.find(LIVE_STUDENT).select('name email studentId').sort({ name: 1, _id: 1 }).lean(),
@@ -166,4 +166,4 @@ const saveAllocations = async (deptKey, items) => {
   return { department, saved: items.filter((i) => i.start != null).length, removed: items.filter((i) => i.start == null).length };
 };
 
-module.exports = { countCharts, rangeCount, summarize, queryAllocations, setAllocation, removeAllocation, saveAllocations };
+module.exports = { LIVE_STUDENT, countCharts, rangeCount, summarize, queryAllocations, setAllocation, removeAllocation, saveAllocations };

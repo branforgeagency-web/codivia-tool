@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { DEPTS } from '../../../config/constants.js';
 import { PATHS } from '../../../routes/paths.js';
 import { CodeSection } from './CodeSection.jsx';
 import { RecordTabs } from './RecordTabs.jsx';
@@ -41,8 +40,8 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
   // Level of Service (E/M) is only valid where the department actually bills an
   // E/M service. Procedural / technical departments (IVR, RAD, PATH, DME, ENT,
   // GENSURG) code the procedure only — showing an E/M box there teaches students
-  // to unbundle. DEPTS[].elements is the source of truth; 'EM' must be listed.
-  const deptEls = (DEPTS[chart.dept] && DEPTS[chart.dept].elements) || [];
+  // to unbundle. The department's code sets (from the database, sent with the chart) must list 'EM'.
+  const deptEls = chart.elements || [];
   const hasEM = deptEls.indexOf('EM') !== -1;
   const [dx, setDx] = useState(draft.dx || blankRows()); // Principal dx (IP) / Diagnoses (OP)
   const [sdx, setSdx] = useState(draft.sdx || blankRows()); // Secondary diagnoses (IP)
@@ -61,77 +60,22 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
   const [drgOpen, setDrgOpen] = useState(false);
   const [result, setResult] = useState(null);
 
-  const submit = () => {
-    const norm = (s) => (s || '').toUpperCase().replace(/[\s.]/g, '');
-    const allRows = [...dx, ...sdx, ...pcs, ...spcs, ...em, ...cpt];
-    const userCodes = allRows.map((x) => norm(x.code)).filter(Boolean);
-    const userMods = allRows.map((x) => norm(x.mod)).filter(Boolean); // modifiers the student attached
-    const key = chart.answerKey.map((k) => ({
-      code: norm(k.code),
-      desc: k.desc,
-      type: k.type,
-      why: k.why,
-      raw: k.code,
-    }));
-    // DRG scored specially (IP); PDGM informational; MOD scored against attached modifiers
-    const drgKey = key.find((k) => k.type === 'DRG');
-    const modKey = key.filter((k) => k.type === 'MOD');
-    const codeKey = key.filter((k) => k.type !== 'DRG' && k.type !== 'PDGM' && k.type !== 'MOD');
-    const correctCodes = codeKey.filter((k) => userCodes.includes(k.code));
-    const correctMods = modKey.filter((k) => userMods.includes(k.code));
-    const correct = [...correctCodes, ...correctMods];
-    const missed = [
-      ...codeKey.filter((k) => !userCodes.includes(k.code)),
-      ...modKey.filter((k) => !userMods.includes(k.code)),
-    ];
-    // For each wrong entry, pair it with the audited code of the SAME TYPE that
-    // the student missed — so the report can say "you coded X, the audited code is Y, because...".
-    const missedCodes = codeKey.filter((k) => !userCodes.includes(k.code));
-    const usedSubs = {};
-    const wrong = allRows
-      .filter((x) => x.code && !codeKey.find((k) => k.code === norm(x.code)))
-      .map((x) => {
-        const uc = norm(x.code);
-        const sameFamily = (a, b) => {
-          if (/^99[2-4]/.test(a) && /^99[2-4]/.test(b)) return true; // E/M level
-          if (/^[0-9]/.test(a) && /^[0-9]/.test(b)) return a.slice(0, 3) === b.slice(0, 3); // CPT family
-          return a.charAt(0) === b.charAt(0); // same ICD chapter letter
-        };
-        let sub = missedCodes.find((k) => !usedSubs[k.code] && sameFamily(uc, k.code));
-        if (!sub) sub = missedCodes.find((k) => !usedSubs[k.code]);
-        if (sub) usedSubs[sub.code] = true;
-        return Object.assign(
-          {},
-          x,
-          sub ? { correctedTo: { code: sub.raw || sub.code, desc: sub.desc, why: sub.why } } : {},
-        );
-      });
-    let drgOk = null;
-    if (drgKey) {
-      const userDrgNum = (drg || '').split(' — ')[0].trim();
-      drgOk = userDrgNum === drgKey.code;
+  // The server scores the chart against its answer key (the browser never has it) and saves it;
+  // onSubmit(rows, drg) resolves with the result object the result screen shows.
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const submit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const res = await onSubmit([...dx, ...sdx, ...pcs, ...spcs, ...em, ...cpt], drg);
+      setResult(res);
+      clearDraft(pathname);
+    } catch (e) {
+      setSubmitError((e && e.message) || 'Could not submit. Check your connection and try again.');
     }
-    const totalItems = codeKey.length + modKey.length + (drgKey ? 1 : 0);
-    const gotItems = correct.length + (drgOk ? 1 : 0);
-    const accuracy = totalItems ? Math.round((gotItems / totalItems) * 100) : 0;
-    const pdgmKey = key.find((k) => k.type === 'PDGM');
-    const res = {
-      accuracy,
-      correct,
-      missed,
-      wrong,
-      total: totalItems,
-      drgKey,
-      drgOk,
-      userDrg: drg,
-      pdgmKey,
-    };
-    setResult(res);
-    clearDraft(pathname);
-    // Persist IMMEDIATELY on scoring. Previously the save only ran from
-    // "Save & Continue"; a student who read the score and hit "Back to queue"
-    // (or Esc, or browser-back) lost the chart silently.
-    onSubmit(res);
+    setSubmitting(false);
   };
   // The modal buttons only dismiss now — the score is already saved.
   const confirmAndClose = () => {
@@ -404,10 +348,15 @@ export function Coder({ chart, codeDB, dbStatus, onClose, onSubmit, saveState })
             >
               ⌕ Code Search
             </button>
-            <button className="submitbtn" style={{ flex: 1 }} onClick={submit}>
-              Submit for Scoring
+            <button className="submitbtn" style={{ flex: 1 }} onClick={submit} disabled={submitting}>
+              {submitting ? 'Scoring…' : 'Submit for Scoring'}
             </button>
           </div>
+          {submitError && (
+            <div className="cvx-msg err" role="alert" style={{ marginTop: 8 }}>
+              {submitError}
+            </div>
+          )}
         </div>
       </div>
       {result && (

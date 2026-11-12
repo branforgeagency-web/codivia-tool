@@ -10,11 +10,11 @@ const DEPARTMENT_FILTERS = Object.freeze([
 const DEPARTMENT_FILTER_KEYS = Object.freeze(DEPARTMENT_FILTERS.map((f) => f.key));
 
 const ADMIN_DEPARTMENT_SORT_FIELDS = Object.freeze(['order', 'name', 'pool', 'allocated', 'available', 'students']);
-const ADMIN_DEPARTMENT_LIMITS = Object.freeze({ search: 100, defaultLimit: 9, maxLimit: 100 });
+const ADMIN_DEPARTMENT_LIMITS = Object.freeze({ search: 100, defaultLimit: 10, maxLimit: 100 });
 
 // Students listed on the Manage allocation screen.
 const ALLOCATION_FILTERS = Object.freeze(['all', 'assigned', 'unassigned']);
-const ALLOCATION_LIMITS = Object.freeze({ search: 100, defaultLimit: 20, maxLimit: 200, bulkMax: 500 });
+const ALLOCATION_LIMITS = Object.freeze({ search: 100, defaultLimit: 10, maxLimit: 200, bulkMax: 500 });
 
 module.exports = {
   DEPARTMENT_FILTERS,

@@ -11,3 +11,5 @@ module.exports.departmentPoolController = require('./departmentPool.controller')
 module.exports.adminDepartmentController = require('./adminDepartment.controller');
 module.exports.adminChartController = require('./adminChart.controller');
 module.exports.myChartController = require('./myChart.controller');
+module.exports.adminStudentController = require('./adminStudent.controller');
+module.exports.chartUploadController = require('./chartUpload.controller');

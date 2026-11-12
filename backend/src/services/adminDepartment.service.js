@@ -6,7 +6,7 @@ const { countCharts, summarize } = require('./allocation.service');
 // Admin Departments page: every department that has charts, as cards, with the page statistics
 // and filter tab counts. Statistics and counts always cover every department; the group filter,
 // search, sort and page only change `results`. Everything is read live from the database.
-const queryDepartments = async ({ group = 'all', search, sortBy = 'order', order = 'asc', page = 1, limit = 9 }) => {
+const queryDepartments = async ({ group = 'all', search, sortBy = 'order', order = 'asc', page = 1, limit = 10 }) => {
   const [departments, pools] = await Promise.all([Department.find().select('name icon group elements order isActive').lean(), countCharts()]);
   const { byDept, assignedStudents, students } = await summarize(pools);
 

@@ -1,4 +1,3 @@
-import { DEPTS } from '../../../config/constants.js';
 
 // ---- Resume view (template gallery + auto-filled preview) ----
 // ---- Résumé design system: palettes × layout engines = 30+ distinct templates ----
@@ -113,8 +112,9 @@ export const RESUME_TEMPLATES = (function () {
 })();
 
 // Default résumé content — seeded from the student + their CODIVIA coding record
-export function defaultResume(stu, stats, target) {
-  const d = DEPTS[target] || { name: 'Emergency Department', elements: [] };
+// departments: { KEY: { name, elements } } from GET /departments (useDepartments()).
+export function defaultResume(stu, stats, target, departments = {}) {
+  const d = departments[target] || { name: 'Emergency Department', elements: [] };
   const st = stats.perDept[target] || { worked: 0, avg: 0 };
   const certId = 'CDV-2026-' + String(1000 + parseInt(stu.id.replace(/\D/g, ''))).padStart(6, '0');
   const worked = st.worked || 0;

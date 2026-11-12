@@ -1,4 +1,5 @@
 /* CODIVIA platform — admin dashboard layout: header + sidebar menu + routed page + modals */
+import { useEffect } from 'react';
 import { DashboardLayout } from '../components/layout/DashboardLayout.jsx';
 import { SidebarTile } from '../components/layout/Sidebar.jsx';
 import { ADMIN_NAV } from '../config/navigation.js';
@@ -8,75 +9,49 @@ import { AdminModal } from '../pages/admin/components/AdminModal.jsx';
 import { AdminChartView } from '../pages/admin/components/ChartViewModal.jsx';
 import { AdminPerformance } from '../pages/admin/components/PerformanceModal.jsx';
 import { theme } from '../theme/theme.js';
-import { activeDeptKeys } from '../utils/allocation.js';
 
 function AdminShell() {
   const { session, logout } = useSession();
-  const {
-    students,
-    loadingStudents,
-    refreshStudents,
-    totalAllocated,
-    totalPool,
-    modal,
-    setModal,
-    allocate,
-    allocateMany,
-    addStudent,
-    bulkAllocate,
-    perfId,
-    setPerfId,
-    browseChart,
-    setBrowseChart,
-  } = useAdmin();
+  const { totals, refreshAll, modal, setModal, perfStudent, setPerfStudent, browseChart, setBrowseChart, notice, setNotice } =
+    useAdmin();
 
-  const navItems = ADMIN_NAV.map((item) =>
-    item.id === 'students' ? { ...item, count: students.length } : item,
-  );
+  // Success messages fade on their own; errors stay until dismissed.
+  useEffect(() => {
+    if (!notice || notice.tone !== 'ok') return undefined;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice, setNotice]);
+
+  const students = totals ? totals.students : 0;
+  const navItems = ADMIN_NAV.map((item) => (item.id === 'students' ? { ...item, count: students } : item));
 
   const headerExtra = (
     <span className="who">
-      <b>{students.length + ' students · ' + activeDeptKeys().length + ' depts'}</b>
+      <b>{totals ? students + ' students · ' + totals.departments + ' depts' : '…'}</b>
     </span>
   );
 
   const sidebarFooter = (
     <>
       <div className="side-sep" />
-      <SidebarTile
-        item={{
-          id: 'refresh',
-          ic: '🔄',
-          lbl: loadingStudents ? 'Loading…' : 'Refresh list',
-          ...theme.tiles.refresh,
-        }}
-        active={false}
-        onClick={refreshStudents}
-      />
-      <div className="side-foot">
-        Admin / TL
-        <br />
-        {/* {totalAllocated.toLocaleString() + ' of ' + totalPool.toLocaleString() + ' charts allocated'} */}
-      </div>
+      <SidebarTile item={{ id: 'refresh', ic: '🔄', lbl: 'Refresh data', ...theme.tiles.refresh }} active={false} onClick={refreshAll} />
+      <div className="side-foot">Admin / TL</div>
     </>
   );
 
-  const perfStudent = perfId ? students.find((s) => s.id === perfId) : null;
   const overlays = (
     <>
-      {modal && (
-        <AdminModal
-          modal={modal}
-          students={students}
-          allocate={allocate}
-          allocateMany={allocateMany}
-          addStudent={addStudent}
-          bulkAllocate={bulkAllocate}
-          onClose={() => setModal(null)}
-        />
-      )}
-      {perfStudent && <AdminPerformance student={perfStudent} onClose={() => setPerfId(null)} />}
+      {modal && <AdminModal modal={modal} onClose={() => setModal(null)} />}
+      {perfStudent && <AdminPerformance student={perfStudent} onClose={() => setPerfStudent(null)} />}
       {browseChart && <AdminChartView chart={browseChart} onClose={() => setBrowseChart(null)} />}
+      {notice && (
+        <div className={'cvx-msg admin-notice ' + notice.tone} role={notice.tone === 'err' ? 'alert' : 'status'}>
+          <span>{notice.text}</span>
+          <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>
+            ×
+          </button>
+        </div>
+      )}
     </>
   );
 

@@ -3,12 +3,10 @@ import { RouteLoading } from '../components/ui/RouteLoading.jsx';
    the first time its route is opened. */
 import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { DEPTS } from '../config/constants.js';
 import { useSession } from '../context/SessionContext.jsx';
 import { StudentProvider } from '../context/StudentContext.jsx';
 import { AdminLayout } from '../layouts/AdminLayout.jsx';
 import { StudentLayout } from '../layouts/StudentLayout.jsx';
-import { deptHasCharts } from '../utils/allocation.js';
 import { PATHS, deptQueuePath } from './paths.js';
 
 // student pages
@@ -41,7 +39,7 @@ function StudentHome() {
   const p = new URLSearchParams(search);
   if (p.get('view') === 'findcode') return <Navigate to={PATHS.codeSearch} replace />;
   const d = p.get('dept');
-  if (d && DEPTS[d] && stu.depts && stu.depts[d] != null && deptHasCharts(d)) {
+  if (d && stu.depts && stu.depts[d] != null) {
     return <Navigate to={deptQueuePath(d)} replace />;
   }
   return <Navigate to={PATHS.dashboard} replace />;

@@ -1,13 +1,15 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DataTable } from '../../../components/ui/DataTable.jsx';
 import { DeptIcon } from '../../../components/ui/DeptIcon.jsx';
 import { Avatar, Modal } from '../../../components/ui/Modal.jsx';
 import { ProgressRing } from '../../../components/ui/ProgressRing.jsx';
-import { DEPTS } from '../../../config/constants.js';
+import { PageLoader } from '../../../components/ui/PageLoader.jsx';
+import { get } from '../../../services/apiHelper.js';
+import { ADMIN_STUDENT } from '../../../services/endpoints.js';
 import { accTone } from '../../../utils/progress.js';
 
 // ---- Admin: one student's performance. Score bands, per-department accuracy, the codes they
-// miss or get wrong most, and every chart they submitted. Data: student.results (Firebase progress).
+// miss or get wrong most, and every chart they submitted. Data: GET /admin/students/:id ({ results, departmentNames }).
 // Styles: .md-* (modal) and .pf-* in styles/refinements.css ----
 
 const BANDS = [
@@ -17,7 +19,8 @@ const BANDS = [
   { key: 'weak', label: 'Under 50%', min: 0, tone: 'lo' },
 ];
 const bandOf = (a) => BANDS.find((b) => a >= b.min);
-const deptName = (dk) => (DEPTS[dk] ? DEPTS[dk].name : dk || 'Unknown');
+// Department label from the names the API sends with the student.
+const namer = (names) => (dk) => (names && names[dk]) || dk || 'Unknown';
 const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const top = (counts, n) => Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n);
 
@@ -56,7 +59,7 @@ function summarize(results) {
   return { rows, avg, bands, depts, scoredCount: scored.length, topMissed: top(missed, 8), topWrong: top(wrong, 8), lastAt: rows[0]?.at };
 }
 
-const CHART_COLUMNS = [
+const chartColumns = (deptName) => [
   { key: 'id', header: 'Chart', sortable: true, render: (r) => <b className="pf-id">{r.id}</b> },
   { key: 'dept', header: 'Department', sortable: true, sortValue: (r) => deptName(r.dept), render: (r) => deptName(r.dept) },
   { key: 'at', header: 'Submitted', sortable: true, sortValue: (r) => r.at || 0, render: (r) => fmtDate(r.at) },
@@ -89,27 +92,44 @@ function CodeCount({ items, render, empty }) {
   );
 }
 
-export function AdminPerformance({ student, onClose }) {
-  const s = useMemo(() => summarize(student.results), [student.results]);
+export function AdminPerformance({ student: card, onClose }) {
+  const [student, setStudent] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    get(ADMIN_STUDENT(card.uid))
+      .then((r) => !cancelled && setStudent(r))
+      .catch((e) => !cancelled && setError(e.message || 'Could not load this student.'));
+    return () => {
+      cancelled = true;
+    };
+  }, [card.uid]);
+  const s = useMemo(() => summarize(student ? student.results : {}), [student]);
+  const deptName = useMemo(() => namer(student && student.departmentNames), [student]);
+  const columns = useMemo(() => chartColumns(deptName), [deptName]);
   const total = s.rows.length;
 
   return (
     <Modal
       size="xl"
-      title={student.name}
-      subtitle={student.id + (student.email ? ' · ' + student.email : '')}
-      icon={<Avatar name={student.name} />}
+      title={card.name}
+      subtitle={card.id + (card.email ? ' · ' + card.email : '')}
+      icon={<Avatar name={card.name} />}
       onClose={onClose}
     >
-      {total === 0 ? (
+      {error ? (
         <div className="pf-empty">
-          <i className={'bi ' + (student.progressError ? 'bi-exclamation-triangle' : 'bi-hourglass-split')} aria-hidden="true" />
-          <h3>{student.progressError ? 'Progress could not be read' : 'No charts submitted yet'}</h3>
-          <p>
-            {student.progressError
-              ? 'Reading this student’s progress failed (' + student.progressError + '). Try Refresh list.'
-              : 'Results appear here as soon as the student submits their first chart.'}
-          </p>
+          <i className="bi bi-exclamation-triangle" aria-hidden="true" />
+          <h3>Progress could not be loaded</h3>
+          <p>{error}</p>
+        </div>
+      ) : !student ? (
+        <PageLoader variant="inline" label="Loading performance" />
+      ) : total === 0 ? (
+        <div className="pf-empty">
+          <i className="bi bi-hourglass-split" aria-hidden="true" />
+          <h3>No charts submitted yet</h3>
+          <p>Results appear here as soon as the student submits their first chart.</p>
         </div>
       ) : (
         <>
@@ -211,7 +231,7 @@ export function AdminPerformance({ student, onClose }) {
           {/* charts */}
           <section className="pf-section">
             <h3>Chart by chart</h3>
-            <DataTable columns={CHART_COLUMNS} data={s.rows} rowKey="id" itemLabel="charts" defaultPageSize={8} pageSizeOptions={[8, 25, 50]} />
+            <DataTable columns={columns} data={s.rows} rowKey="id" itemLabel="charts" defaultPageSize={10} pageSizeOptions={[10, 25, 50]} />
           </section>
         </>
       )}

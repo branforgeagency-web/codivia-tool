@@ -3,13 +3,13 @@ import { Card } from '../../components/ui/Card.jsx';
 import { GuidelinesPanel } from '../../components/guidelines/GuidelinesPanel.jsx';
 import { ElementTiles } from '../../components/ui/ElementTiles.jsx';
 import { StatCard } from '../../components/ui/StatCard.jsx';
-import { CERT_THRESHOLD, DEPTS } from '../../config/constants.js';
-import { allocCount, deptHasCharts } from '../../utils/allocation.js';
+import { CERT_THRESHOLD } from '../../config/constants.js';
 import { useNavigate } from 'react-router-dom';
 import { useStudent } from '../../context/StudentContext.jsx';
 import { deptQueuePath } from '../../routes/paths.js';
 
 // ---- Dashboard (landing tile) ----
+// Departments: stu.deptCards (GET /my-charts at sign-in: name, code sets, assigned count).
 export function Dashboard({ stu, stats, onGoDept }) {
   return (
     <div>
@@ -22,7 +22,7 @@ export function Dashboard({ stu, stats, onGoDept }) {
         <StatCard k="Overall Accuracy" v={stats.overallAvg + '%'} s="audited average" />
         <StatCard
           k="Departments"
-          v={Object.keys(stu.depts).filter(deptHasCharts).length}
+          v={(stu.deptCards || []).length}
           s="allocated to you"
         />
         <StatCard
@@ -34,9 +34,7 @@ export function Dashboard({ stu, stats, onGoDept }) {
       <Card title="Your Departments">
         <div style={{ padding: 16 }}>
           {(function () {
-            const entries = Object.entries(stu.depts).filter(
-              ([dk]) => DEPTS[dk] && deptHasCharts(dk),
-            );
+            const entries = stu.deptCards || [];
             if (!entries.length) {
               return (
                 <div style={{ padding: '26px 6px', textAlign: 'center' }}>
@@ -62,8 +60,8 @@ export function Dashboard({ stu, stats, onGoDept }) {
             }
             return (
               <div className="dept-grid">
-                {entries.map(([dk, alloc]) => {
-                  const d = DEPTS[dk];
+                {entries.map((d) => {
+                  const dk = d.key;
                   const st = stats.perDept[dk] || { worked: 0, avg: 0 };
                   return (
                     <button type="button" key={dk} className="dept-card" onClick={() => onGoDept(dk)} aria-label={'Open ' + d.name + ' charts'}>
@@ -75,7 +73,7 @@ export function Dashboard({ stu, stats, onGoDept }) {
                       <div className="alloc">
                         <span>Progress</span>
                         <b>
-                          {st.worked + ' / ' + allocCount(alloc, window.CHART_DATA[dk].length)}
+                          {st.worked + ' / ' + d.assigned}
                         </b>
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>

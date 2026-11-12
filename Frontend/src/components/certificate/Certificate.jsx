@@ -1,9 +1,10 @@
 import { brand } from '../../config/brand.js';
-import { DEPTS, ELEMENT_LABELS } from '../../config/constants.js';
+import { ELEMENT_LABELS } from '../../config/constants.js';
+import { deptInfo, useDepartments } from '../../context/SessionContext.jsx';
 import { doPrint } from '../../utils/print.js';
 
 export function Certificate({ stu, dept, st }) {
-  const d = DEPTS[dept];
+  const d = deptInfo(useDepartments(), dept); // GET /departments
   const certId = 'CDV-2026-' + String(1000 + parseInt(stu.id.replace(/\D/g, ''))).padStart(6, '0');
   return (
     <div className="print-area" style={{ marginBottom: 16 }}>

@@ -4830,3 +4830,7 @@ tbody tr:hover {
     box-shadow: none !important;
   }
 }
+
+/* Admin: floating notice for failed saves (AdminContext.notice) */
+.admin-notice{position:fixed;right:20px;bottom:20px;z-index:1200;display:flex;align-items:flex-start;gap:10px;max-width:420px;margin:0;box-shadow:0 8px 24px rgba(15,23,42,.18)}
+.admin-notice button{background:none;border:0;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:0 2px}

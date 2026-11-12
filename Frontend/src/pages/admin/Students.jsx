@@ -1,16 +1,15 @@
-import { useMemo, useState } from 'react';
-import { STUDENT_STATUS, StudentCard, studentStatus } from '../../components/admin/StudentCard.jsx';
+import { useState } from 'react';
+import { StudentCard } from '../../components/admin/StudentCard.jsx';
 import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
 import { StatTile, StatTiles } from '../../components/ui/StatTile.jsx';
 import { useAdmin } from '../../context/AdminContext.jsx';
-import { usePagination } from '../../hooks/usePagination.js';
-import { progressOf } from '../../utils/progress.js';
+import { useApiList } from '../../hooks/useApiList.js';
+import { useDebounced } from '../../hooks/useDebounced.js';
+import { ADMIN_STUDENTS } from '../../services/endpoints.js';
 
 // ---- Admin: Students. Cards: StudentCard. Styles: .ad-* / .dc-* / .sc-* in refinements.css ----
-// Data: AdminContext.students, loaded from Firebase by window.CV_FB.listStudents().
-
-const PAGE_SIZE = 9;
+// Data: GET /admin/students — 10 cards per page; search, status tabs and statistics from the server.
 
 const ICON = {
   users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
@@ -29,41 +28,14 @@ const Svg = ({ d, size = 18 }) => (
   </svg>
 );
 
-const FILTERS = [['all', 'All students'], ...Object.entries(STUDENT_STATUS).map(([k, v]) => [k, v.label])];
-
-export function AdminStudents({ students, loading, onAllocate, onRefresh, onPerf, onBulk }) {
+export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk }) {
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
-
-  // Progress and status are worked out once per student, not on every render of every card.
-  const rows = useMemo(
-    () =>
-      students.map((s) => {
-        const progress = progressOf(s);
-        return { s, progress, status: studentStatus(s, progress) };
-      }),
-    [students],
-  );
-
-  const q = query.trim().toLowerCase();
-  const shown = useMemo(
-    () =>
-      rows.filter(
-        (r) =>
-          (filter === 'all' || r.status === filter) &&
-          (!q || (r.s.name + ' ' + r.s.id + ' ' + (r.s.email || '')).toLowerCase().includes(q)),
-      ),
-    [rows, filter, q],
-  );
-  const pager = usePagination(shown, { pageSize: PAGE_SIZE, resetKey: filter + '|' + q });
-
-  const count = (k) => (k === 'all' ? rows.length : rows.filter((r) => r.status === k).length);
-  const totals = rows.reduce(
-    (acc, r) => ({ worked: acc.worked + r.progress.worked, allocated: acc.allocated + r.progress.allocated }),
-    { worked: 0, allocated: 0 },
-  );
-  // Hide the "unreadable" tab unless it applies, so the filters stay short.
-  const filters = FILTERS.filter(([k]) => k !== 'error' || count('error') > 0);
+  const search = useDebounced(query.trim());
+  const list = useApiList(ADMIN_STUDENTS, { params: { status: filter, search }, reloadKey });
+  const stats = (list.data && list.data.statistics) || { students: 0, active: 0, worked: 0, allocated: 0, unallocated: 0 };
+  const filters = (list.data && list.data.filters) || [{ key: 'all', label: 'All students', count: 0 }];
+  const loading = list.loading;
 
   return (
     <div className="ad">
@@ -83,23 +55,23 @@ export function AdminStudents({ students, loading, onAllocate, onRefresh, onPerf
       </div>
 
       <StatTiles>
-        <StatTile lead icon={ICON.users} label="Students" value={rows.length} caption="registered" />
-        <StatTile icon={ICON.pulse} label="Active" value={count('active')} caption="have worked charts" />
-        <StatTile icon={ICON.check} label="Charts Completed" value={totals.worked.toLocaleString()} caption="across all students" />
+        <StatTile lead icon={ICON.users} label="Students" value={stats.students} caption="registered" />
+        <StatTile icon={ICON.pulse} label="Active" value={stats.active} caption="have worked charts" />
+        <StatTile icon={ICON.check} label="Charts Completed" value={stats.worked.toLocaleString()} caption="across all students" />
         <StatTile
           icon={ICON.share}
           label="Allocated"
-          value={totals.allocated.toLocaleString()}
-          caption={count('unallocated') + ' student' + (count('unallocated') === 1 ? '' : 's') + ' with no department'}
+          value={stats.allocated.toLocaleString()}
+          caption={stats.unallocated + ' student' + (stats.unallocated === 1 ? '' : 's') + ' with no department'}
         />
       </StatTiles>
 
       <div className="ad-toolbar">
         <div className="pg-filters" role="tablist" aria-label="Student status">
-          {filters.map(([k, label]) => (
-            <button key={k} type="button" role="tab" aria-selected={filter === k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>
-              {label}
-              <span>{count(k)}</span>
+          {filters.map((f) => (
+            <button key={f.key} type="button" role="tab" aria-selected={filter === f.key} className={filter === f.key ? 'on' : ''} onClick={() => setFilter(f.key)}>
+              {f.label}
+              <span>{f.count}</span>
             </button>
           ))}
         </div>
@@ -110,23 +82,27 @@ export function AdminStudents({ students, loading, onAllocate, onRefresh, onPerf
         </label>
       </div>
 
-      {loading && rows.length === 0 ? (
+      {list.error ? (
+        <div className="cvx-msg err" role="alert">
+          {list.error}
+        </div>
+      ) : !list.data ? (
         <PageLoader variant="inline" label="Loading students" />
-      ) : shown.length ? (
+      ) : list.results.length ? (
         <>
           <div className="ad-grid">
-            {pager.items.map((r) => (
-              <StudentCard key={r.s.uid || r.s.id} student={r.s} progress={r.progress} onPerf={onPerf} onAllocate={onAllocate} />
+            {list.results.map((s) => (
+              <StudentCard key={s.uid} student={s} onPerf={onPerf} onAllocate={onAllocate} />
             ))}
           </div>
-          <Pagination {...pager.props} itemLabel="students" />
+          <Pagination {...list.pagerProps} itemLabel="students" />
         </>
       ) : (
         <div className="pg-empty">
           <span>
             <Svg d={ICON.inbox} size={24} />
           </span>
-          {rows.length === 0 ? (
+          {stats.students === 0 ? (
             <>
               <h3>No students yet</h3>
               <p>Once a student creates an account, press Refresh to see them here.</p>
@@ -145,14 +121,13 @@ export function AdminStudents({ students, loading, onAllocate, onRefresh, onPerf
 
 // route: /admin/students
 export default function StudentsPage() {
-  const { students, loadingStudents, refreshStudents, setModal, setPerfId } = useAdmin();
+  const { version, refreshAll, setModal, setPerfStudent } = useAdmin();
   return (
     <AdminStudents
-      students={students}
-      loading={loadingStudents}
-      onAllocate={(sid) => setModal({ type: 'allocate', studentId: sid })}
-      onRefresh={refreshStudents}
-      onPerf={(sid) => setPerfId(sid)}
+      reloadKey={version}
+      onAllocate={(student) => setModal({ type: 'allocate', student })}
+      onRefresh={refreshAll}
+      onPerf={setPerfStudent}
       onBulk={() => setModal({ type: 'bulkAllocate' })}
     />
   );

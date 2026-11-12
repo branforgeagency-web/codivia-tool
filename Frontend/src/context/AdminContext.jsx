@@ -1,7 +1,19 @@
-/* CODIVIA platform — admin state: students, allocations, open modals.
-   Shared by every admin page through useAdmin(). */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { activeDeptKeys, allocCount } from '../utils/allocation.js';
+/* CODIVIA platform — admin state shared by every admin page through useAdmin():
+   open modals, the error notice, totals for the header, and the allocation saves.
+   Each page loads its own (paged) data from the API; `version` goes up after every change
+   so those pages reload.
+     GET /department-pools?limit=1               header totals (analytics)
+     PUT /admin/students/:id/allocations         one student's whole allocation map (Manage Access)
+     PUT /admin/departments/:dept/allocations    many students in one department
+     POST /admin/students/bulk-allocate          starter charts for every unallocated student */
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { get, post, put } from '../services/apiHelper.js';
+import {
+  ADMIN_STUDENT_ALLOCATIONS,
+  ADMIN_STUDENTS_BULK,
+  DEPARTMENT_ALLOCATIONS,
+  DEPARTMENT_POOLS,
+} from '../services/endpoints.js';
 
 const AdminContext = createContext(null);
 
@@ -9,169 +21,91 @@ export function useAdmin() {
   return useContext(AdminContext);
 }
 
+const BULK_CHUNK = 500; // the API's per-request maximum for department allocations
+
 export function AdminProvider({ children }) {
-  const [browseChart, setBrowseChart] = useState(null); // chart being previewed
-  // students loaded from Firestore (real registered users)
-  const [students, setStudents] = useState([]);
-  const [loadingStudents, setLoadingStudents] = useState(true);
-  const [modal, setModal] = useState(null); // { type:'allocate'|'addStudent', ... }
-  const [perfId, setPerfId] = useState(null); // studentId whose performance panel is open
+  const [browseChart, setBrowseChart] = useState(null); // chart being previewed (full record)
+  const [modal, setModal] = useState(null); // { type:'allocate', student } | { type:'deptAllocate', dept } | { type:'bulkAllocate' } | { type:'addStudent' }
+  const [perfStudent, setPerfStudent] = useState(null); // { uid, ... } whose performance panel is open
+  const [notice, setNotice] = useState(null); // { tone: 'err'|'ok', text }
+  const [totals, setTotals] = useState(null); // department-pools analytics: departments, totalPool, allocated, students
+  const [version, setVersion] = useState(0);
 
-  const refreshStudents = useCallback(() => {
-    if (!window.CV_FB) {
-      setLoadingStudents(false);
-      return;
-    }
-    setLoadingStudents(true);
-    window.CV_FB.listStudents()
-      .then((list) => {
-        setStudents(
-          list.map((s) => ({
-            ...s,
-            depts: { ...s.depts },
-            results: s.results || {},
-            progressError: s.progressError || null,
-          })),
-        );
-        setLoadingStudents(false);
-      })
-      .catch((e) => {
-        console.error('listStudents', e);
-        setStudents([]);
-        setLoadingStudents(false);
-      });
+  const fail = useCallback((what, e) => {
+    console.error(what, e);
+    setNotice({ tone: 'err', text: what + ': ' + ((e && e.message) || 'request failed') });
   }, []);
-  useEffect(() => {
-    refreshStudents();
-  }, [refreshStudents]);
 
-  // Persist a student's COMPLETE allocation map in one write.
-  // Writing per-department raced: each call captured a stale depts snapshot and
-  // fired its own Firestore write, so the last one to land overwrote the rest.
-  // Bulk allocate: write ranges for many students, in batches, with progress.
-  // Only students in the plan (those with no current allocation) are written.
-  const bulkAllocate = async (plan, onProgress) => {
-    if (!window.CV_FB) {
-      return;
-    }
-    const BATCH = 25;
-    let done = 0;
-    for (let i = 0; i < plan.length; i += BATCH) {
-      const slice = plan.slice(i, i + BATCH);
-      await Promise.all(
-        slice.map((row) => {
-          const s = row.student;
-          const depts = {};
-          Object.entries(row.depts).forEach(([dk, r]) => {
-            if (r && r.start >= 1 && r.end >= r.start) depts[dk] = { start: r.start, end: r.end };
-          });
-          if (!s.uid) return Promise.resolve();
-          return window.CV_FB.setAllocation(s.uid, depts).catch((e) =>
-            console.error('bulk setAllocation', s.id, e),
-          );
-        }),
-      );
-      done += slice.length;
-      if (onProgress) onProgress(done);
-    }
-    // reflect locally without a full reload
-    setStudents((list) =>
-      list.map((s) => {
-        const row = plan.find((r) => r.student.id === s.id);
-        if (!row) return s;
-        return { ...s, depts: { ...row.depts } };
-      }),
-    );
-  };
-
-  const allocateMany = (studentId, deptAlloc) => {
-    setStudents((list) =>
-      list.map((s) => {
-        if (s.id !== studentId) return s;
-        // deptAlloc entries are either {start,end} range objects or legacy numbers.
-        const depts = {};
-        Object.entries(deptAlloc).forEach(([dk, v]) => {
-          if (v && typeof v === 'object') {
-            const st = v.start | 0,
-              en = v.end | 0;
-            if (st >= 1 && en >= st) depts[dk] = { start: st, end: en };
-          } else {
-            const n = Number(v) || 0;
-            if (n > 0) depts[dk] = { start: 1, end: n };
-          }
-        });
-        if (s.uid && window.CV_FB) {
-          window.CV_FB.setAllocation(s.uid, depts).catch((e) => console.error('setAllocation', e));
-        }
-        return { ...s, depts };
-      }),
-    );
-    setModal(null);
-  };
-  // single-department helper (used by the per-department allocator)
-  const allocate = (studentId, deptKey, val) => {
-    setStudents((list) =>
-      list.map((s) => {
-        if (s.id !== studentId) return s;
-        const depts = { ...s.depts };
-        // val may be a {start,end} range object or a legacy number.
-        if (val && typeof val === 'object' && val.start >= 1 && val.end >= val.start) {
-          depts[deptKey] = { start: val.start | 0, end: val.end | 0 };
-        } else {
-          const n = Number(val) || 0;
-          if (n > 0) depts[deptKey] = { start: 1, end: n };
-          else delete depts[deptKey];
-        }
-        if (s.uid && window.CV_FB) {
-          window.CV_FB.setAllocation(s.uid, depts).catch((e) => console.error('setAllocation', e));
-        }
-        return { ...s, depts };
-      }),
-    );
-    setModal(null);
-  };
-  // students self-register now; this just refreshes the list from Firestore
-  const addStudent = () => {
-    refreshStudents();
-    setModal(null);
-  };
-
-  // aggregate: charts allocated per department across all students
-  const deptAlloc = useMemo(() => {
-    const m = {};
-    activeDeptKeys().forEach((dk) => (m[dk] = 0));
-    students.forEach((s) =>
-      Object.entries(s.depts || {}).forEach(([dk, v]) => {
-        m[dk] =
-          (m[dk] || 0) + allocCount(v, ((window.CHART_DATA && window.CHART_DATA[dk]) || []).length);
-      }),
-    );
-    return m;
-  }, [students]);
-
-  const totalAllocated = Object.values(deptAlloc).reduce((a, b) => a + b, 0);
-  const totalPool = activeDeptKeys().reduce(
-    (a, dk) => a + ((window.CHART_DATA && window.CHART_DATA[dk]) || []).length,
-    0,
+  const loadTotals = useCallback(
+    () =>
+      get(DEPARTMENT_POOLS, { params: { limit: 1 } })
+        .then((r) => setTotals(r.analytics || null))
+        .catch((e) => fail('Could not load totals', e)),
+    [fail],
   );
+  useEffect(() => {
+    loadTotals();
+  }, [loadTotals, version]);
+
+  // Every page re-reads its data.
+  const refreshAll = useCallback(() => setVersion((v) => v + 1), []);
+
+  // Manage Access: replace one student's whole map { DEPT: { start, end } }.
+  const saveStudentAllocations = async (student, depts) => {
+    setModal(null);
+    try {
+      await put(ADMIN_STUDENT_ALLOCATIONS(student.uid), { depts });
+      setNotice({ tone: 'ok', text: 'Saved allocation for ' + student.name + '.' });
+    } catch (e) {
+      fail('Allocation for ' + student.name + ' was not saved', e);
+    }
+    refreshAll();
+  };
+
+  // One department, many students: rows = [{ uid, range: {start,end} | null }] (null removes).
+  const allocateDept = async (deptKey, rows) => {
+    setModal(null);
+    try {
+      for (let i = 0; i < rows.length; i += BULK_CHUNK) {
+        const allocations = rows
+          .slice(i, i + BULK_CHUNK)
+          .map((r) => (r.range ? { userId: r.uid, start: r.range.start, end: r.range.end } : { userId: r.uid, start: null, end: null }));
+        await put(DEPARTMENT_ALLOCATIONS(deptKey), { allocations });
+      }
+      setNotice({ tone: 'ok', text: 'Saved ' + rows.length + ' allocation change' + (rows.length === 1 ? '' : 's') + '.' });
+    } catch (e) {
+      fail('Department allocation was not saved', e);
+    }
+    refreshAll();
+  };
+
+  // Bulk allocate (the plan is worked out on the server).
+  const bulkAllocate = async () => {
+    try {
+      const r = await post(ADMIN_STUDENTS_BULK);
+      setNotice({ tone: 'ok', text: 'Allocated starter charts to ' + r.allocated + ' student' + (r.allocated === 1 ? '' : 's') + '.' });
+    } catch (e) {
+      fail('Bulk allocation failed', e);
+    }
+    setModal(null);
+    refreshAll();
+  };
 
   const value = {
-    students,
-    loadingStudents,
-    refreshStudents,
+    totals,
+    version,
+    refreshAll,
+    saveStudentAllocations,
+    allocateDept,
     bulkAllocate,
-    allocateMany,
-    allocate,
-    addStudent,
-    deptAlloc,
-    totalAllocated,
-    totalPool,
     modal,
     setModal,
-    perfId,
-    setPerfId,
+    perfStudent,
+    setPerfStudent,
     browseChart,
     setBrowseChart,
+    notice,
+    setNotice,
   };
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;
 }

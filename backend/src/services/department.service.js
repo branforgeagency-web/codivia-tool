@@ -46,6 +46,13 @@ const queryDepartments = async ({ search, group, isActive, hasCharts }, actor) =
   return { results, totalResults: results.length };
 };
 
+// Public (no sign-in): active departments that have charts, for the sign-in / sign-up page.
+const getPublicDepartments = async () => {
+  const [docs, counts] = await Promise.all([Department.find({ isActive: true }).select('name icon group').sort({ order: 1, _id: 1 }).lean(), countCharts()]);
+  const results = docs.filter((d) => counts[d._id] > 0).map((d) => ({ key: d._id, name: d.name, icon: d.icon, group: d.group, chartCount: counts[d._id] }));
+  return { results, totalResults: results.length };
+};
+
 const getDepartment = async (key, actor) => {
   const dept = await findVisible(key, actor);
   return withChartCount(dept, await countCharts([dept._id]));
@@ -87,4 +94,5 @@ const deleteDepartment = async (key) => {
   await dept.deleteOne();
 };
 
-module.exports = { getMeta, queryDepartments, getDepartment, createDepartment, updateDepartment, deleteDepartment };
+module.exports = {
+  getPublicDepartments, getMeta, queryDepartments, getDepartment, createDepartment, updateDepartment, deleteDepartment };

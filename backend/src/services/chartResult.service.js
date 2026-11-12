@@ -1,4 +1,4 @@
-const { Chart, ChartResult, Certificate } = require('../models');
+const { Allocation, Chart, ChartResult, Certificate } = require('../models');
 const { MANAGER_ROLES } = require('../config/roles');
 const { CERT_THRESHOLD } = require('../config/certificates');
 const ApiError = require('../utils/ApiError');
@@ -23,8 +23,13 @@ const saveResult = async (filter, doc) => {
 
 // The score is always worked out here from the chart's answer key; the client only sends its codes.
 const submitChart = async (chartId, { rows, drg = '' }, student) => {
-  const chart = await Chart.findById(chartId).select('dept deptName answerKey').lean();
+  const chart = await Chart.findById(chartId).select('dept deptName position answerKey').lean();
   if (!chart) throw new ApiError(httpStatus.NOT_FOUND, 'Chart not found');
+  // Only charts inside the student's allocated range can be submitted.
+  const allocation = await Allocation.findOne({ student: student._id, dept: chart.dept }).select('start end').lean();
+  if (!allocation || chart.position < allocation.start || chart.position > allocation.end) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'This chart is not in your allocation');
+  }
 
   const result = gradeChart(chart.answerKey, rows, drg);
   const saved = toSavedResult(result, chart.dept, Date.now());

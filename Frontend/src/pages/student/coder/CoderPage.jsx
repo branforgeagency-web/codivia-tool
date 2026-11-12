@@ -1,29 +1,40 @@
-/* CODIVIA platform — full-screen coding page for one chart (header + coder, no sidebar) */
-import { useMemo } from 'react';
+/* CODIVIA platform — full-screen coding page for one chart (header + coder, no sidebar).
+   Data: GET /my-charts/:dept/charts/:chartId (record + patient, no answer key; only charts in
+   the student's allocated range). Submitting goes to the server for scoring (StudentContext.submitChart). */
+import { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Header } from '../../../components/layout/Header.jsx';
-import { DEPTS } from '../../../config/constants.js';
+import { PageLoader } from '../../../components/ui/PageLoader.jsx';
 import { useSession } from '../../../context/SessionContext.jsx';
 import { useStudent } from '../../../context/StudentContext.jsx';
 import { deptQueuePath } from '../../../routes/paths.js';
-import { allocSlice, deptHasCharts } from '../../../utils/allocation.js';
+import { get } from '../../../services/apiHelper.js';
+import { MY_CHART } from '../../../services/endpoints.js';
 import { Coder } from './Coder.jsx';
 
-// route: /charts/:dept/:chartId — only charts inside the student's allocated range
+// route: /charts/:dept/:chartId
 export default function CoderPage() {
   const { dept, chartId } = useParams();
   const { logout } = useSession();
-  const { session, stu, codeDB, dbStatus, saveState, recordResult } = useStudent();
+  const { session, stu, codeDB, dbStatus, saveState, submitChart } = useStudent();
   const navigate = useNavigate();
+  const [chart, setChart] = useState(null);
+  const [missing, setMissing] = useState(false);
 
-  const chart = useMemo(() => {
-    if (!(DEPTS[dept] && stu.depts && stu.depts[dept] != null && deptHasCharts(dept))) return null;
-    const pool = (window.CHART_DATA && window.CHART_DATA[dept]) || [];
-    const [a, b] = allocSlice(stu.depts[dept], pool.length);
-    return pool.slice(a, b).find((c) => String(c.id) === chartId) || null;
-  }, [dept, chartId, stu.depts]);
+  useEffect(() => {
+    let cancelled = false;
+    setChart(null);
+    setMissing(false);
+    get(MY_CHART(dept, chartId))
+      .then((c) => !cancelled && setChart(c))
+      .catch(() => !cancelled && setMissing(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [dept, chartId]);
 
-  if (!chart) return <Navigate to={deptQueuePath(dept)} replace />;
+  if (!(stu.depts && stu.depts[dept] != null) || missing) return <Navigate to={deptQueuePath(dept)} replace />;
+  if (!chart) return <PageLoader variant="full" label="Loading chart" />;
 
   return (
     <>
@@ -33,7 +44,7 @@ export default function CoderPage() {
         extra={
           <span className="who" style={{ color: 'var(--tone-9fb3c7)' }}>
             {'Coding · '}
-            <b>{DEPTS[dept].name}</b>
+            <b>{chart.deptName || dept}</b>
             {saveState === 'saving' && (
               <span style={{ marginLeft: 10, fontSize: 11, fontWeight: 800, color: 'var(--tone-9fb3c7)' }}>
                 · saving…
@@ -59,9 +70,7 @@ export default function CoderPage() {
         dbStatus={dbStatus}
         saveState={saveState}
         onClose={() => navigate(deptQueuePath(dept))}
-        onSubmit={(res) => {
-          recordResult(chart.id, res, dept);
-        }}
+        onSubmit={(rows, drg) => submitChart(chart.id, rows, drg)}
       />
     </>
   );

@@ -26,4 +26,9 @@ const deleteDepartment = async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 };
 
-module.exports = { getMeta, getDepartments, getDepartment, createDepartment, updateDepartment, deleteDepartment };
+const getPublicDepartments = async (req, res) => {
+  res.status(httpStatus.OK).json(await departmentService.getPublicDepartments());
+};
+
+module.exports = {
+  getPublicDepartments, getMeta, getDepartments, getDepartment, createDepartment, updateDepartment, deleteDepartment };

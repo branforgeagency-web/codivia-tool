@@ -1,9 +1,9 @@
 import { Tabs, useTabPanel } from '../../components/ui/Tabs.jsx';
 import { brand } from '../../config/brand.js';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DEPTS } from '../../config/constants.js';
-import { activeDeptKeys } from '../../utils/allocation.js';
+import { get } from '../../services/apiHelper.js';
+import { PUBLIC_DEPARTMENTS } from '../../services/endpoints.js';
 import { useSession } from '../../context/SessionContext.jsx';
 import * as authApi from '../../services/auth.service.js';
 
@@ -70,7 +70,8 @@ export function cvxParams() {
   try {
     const p = new URLSearchParams(window.location.search);
     const d = p.get('dept');
-    return { signup: p.get('signup') === '1', dept: d && DEPTS[d] ? d : null };
+    // Checked against the database list once it loads (GET /departments/public).
+    return { signup: p.get('signup') === '1', dept: d && /^[A-Z][A-Z0-9_]{1,19}$/.test(d) ? d : null };
   } catch (err) {
     return { signup: false, dept: null };
   }
@@ -107,16 +108,18 @@ export function Login() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
-  const dept = start.dept;
-  const deptName = dept ? DEPTS[dept].name : '';
-  const deptImg = dept && CVX_DEPT_IMG[dept] ? CVX_IMG[CVX_DEPT_IMG[dept]] : null;
-  const liveDepts = useMemo(() => {
-    try {
-      return activeDeptKeys().length;
-    } catch (x) {
-      return 22;
-    }
+  // Departments with charts, from the database (public: no sign-in needed).
+  const [publicDepts, setPublicDepts] = useState([]);
+  useEffect(() => {
+    get(PUBLIC_DEPARTMENTS, { auth: false })
+      .then((r) => setPublicDepts(r.results || []))
+      .catch(() => setPublicDepts([]));
   }, []);
+  const deptRow = start.dept ? publicDepts.find((d) => d.key === start.dept) : null;
+  const dept = deptRow ? deptRow.key : null;
+  const deptName = deptRow ? deptRow.name : '';
+  const deptImg = dept && CVX_DEPT_IMG[dept] ? CVX_IMG[CVX_DEPT_IMG[dept]] : null;
+  const liveDepts = publicDepts.length || '';
 
   // API errors carry { status, message, data.details: [{ field, message }] }.
   const nice = (x) => {
@@ -192,7 +195,7 @@ export function Login() {
   // [title, detail, icon path]
   const perks = [
     [
-      liveDepts + ' departments with real charts',
+      (liveDepts ? liveDepts + ' d' : 'D') + 'epartments with real charts',
       'Cardiology to pathology, outpatient to inpatient.',
       'M3 21h18M5 21V8l7-5 7 5v13M10 21v-5h4v5M12 7v5M9.5 9.5h5',
     ],

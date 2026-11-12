@@ -1,15 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { AdminDeptCard } from '../../components/admin/AdminDeptCard.jsx';
+import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
 import { StatTile, StatTiles } from '../../components/ui/StatTile.jsx';
-import { DEPTS } from '../../config/constants.js';
 import { useAdmin } from '../../context/AdminContext.jsx';
-import { usePagination } from '../../hooks/usePagination.js';
-import { deptHasCharts } from '../../utils/allocation.js';
+import { useApiList } from '../../hooks/useApiList.js';
+import { useDebounced } from '../../hooks/useDebounced.js';
+import { ADMIN_DEPARTMENTS } from '../../services/endpoints.js';
 
 // ---- Admin: Departments. Cards: AdminDeptCard (DeptCard shell). Styles: .ad-* / .dc-* in refinements.css ----
-
-const PAGE_SIZE = 9;
+// Data: GET /admin/departments — 10 cards per page; group tabs, search and statistics from the server.
 
 const ICON = {
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
@@ -20,11 +20,11 @@ const ICON = {
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z',
 };
 
-const GROUPS = [
-  ['all', 'All departments', ''],
-  ['specialty', 'Specialty tracks', 'Specialty tracks — by body system.'],
-  ['setting', 'Setting domains', 'Setting / type domains — how RCM hires.'],
-];
+// Group notes shown under the tabs (tab labels and counts come from the API).
+const GROUP_NOTES = {
+  specialty: 'Specialty tracks — by body system.',
+  setting: 'Setting / type domains — how RCM hires.',
+};
 
 const Svg = ({ d, size = 18 }) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden={true}>
@@ -32,121 +32,65 @@ const Svg = ({ d, size = 18 }) => (
   </svg>
 );
 
-export function AdminDepartments({ students, deptAlloc, onManage }) {
+export function AdminDepartments({ reloadKey, onManage }) {
   const [group, setGroup] = useState('all');
   const [query, setQuery] = useState('');
+  const search = useDebounced(query.trim());
+  const list = useApiList(ADMIN_DEPARTMENTS, { params: { group, search }, reloadKey });
+  const stats = list.data && list.data.statistics;
+  const filters = (list.data && list.data.filters) || [];
 
-  // Every department with charts, with its pool, allocation and student count.
-  const all = useMemo(
-    () =>
-      Object.entries(DEPTS)
-        .filter(([dk]) => deptHasCharts(dk))
-        .map(([dk, d]) => ({
-          dk,
-          dept: d,
-          pool: ((window.CHART_DATA && window.CHART_DATA[dk]) || []).length,
-          allocated: deptAlloc[dk] || 0,
-          students: students.filter((s) => s.depts && s.depts[dk]).length,
-        })),
-    [students, deptAlloc],
-  );
-
-  const q = query.trim().toLowerCase();
-  const shown = useMemo(
-    () =>
-      all.filter(
-        (r) =>
-          (group === 'all' || r.dept.group === group) &&
-          (!q || (r.dept.name + ' ' + r.dk).toLowerCase().includes(q)),
-      ),
-    [all, group, q],
-  );
-  const pager = usePagination(shown, { pageSize: PAGE_SIZE, resetKey: group + '|' + q });
-
-  const count = (g) => (g === 'all' ? all.length : all.filter((r) => r.dept.group === g).length);
-  const totalPool = all.reduce((n, r) => n + r.pool, 0);
-  const totalAllocated = all.reduce((n, r) => n + r.allocated, 0);
-  const assignedStudents = students.filter((s) => s.depts && Object.keys(s.depts).length).length;
-  const groupNote = GROUPS.find(([g]) => g === group)[2];
+  if (list.error && !list.data) {
+    return (
+      <div className="cvx-msg err" role="alert">
+        {list.error}
+      </div>
+    );
+  }
+  if (!stats) return <PageLoader label="Loading departments" />;
 
   return (
     <div className="ad">
       <div className="page-head">
         <h1>Departments</h1>
         <p>
-          {all.length +
+          {stats.departments +
             ' active coding departments across two groups — specialty tracks and RCM setting domains. Chart pools vary by department.'}
         </p>
       </div>
 
       <StatTiles>
-        <StatTile
-          lead
-          icon={ICON.grid}
-          label="Departments"
-          value={all.length}
-          caption={count('specialty') + ' specialty · ' + count('setting') + ' setting'}
-        />
-        <StatTile icon={ICON.files} label="Chart Pool" value={totalPool.toLocaleString()} caption="charts across all departments" />
-        <StatTile
-          icon={ICON.share}
-          label="Allocated"
-          value={totalAllocated.toLocaleString()}
-          caption={(totalPool ? Math.round((totalAllocated / totalPool) * 100) : 0) + '% of the pool'}
-        />
-        <StatTile
-          icon={ICON.users}
-          label="Students Assigned"
-          value={assignedStudents + ' / ' + students.length}
-          caption="with at least one department"
-        />
+        <StatTile lead icon={ICON.grid} label="Departments" value={stats.departments} caption={stats.specialty + ' specialty · ' + stats.setting + ' setting'} />
+        <StatTile icon={ICON.files} label="Chart Pool" value={stats.chartPool.toLocaleString()} caption="charts across all departments" />
+        <StatTile icon={ICON.share} label="Allocated" value={stats.allocated.toLocaleString()} caption={stats.allocatedPercent + '% of the pool'} />
+        <StatTile icon={ICON.users} label="Students Assigned" value={stats.studentsAssigned + ' / ' + stats.students} caption="with at least one department" />
       </StatTiles>
 
       <div className="ad-toolbar">
         <div className="pg-filters" role="tablist" aria-label="Department group">
-          {GROUPS.map(([g, label]) => (
-            <button
-              key={g}
-              type="button"
-              role="tab"
-              aria-selected={group === g}
-              className={group === g ? 'on' : ''}
-              onClick={() => setGroup(g)}
-            >
-              {label}
-              <span>{count(g)}</span>
+          {filters.map((f) => (
+            <button key={f.key} type="button" role="tab" aria-selected={group === f.key} className={group === f.key ? 'on' : ''} onClick={() => setGroup(f.key)}>
+              {f.label}
+              <span>{f.count}</span>
             </button>
           ))}
         </div>
         <label className="ad-search">
           <Svg d={ICON.search} size={16} />
           <span className="sr-only">Search departments</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(ev) => setQuery(ev.target.value)}
-            placeholder="Search by name or key…"
-          />
+          <input type="search" value={query} onChange={(ev) => setQuery(ev.target.value)} placeholder="Search by name or key…" />
         </label>
       </div>
-      {groupNote && <p className="ad-note">{groupNote}</p>}
+      {GROUP_NOTES[group] && <p className="ad-note">{GROUP_NOTES[group]}</p>}
 
-      {shown.length ? (
+      {list.results.length ? (
         <>
           <div className="ad-grid">
-            {pager.items.map((r) => (
-              <AdminDeptCard
-                key={r.dk}
-                deptKey={r.dk}
-                dept={r.dept}
-                pool={r.pool}
-                allocated={r.allocated}
-                students={r.students}
-                onManage={onManage}
-              />
+            {list.results.map((d) => (
+              <AdminDeptCard key={d.key} deptKey={d.key} dept={d} pool={d.pool} allocated={d.allocated} students={d.students} onManage={onManage} />
             ))}
           </div>
-          <Pagination {...pager.props} itemLabel="departments" />
+          <Pagination {...list.pagerProps} itemLabel="departments" />
         </>
       ) : (
         <div className="pg-empty">
@@ -163,12 +107,6 @@ export function AdminDepartments({ students, deptAlloc, onManage }) {
 
 // route: /admin/departments
 export default function DepartmentsPage() {
-  const { students, deptAlloc, setModal } = useAdmin();
-  return (
-    <AdminDepartments
-      students={students}
-      deptAlloc={deptAlloc}
-      onManage={(dk) => setModal({ type: 'deptAllocate', dept: dk })}
-    />
-  );
+  const { setModal, version } = useAdmin();
+  return <AdminDepartments reloadKey={version} onManage={(dk) => setModal({ type: 'deptAllocate', dept: dk })} />;
 }

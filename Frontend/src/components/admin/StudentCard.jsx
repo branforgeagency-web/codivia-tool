@@ -1,13 +1,11 @@
 /* CODIVIA platform — admin view of one student: name, ID, email, status, progress ring,
  * completed / allocated / accuracy / departments, allocated department ranges, and the
  * "View performance" and "Manage access" actions. Same look as AdminDeptCard (.dc-* styles).
- * Props: student ({ id, name, email, depts, progressError }), progress (progressOf(student)),
- *        onPerf(studentId), onAllocate(studentId)
+ * Props: student (a GET /admin/students card: { uid, id, name, email, status, progress: { worked, allocated, avg },
+ *        departments: [{ key, name, start, end, assigned, worked, complete }] }), onPerf(student), onAllocate(student)
  * Styles: .dc-* and .sc-* in styles/refinements.css
  */
-import { DEPTS } from '../../config/constants.js';
 import { accTone } from '../../utils/progress.js';
-import { allocCount, allocRange } from '../../utils/allocation.js';
 import { ProgressRing } from '../ui/ProgressRing.jsx';
 
 const MAX_DEPT_CHIPS = 3;
@@ -27,33 +25,20 @@ export const STUDENT_STATUS = Object.freeze({
   unallocated: { label: 'Unallocated', tone: 'muted' },
   error: { label: 'Progress unreadable', tone: 'danger' },
 });
-export function studentStatus(student, progress) {
-  if (student.progressError) return 'error';
-  if (!Object.keys(student.depts || {}).some((dk) => DEPTS[dk])) return 'unallocated';
-  return progress.worked > 0 ? 'active' : 'idle';
+
+// One chip per allocated department: "Cardiology · 1–50 · 12/50" (student.departments from the API).
+function deptChips(student) {
+  return (student.departments || []).map((d) => ({
+    dk: d.key,
+    text: d.name + ' · ' + d.start + '–' + d.end + ' · ' + d.worked + '/' + d.assigned,
+    complete: d.complete,
+  }));
 }
 
-// One chip per allocated department: "Cardiology · 1–50 · 12/50".
-function deptChips(student, progress) {
-  return Object.entries(student.depts || {})
-    .filter(([dk]) => DEPTS[dk])
-    .map(([dk, v]) => {
-      const pool = ((window.CHART_DATA && window.CHART_DATA[dk]) || []).length;
-      const range = allocRange(v, pool);
-      const done = progress.byDept[dk] || 0;
-      const count = allocCount(v, pool);
-      return {
-        dk,
-        text: DEPTS[dk].name + (range ? ' · ' + range.start + '–' + range.end : '') + ' · ' + done + '/' + count,
-        complete: count > 0 && done >= count,
-      };
-    });
-}
-
-export function StudentCard({ student, progress, onPerf, onAllocate }) {
-  const status = studentStatus(student, progress);
-  const badge = STUDENT_STATUS[status];
-  const chips = deptChips(student, progress);
+export function StudentCard({ student, onPerf, onAllocate }) {
+  const { progress, status } = student;
+  const badge = STUDENT_STATUS[status] || STUDENT_STATUS.idle;
+  const chips = deptChips(student);
   const shown = chips.slice(0, MAX_DEPT_CHIPS);
   const hidden = chips.slice(MAX_DEPT_CHIPS);
   const done = progress.allocated ? Math.min(100, Math.round((progress.worked / progress.allocated) * 100)) : null;
@@ -124,10 +109,10 @@ export function StudentCard({ student, progress, onPerf, onAllocate }) {
       </div>
 
       <div className="dc-foot sc-foot">
-        <button type="button" className="sc-ghost" onClick={() => onPerf(student.id)}>
+        <button type="button" className="sc-ghost" onClick={() => onPerf(student)}>
           View performance
         </button>
-        <button type="button" className="dc-action" onClick={() => onAllocate(student.id)}>
+        <button type="button" className="dc-action" onClick={() => onAllocate(student)}>
           Manage access <span aria-hidden="true">→</span>
         </button>
       </div>

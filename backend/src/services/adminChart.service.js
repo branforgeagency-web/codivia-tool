@@ -38,7 +38,7 @@ const countStatuses = async (match) => {
 
 // Department cards with their chart counts, the stat tiles and the group tabs. Statistics and tab
 // counts cover every department; group, search and page only change `results`.
-const queryDepartments = async ({ group = 'all', search, page = 1, limit = 9 }) => {
+const queryDepartments = async ({ group = 'all', search, page = 1, limit = 10 }) => {
   const [departments, counts] = await Promise.all([
     Department.find().select('name icon group elements order isActive').lean(),
     Chart.aggregate([
@@ -48,6 +48,7 @@ const queryDepartments = async ({ group = 'all', search, page = 1, limit = 9 }) 
           charts: { $sum: 1 },
           handwritten: { $sum: { $cond: ['$handwritten', 1, 0] } },
           uploaded: { $sum: { $cond: [{ $eq: ['$source', 'upload'] }, 1, 0] } },
+          ...Object.fromEntries(DIFFICULTIES.map((d) => [d, { $sum: { $cond: [{ $eq: ['$difficulty', d] }, 1, 0] } }])),
         },
       },
     ]),
@@ -67,6 +68,7 @@ const queryDepartments = async ({ group = 'all', search, page = 1, limit = 9 }) 
       charts: byDept[d._id].charts,
       handwritten: byDept[d._id].handwritten,
       uploaded: byDept[d._id].uploaded,
+      levels: Object.fromEntries(DIFFICULTIES.map((l) => [l, byDept[d._id][l]])), // { beginner, moderate, advanced }
     }));
 
   const inGroup = (g) => (g === 'all' ? all : all.filter((d) => d.group === g));

@@ -3,7 +3,8 @@ import { DeptProgressCard } from '../../components/progress/DeptProgressCard.jsx
 import { Pagination } from '../../components/ui/Pagination.jsx';
 import { ProgressRing } from '../../components/ui/ProgressRing.jsx';
 import { StatTile, StatTiles } from '../../components/ui/StatTile.jsx';
-import { CERT_THRESHOLD, DEPTS } from '../../config/constants.js';
+import { CERT_THRESHOLD } from '../../config/constants.js';
+import { deptInfo, useDepartments } from '../../context/SessionContext.jsx';
 import { useStudent } from '../../context/StudentContext.jsx';
 import { usePagination } from '../../hooks/usePagination.js';
 import { accTone, DEPT_STATUS, deptStatus } from '../../utils/progress.js';
@@ -53,19 +54,19 @@ function EmptyState({ title, text }) {
 // ---- Progress view ----
 export function ProgressView({ stats }) {
   const [filter, setFilter] = useState('all');
+  const departments = useDepartments(); // names from GET /departments
 
   // Only departments that have charts are tracked in stats.perDept.
   // Certified first, then most worked, then name.
   const rows = useMemo(
     () =>
       Object.entries(stats.perDept)
-        .filter(([dk]) => DEPTS[dk])
-        .map(([dk, st]) => ({ dk, name: DEPTS[dk].name, st, status: deptStatus(st).key }))
+        .map(([dk, st]) => ({ dk, name: deptInfo(departments, dk).name, st, status: deptStatus(st).key }))
         .sort(
           (a, b) =>
             b.st.certified - a.st.certified || b.st.worked - a.st.worked || a.name.localeCompare(b.name),
         ),
-    [stats.perDept],
+    [stats.perDept, departments],
   );
   const shown = useMemo(
     () => (filter === 'all' ? rows : rows.filter((r) => r.status === filter)),

@@ -5,13 +5,33 @@ import { loadCodeDB } from '../services/codeDb.js';
 import { useNavigate } from 'react-router-dom';
 import { PATHS } from '../routes/paths.js';
 import { get, SESSION_EXPIRED_EVENT } from '../services/apiHelper.js';
-import { CHART_RESULTS, MY_CHARTS } from '../services/endpoints.js';
+import { CHART_RESULTS, DEPARTMENTS, MY_CHARTS } from '../services/endpoints.js';
 import * as authApi from '../services/auth.service.js';
 
 const SessionContext = createContext(null);
 
 export function useSession() {
   return useContext(SessionContext);
+}
+
+// Department records from the database: { KEY: { key, name, icon, group, elements, chartCount } }.
+export function useDepartments() {
+  const ctx = useContext(SessionContext);
+  return (ctx && ctx.session && ctx.session.departments) || {};
+}
+
+// One department, or a placeholder while it isn't known.
+export const deptInfo = (departments, key) => departments[key] || { key, name: key, icon: '', group: '', elements: [] };
+
+// GET /departments (active ones for students). Not paged: a few dozen rows, used for labels everywhere.
+async function loadDepartments() {
+  try {
+    const { results } = await get(DEPARTMENTS);
+    return Object.fromEntries((results || []).map((d) => [d.id, { ...d, key: d.id }]));
+  } catch (e) {
+    console.error('load departments', e);
+    return {};
+  }
 }
 
 // A student's saved scores; an empty map if they can't be loaded, so sign-in still works.
@@ -25,26 +45,28 @@ async function loadResults() {
   }
 }
 
-// A student's allocations as { DEPT: { start, end } } (the range model in utils/allocation.js),
-// from GET /my-charts. Empty if they can't be loaded, so sign-in still works.
+// A student's allocated departments from GET /my-charts (one page of 100 covers every department):
+// depts = { DEPT: { start, end } } for route checks, and the cards (name, pool, assigned…) for the dashboard.
 async function loadAllocations() {
   try {
-    const { results } = await get(MY_CHARTS);
-    return Object.fromEntries((results || []).map((d) => [d.key, d.range]));
+    const { results } = await get(MY_CHARTS, { params: { limit: 100 } });
+    const cards = results || [];
+    return { depts: Object.fromEntries(cards.map((d) => [d.key, d.range])), cards };
   } catch (e) {
     console.error('load allocations', e);
-    return {};
+    return { depts: {}, cards: [] };
   }
 }
 
 // Turn the API user into the session object the app reads: { role, user }.
 async function toSession(apiUser) {
   const base = { uid: apiUser.id, name: apiUser.name || apiUser.email, email: apiUser.email };
-  if (apiUser.role !== 'student') return { role: apiUser.role, user: base };
-  const [depts, initialResults] = await Promise.all([loadAllocations(), loadResults()]);
+  if (apiUser.role !== 'student') return { role: apiUser.role, user: base, departments: await loadDepartments() };
+  const [departments, { depts, cards }, initialResults] = await Promise.all([loadDepartments(), loadAllocations(), loadResults()]);
   return {
     role: 'student',
-    user: { ...base, id: apiUser.studentId || 'STU-?????', depts, initialResults },
+    departments,
+    user: { ...base, id: apiUser.studentId || 'STU-?????', depts, deptCards: cards, initialResults },
   };
 }
 

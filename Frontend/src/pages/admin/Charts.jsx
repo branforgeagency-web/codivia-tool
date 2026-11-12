@@ -1,26 +1,27 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { DeptCard } from '../../components/ui/DeptCard.jsx';
 import { DeptIcon } from '../../components/ui/DeptIcon.jsx';
 import { ElementTiles } from '../../components/ui/ElementTiles.jsx';
+import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
 import { StatTile, StatTiles } from '../../components/ui/StatTile.jsx';
-import { DEPTS } from '../../config/constants.js';
 import { useAdmin } from '../../context/AdminContext.jsx';
-import { usePagination } from '../../hooks/usePagination.js';
-import { deptHasCharts } from '../../utils/allocation.js';
+import { useApiList } from '../../hooks/useApiList.js';
+import { useDebounced } from '../../hooks/useDebounced.js';
+import { get } from '../../services/apiHelper.js';
+import { ADMIN_CHART, ADMIN_CHARTS, ADMIN_CHART_DEPARTMENTS } from '../../services/endpoints.js';
 
 // ---- Admin: Browse Charts. Department cards (DeptCard), then the department's charts (DataTable).
-// Data: window.CHART_DATA (built-in chart files + published uploads). Styles: .ad-* / .dc-* / .bc-* ----
+// Data: GET /admin/charts/departments (cards + statistics), GET /admin/charts (one department's
+// charts, paged / sorted / filtered by the server), GET /admin/charts/:id (full record for View).
+// Styles: .ad-* / .dc-* / .bc-* ----
 
-const PAGE_SIZE = 9;
+// Table column -> API sortBy.
+const SORT_FIELD = { title: 'position', patient: 'patient', difficulty: 'difficulty' };
+
 const LEVELS = ['beginner', 'moderate', 'advanced'];
 const LEVEL_LABEL = { beginner: 'Beginner', moderate: 'Moderate', advanced: 'Advanced' };
-const GROUPS = [
-  ['all', 'All departments'],
-  ['specialty', 'Specialty tracks'],
-  ['setting', 'Setting domains'],
-];
 const GROUP_LABEL = { specialty: 'Specialty track', setting: 'Setting domain' };
 const MAX_KEY_CODES = 4;
 
@@ -39,19 +40,6 @@ const Svg = ({ d, size = 18 }) => (
     <path d={d} />
   </svg>
 );
-
-const chartsOf = (dk) => (window.CHART_DATA && window.CHART_DATA[dk]) || [];
-
-// { beginner, moderate, advanced, handwritten, uploaded } for a list of charts.
-function countLevels(charts) {
-  const n = { beginner: 0, moderate: 0, advanced: 0, handwritten: 0, uploaded: 0 };
-  charts.forEach((c) => {
-    if (n[c.difficulty] !== undefined) n[c.difficulty] += 1;
-    if (c.handwritten) n.handwritten += 1;
-    if (c.uploaded) n.uploaded += 1;
-  });
-  return n;
-}
 
 function SearchBox({ value, onChange, placeholder, label }) {
   return (
@@ -95,25 +83,17 @@ function LevelBar({ counts, total }) {
 }
 
 // ---------- screen 1: departments ----------
-function DepartmentList({ onOpen }) {
+// GET /admin/charts/departments — 10 cards per page; group tabs, search and statistics from the server.
+function DepartmentList({ reloadKey, onOpen }) {
   const [group, setGroup] = useState('all');
   const [query, setQuery] = useState('');
+  const search = useDebounced(query.trim());
+  const list = useApiList(ADMIN_CHART_DEPARTMENTS, { params: { group, search }, reloadKey });
+  const stats = list.data && list.data.statistics;
+  const filters = (list.data && list.data.filters) || [];
 
-  const all = useMemo(
-    () =>
-      Object.entries(DEPTS)
-        .filter(([dk]) => deptHasCharts(dk))
-        .map(([dk, d]) => {
-          const charts = chartsOf(dk);
-          return { dk, d, total: charts.length, counts: countLevels(charts) };
-        }),
-    [],
-  );
-  const q = query.trim().toLowerCase();
-  const shown = all.filter((r) => (group === 'all' || r.d.group === group) && (!q || (r.d.name + ' ' + r.dk).toLowerCase().includes(q)));
-  const pager = usePagination(shown, { pageSize: PAGE_SIZE, resetKey: group + '|' + q });
-  const count = (g) => (g === 'all' ? all.length : all.filter((r) => r.d.group === g).length);
-  const sum = (k) => all.reduce((n, r) => n + (k === 'total' ? r.total : r.counts[k]), 0);
+  if (list.error && !list.data) return <div className="cvx-msg err" role="alert">{list.error}</div>;
+  if (!stats) return <PageLoader label="Loading charts" />;
 
   return (
     <div className="ad">
@@ -123,46 +103,46 @@ function DepartmentList({ onOpen }) {
       </div>
 
       <StatTiles>
-        <StatTile lead icon={ICON.grid} label="Departments" value={all.length} caption={count('specialty') + ' specialty · ' + count('setting') + ' setting'} />
-        <StatTile icon={ICON.files} label="Charts" value={sum('total').toLocaleString()} caption="across all departments" />
-        <StatTile icon={ICON.pen} label="Handwritten" value={sum('handwritten').toLocaleString()} caption="scanned-style records" />
-        <StatTile icon={ICON.upload} label="Uploaded" value={sum('uploaded').toLocaleString()} caption="published by admins" />
+        <StatTile lead icon={ICON.grid} label="Departments" value={stats.departments} caption={stats.specialty + ' specialty · ' + stats.setting + ' setting'} />
+        <StatTile icon={ICON.files} label="Charts" value={stats.charts.toLocaleString()} caption="across all departments" />
+        <StatTile icon={ICON.pen} label="Handwritten" value={stats.handwritten.toLocaleString()} caption="scanned-style records" />
+        <StatTile icon={ICON.upload} label="Uploaded" value={stats.uploaded.toLocaleString()} caption="published by admins" />
       </StatTiles>
 
       <div className="ad-toolbar">
         <div className="pg-filters" role="tablist" aria-label="Department group">
-          {GROUPS.map(([g, label]) => (
-            <button key={g} type="button" role="tab" aria-selected={group === g} className={group === g ? 'on' : ''} onClick={() => setGroup(g)}>
-              {label}
-              <span>{count(g)}</span>
+          {filters.map((f) => (
+            <button key={f.key} type="button" role="tab" aria-selected={group === f.key} className={group === f.key ? 'on' : ''} onClick={() => setGroup(f.key)}>
+              {f.label}
+              <span>{f.count}</span>
             </button>
           ))}
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Search by name or key…" label="Search departments" />
       </div>
 
-      {shown.length ? (
+      {list.results.length ? (
         <>
           <div className="ad-grid">
-            {pager.items.map((r) => (
+            {list.results.map((d) => (
               <DeptCard
-                key={r.dk}
-                deptKey={r.dk}
-                name={r.d.name}
-                meta={r.dk + ' · ' + (GROUP_LABEL[r.d.group] || r.d.group)}
-                badge={{ label: r.total.toLocaleString() + ' charts', tone: 'brand' }}
+                key={d.key}
+                deptKey={d.key}
+                name={d.name}
+                meta={d.key + ' · ' + (GROUP_LABEL[d.group] || d.group)}
+                badge={{ label: d.charts.toLocaleString() + ' charts', tone: 'brand' }}
                 footer={
-                  <button type="button" className="dc-action" onClick={() => onOpen(r.dk)}>
+                  <button type="button" className="dc-action" onClick={() => onOpen(d)}>
                     Browse charts <span aria-hidden="true">→</span>
                   </button>
                 }
               >
-                <ElementTiles dept={r.d} setting={r.d.group === 'setting'} />
-                <LevelBar counts={r.counts} total={r.total} />
+                <ElementTiles dept={d} setting={d.group === 'setting'} />
+                <LevelBar counts={d.levels} total={d.charts} />
               </DeptCard>
             ))}
           </div>
-          <Pagination {...pager.props} itemLabel="departments" />
+          <Pagination {...list.pagerProps} itemLabel="departments" />
         </>
       ) : (
         <Empty title="No departments found" text="Try another search or switch the group." />
@@ -242,28 +222,47 @@ const CHART_COLUMNS = (onView) => [
   },
 ];
 
-function DepartmentCharts({ dk, onBack, onView }) {
-  const d = DEPTS[dk];
-  const charts = chartsOf(dk);
-  const counts = useMemo(() => countLevels(charts), [charts]);
+function DepartmentCharts({ dept, onBack, onView }) {
+  const dk = dept.key;
   const [level, setLevel] = useState('all');
   const [query, setQuery] = useState('');
+  const search = useDebounced(query.trim());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [sort, setSort] = useState(null); // { key, dir } from the table
+  const [data, setData] = useState(null); // GET /admin/charts response
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const columns = useMemo(() => CHART_COLUMNS(onView), [onView]);
 
-  const q = query.trim().toLowerCase();
-  const rows = useMemo(
-    () =>
-      charts.filter(
-        (c) =>
-          (level === 'all' || (level === 'handwritten' ? c.handwritten : c.difficulty === level)) &&
-          (!q || (c.title + ' ' + c.id + ' ' + c.patient.name + ' ' + c.answerKey.map((a) => a.code).join(' ')).toLowerCase().includes(q)),
-      ),
-    [charts, level, q],
-  );
+  // New filter or search: back to page 1.
+  useEffect(() => setPage(1), [level, search]);
 
-  const tabs = [['all', 'All', charts.length], ...LEVELS.map((l) => [l, LEVEL_LABEL[l], counts[l]]), ['handwritten', 'Handwritten', counts.handwritten]].filter(
-    ([k, , n]) => k === 'all' || n > 0,
-  );
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    get(ADMIN_CHARTS, {
+      params: {
+        dept: dk,
+        status: level,
+        search: search || undefined,
+        sortBy: sort ? SORT_FIELD[sort.key] : 'position',
+        order: sort ? sort.dir : 'asc',
+        page,
+        limit: pageSize,
+      },
+    })
+      .then((r) => !cancelled && setData(r))
+      .catch((e) => !cancelled && setError(e.message || 'Could not load charts.'))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [dk, level, search, sort, page, pageSize]);
+
+  // Tab counts cover the whole department; hide empty level tabs.
+  const tabs = (data ? data.filters : [{ key: 'all', label: 'All', count: dept.charts }]).filter((f) => f.key === 'all' || f.count > 0);
 
   return (
     <div className="ad">
@@ -276,46 +275,67 @@ function DepartmentCharts({ dk, onBack, onView }) {
           <DeptIcon dept={dk} />
         </span>
         <div>
-          <h1>{d.name}</h1>
-          <p>{dk + ' · ' + (GROUP_LABEL[d.group] || d.group) + ' · ' + charts.length.toLocaleString() + ' charts'}</p>
-          <ElementTiles dept={d} setting={d.group === 'setting'} />
+          <h1>{dept.name}</h1>
+          <p>{dk + ' · ' + (GROUP_LABEL[dept.group] || dept.group) + ' · ' + dept.charts.toLocaleString() + ' charts'}</p>
+          <ElementTiles dept={dept} setting={dept.group === 'setting'} />
         </div>
       </div>
 
       <div className="ad-toolbar">
         <div className="pg-filters" role="tablist" aria-label="Chart level">
-          {tabs.map(([k, label, n]) => (
-            <button key={k} type="button" role="tab" aria-selected={level === k} className={level === k ? 'on' : ''} onClick={() => setLevel(k)}>
-              {label}
-              <span>{n}</span>
+          {tabs.map((f) => (
+            <button key={f.key} type="button" role="tab" aria-selected={level === f.key} className={level === f.key ? 'on' : ''} onClick={() => setLevel(f.key)}>
+              {f.label}
+              <span>{f.count}</span>
             </button>
           ))}
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Search title, ID, code, patient…" label="Search charts" />
       </div>
 
+      {error && <div className="cvx-msg err" role="alert">{error}</div>}
       <div className="bc-table">
         <DataTable
           columns={columns}
-          data={rows}
+          data={data ? data.results : []}
           rowKey="id"
           itemLabel="charts"
-          resetKey={level + '|' + q}
+          loading={loading}
+          serverSide
+          totalCount={data ? data.totalResults : 0}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          pageSizeOptions={[10]}
+          onPageSizeChange={setPageSize}
+          onSortChange={setSort}
           onRowClick={onView}
-          emptyMessage={charts.length ? 'No charts match your search.' : 'This department has no charts yet.'}
+          emptyMessage={dept.charts ? 'No charts match your search.' : 'This department has no charts yet.'}
         />
       </div>
     </div>
   );
 }
 
-export function AdminCharts({ onView }) {
-  const [dept, setDept] = useState(null);
-  return dept ? <DepartmentCharts key={dept} dk={dept} onBack={() => setDept(null)} onView={onView} /> : <DepartmentList onOpen={setDept} />;
+export function AdminCharts({ onView, version }) {
+  const [dept, setDept] = useState(null); // the department card that was opened
+  return dept ? (
+    <DepartmentCharts key={dept.key} dept={dept} onBack={() => setDept(null)} onView={onView} />
+  ) : (
+    <DepartmentList reloadKey={version} onOpen={setDept} />
+  );
 }
 
 // route: /admin/charts
 export default function ChartsPage() {
-  const { setBrowseChart } = useAdmin();
-  return <AdminCharts onView={setBrowseChart} />;
+  const { setBrowseChart, setNotice, version } = useAdmin();
+  // The list leaves out the long record; View loads the whole chart.
+  const view = useCallback(
+    (c) =>
+      get(ADMIN_CHART(c.id))
+        .then(setBrowseChart)
+        .catch((e) => setNotice({ tone: 'err', text: 'Could not open ' + c.id + ': ' + e.message })),
+    [setBrowseChart, setNotice],
+  );
+  return <AdminCharts onView={view} version={version} />;
 }

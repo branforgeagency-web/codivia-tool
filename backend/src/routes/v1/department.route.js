@@ -10,6 +10,9 @@ const router = express.Router();
 
 const can = (action) => [auth(), permit(MODULES.DEPARTMENTS, action)];
 
+// Public: active departments with charts (sign-in / sign-up page). Declared before /:key.
+router.get('/public', departmentController.getPublicDepartments);
+
 // Groups and code sets for building department forms. Declared before /:key.
 router.get('/meta', ...can(ACTIONS.VIEW), departmentController.getMeta);
 

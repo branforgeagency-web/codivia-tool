@@ -4,6 +4,7 @@ import { _monogram, renderResume } from './layouts.jsx';
 import { RESUME_LAYOUTS, RESUME_TEMPLATES, defaultResume } from './templates.js';
 import { doPrint } from '../../../utils/print.js';
 import { useStudent } from '../../../context/StudentContext.jsx';
+import { useDepartments } from '../../../context/SessionContext.jsx';
 
 // ---- Resume Builder. Styles: .rb-* in styles/refinements.css ----
 // A template is a layout × a colour palette (id "<layout>-<palette>"), see templates.js.
@@ -44,7 +45,8 @@ function Thumb({ layout, pal, R, width }) {
 export function ResumeView({ stu, stats }) {
   const worked = Object.entries(stats.perDept).filter(([, st]) => st.worked > 0);
   const firstDept = worked[0]?.[0] || Object.keys(stu.depts)[0];
-  const initial = () => defaultResume(stu, stats, firstDept);
+  const departments = useDepartments(); // GET /departments
+  const initial = () => defaultResume(stu, stats, firstDept, departments);
 
   const [tpl, setTpl] = useState(RESUME_TEMPLATES[0].id);
   const [picker, setPicker] = useState(false);

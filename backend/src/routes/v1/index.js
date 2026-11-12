@@ -12,6 +12,8 @@ const resumeRoute = require('./resume.route');
 const chartResultRoute = require('./chartResult.route');
 const certificateRoute = require('./certificate.route');
 const myChartRoute = require('./myChart.route');
+const adminStudentRoute = require('./adminStudent.route');
+const chartUploadRoute = require('./chartUpload.route');
 
 const router = express.Router();
 
@@ -24,6 +26,8 @@ const routes = [
   { path: '/department-pools', route: departmentPoolRoute },
   { path: '/admin/departments', route: adminDepartmentRoute },
   { path: '/admin/charts', route: adminChartRoute },
+  { path: '/admin/students', route: adminStudentRoute },
+  { path: '/admin/uploads', route: chartUploadRoute },
   { path: '/codes', route: codeRoute },
   { path: '/resumes', route: resumeRoute },
   { path: '/chart-results', route: chartResultRoute },

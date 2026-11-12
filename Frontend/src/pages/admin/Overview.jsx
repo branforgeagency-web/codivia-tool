@@ -1,12 +1,13 @@
-import { useMemo } from 'react';
 import { Card } from '../../components/ui/Card.jsx';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { StatCard } from '../../components/ui/StatCard.jsx';
-import { DEPTS, ELEMENT_LABELS } from '../../config/constants.js';
-import { activeDeptKeys, deptHasCharts } from '../../utils/allocation.js';
+import { ELEMENT_LABELS } from '../../config/constants.js';
+import { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext.jsx';
+import { useApiList } from '../../hooks/useApiList.js';
+import { DEPARTMENT_POOLS } from '../../services/endpoints.js';
 
-// Row fields match GET /department-pools, so switching to the API only replaces `pools`.
+// Row fields: GET /department-pools results.
 const POOL_COLUMNS = [
   { key: 'name', header: 'Department', sortable: true, render: (d) => d.name },
   {
@@ -28,19 +29,14 @@ const POOL_COLUMNS = [
   },
 ];
 
-export function AdminOverview({ students, deptAlloc, totalAllocated, totalPool, loading }) {
-  const pools = useMemo(
-    () =>
-      Object.entries(DEPTS)
-        .filter(([dk]) => deptHasCharts(dk))
-        .map(([dk, d]) => {
-          const pool = window.CHART_DATA[dk].length;
-          const allocated = deptAlloc[dk] || 0;
-          return { key: dk, name: d.name, icon: d.icon, elements: d.elements, pool, allocated, available: pool - allocated };
-        }),
-    [deptAlloc],
-  );
-
+// Data: GET /department-pools — 10 rows per page, sorted by the server; analytics feed the stat cards.
+export function AdminOverview({ reloadKey }) {
+  const [sort, setSort] = useState(null); // { key, dir } from the table
+  const list = useApiList(DEPARTMENT_POOLS, {
+    params: { sortBy: sort ? sort.key : undefined, order: sort ? sort.dir : undefined },
+    reloadKey,
+  });
+  const a = (list.data && list.data.analytics) || { departments: 0, totalPool: 0, allocated: 0, students: 0 };
   return (
     <div>
       <div className="page-head">
@@ -48,19 +44,31 @@ export function AdminOverview({ students, deptAlloc, totalAllocated, totalPool, 
         <p>All departments, chart pools, and student allocations across CODIVIA.</p>
       </div>
       <div className="stat-row">
-        <StatCard k="Departments" v={activeDeptKeys().length} s="coding domains" teal={true} />
-        <StatCard k="Total Chart Pool" v={totalPool.toLocaleString()} s="available to allocate" />
-        <StatCard k="Allocated" v={totalAllocated.toLocaleString()} s="assigned to students" />
-        <StatCard k="Students" v={students.length} s="active" />
+        <StatCard k="Departments" v={a.departments} s="coding domains" teal={true} />
+        <StatCard k="Total Chart Pool" v={a.totalPool.toLocaleString()} s="available to allocate" />
+        <StatCard k="Allocated" v={a.allocated.toLocaleString()} s="assigned to students" />
+        <StatCard k="Students" v={a.students} s="active" />
       </div>
+      {list.error && (
+        <div className="cvx-msg err" role="alert">
+          {list.error}
+        </div>
+      )}
       <Card title="Department Chart Pools">
         <DataTable
           className="dt-flush"
           columns={POOL_COLUMNS}
-          data={pools}
+          data={list.results}
           rowKey="key"
           itemLabel="departments"
-          loading={loading}
+          loading={list.loading}
+          serverSide
+          totalCount={list.total}
+          page={list.page}
+          pageSize={10}
+          pageSizeOptions={[10]}
+          onPageChange={list.setPage}
+          onSortChange={setSort}
           emptyMessage="No departments have charts yet."
         />
       </Card>
@@ -70,14 +78,6 @@ export function AdminOverview({ students, deptAlloc, totalAllocated, totalPool, 
 
 // route: /admin/overview
 export default function OverviewPage() {
-  const { students, loadingStudents, deptAlloc, totalAllocated, totalPool } = useAdmin();
-  return (
-    <AdminOverview
-      students={students}
-      deptAlloc={deptAlloc}
-      totalAllocated={totalAllocated}
-      totalPool={totalPool}
-      loading={loadingStudents}
-    />
-  );
+  const { version } = useAdmin();
+  return <AdminOverview reloadKey={version} />;
 }

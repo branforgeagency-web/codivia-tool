@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react';
 import React from 'react';
 import { PageLoader } from '../../components/ui/PageLoader.jsx';
-import { DEPTS } from '../../config/constants.js';
-import { activeDeptKeys } from '../../utils/allocation.js';
+import { Pagination } from '../../components/ui/Pagination.jsx';
+import { useApiList } from '../../hooks/useApiList.js';
 import { validateCode } from '../../utils/codes.js';
 import { extractDocxText, extractPdfText } from '../../utils/extractText.js';
 import { scanPHI } from '../../utils/phi.js';
+import { del, get, patch, post } from '../../services/apiHelper.js';
+import { ADMIN_UPLOAD, ADMIN_UPLOADS, ADMIN_UPLOAD_STATUS, DEPARTMENTS } from '../../services/endpoints.js';
+import { useAdmin } from '../../context/AdminContext.jsx';
+
+// Data: /admin/uploads. The record text is extracted in the browser; only the text, the answer key
+// and the file name are sent (the original file itself is not stored).
 
 export function AdminUpload() {
   const [file, setFile] = useState(null);
@@ -16,28 +22,21 @@ export function AdminUpload() {
   const [err, setErr] = useState('');
   const [phi, setPhi] = useState([]);
   const [key, setKey] = useState([]); // suggested answer key rows
-  const [drafts, setDrafts] = useState([]);
-  const [loadingDrafts, setLD] = useState(true);
-
-  const refresh = React.useCallback(() => {
-    if (!window.CV_FB) {
-      setLD(false);
-      return;
-    }
-    setLD(true);
-    window.CV_FB.listUploadedCharts()
-      .then((l) => {
-        setDrafts(l || []);
-        setLD(false);
-      })
-      .catch(() => {
-        setDrafts([]);
-        setLD(false);
-      });
-  }, []);
+  const [statusTab, setStatusTab] = useState('all');
+  const { refreshAll: refreshAdmin, version } = useAdmin();
+  // Uploaded charts, newest first, 10 per page (GET /admin/uploads).
+  const uploads = useApiList(ADMIN_UPLOADS, { params: { status: statusTab }, reloadKey: version });
+  const drafts = uploads.results;
+  const loadingDrafts = !uploads.data && !uploads.error;
+  const refresh = uploads.reload;
+  // Department choices from the database (GET /departments, every active department).
+  const [departments, setDepartments] = useState([]);
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    get(DEPARTMENTS)
+      .then((r) => setDepartments(r.results || []))
+      .catch((e) => setErr('Could not load departments: ' + e.message));
+  }, []);
+  const deptOf = (k) => departments.find((d) => d.key === k || d.id === k);
 
   const readFile = async (f) => {
     setErr('');
@@ -73,7 +72,7 @@ export function AdminUpload() {
     setErr('');
     setBusy('Asking Claude for a suggested answer key\u2026');
     try {
-      const d = DEPTS[dept];
+      const d = deptOf(dept) || { name: dept, elements: [] };
       const prompt =
         'You are a certified medical coding auditor. Read the clinical record below and produce the correct answer key.\n\n' +
         'Department: ' +
@@ -163,21 +162,14 @@ export function AdminUpload() {
     }
     setBusy(asDraft ? 'Saving draft\u2026' : 'Publishing\u2026');
     try {
-      let up = null;
-      if (file) {
-        up = await window.CV_FB.uploadChartFile(file);
-      }
-      const id = 'UP-' + dept + '-' + Date.now();
-      await window.CV_FB.saveUploadedChart(id, {
+      await post(ADMIN_UPLOADS, {
         dept,
-        deptName: DEPTS[dept].name,
         title: title || 'Uploaded chart',
         record: text,
         answerKey: key.map((r) => ({ code: r.code, type: r.type, desc: r.desc, why: r.why })),
         patient: { name: 'Uploaded Record', sex: 'F', age: 45 },
         difficulty: 'moderate',
-        sourceFile: up ? up.path : null,
-        sourceName: up ? up.name : null,
+        sourceName: file ? file.name : null,
         status: asDraft ? 'draft' : 'published',
       });
       setFile(null);
@@ -186,18 +178,32 @@ export function AdminUpload() {
       setTitle('');
       setPhi([]);
       refresh();
+      if (!asDraft) refreshAdmin(); // the department's chart pool grew
     } catch (ex) {
       setErr('Save failed: ' + (ex.message || ex));
     }
     setBusy('');
   };
 
+  // Publish adds it to the chart pool; back to draft takes it out (refused once students submitted it).
   const setStatus = async (d, status) => {
-    await window.CV_FB.saveUploadedChart(d.id, { status });
+    setErr('');
+    try {
+      await patch(ADMIN_UPLOAD_STATUS(d.id), { status });
+      refreshAdmin();
+    } catch (ex) {
+      setErr((status === 'published' ? 'Publish' : 'Unpublish') + ' failed: ' + ex.message);
+    }
     refresh();
   };
   const remove = async (d) => {
-    await window.CV_FB.deleteUploadedChart(d.id, d.sourceFile);
+    setErr('');
+    try {
+      await del(ADMIN_UPLOAD(d.id));
+      if (d.status === 'published') refreshAdmin();
+    } catch (ex) {
+      setErr('Delete failed: ' + ex.message);
+    }
     refresh();
   };
 
@@ -246,9 +252,9 @@ export function AdminUpload() {
             <div style={{ minWidth: 230 }}>
               <div style={lbl}>DEPARTMENT</div>
               <select value={dept} onChange={(ev) => setDept(ev.target.value)} style={inp}>
-                {activeDeptKeys().map((k) => (
+                {departments.map((dd) => dd.key || dd.id).map((k) => (
                   <option key={k} value={k}>
-                    {DEPTS[k].name}
+                    {(deptOf(k) || { name: k }).name}
                   </option>
                 ))}
               </select>
@@ -460,6 +466,14 @@ export function AdminUpload() {
             <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
               Drafts are not visible to students.
             </div>
+            <div className="pg-filters" role="tablist" aria-label="Upload status" style={{ marginTop: 8 }}>
+              {((uploads.data && uploads.data.filters) || []).map((f) => (
+                <button key={f.key} type="button" role="tab" aria-selected={statusTab === f.key} className={statusTab === f.key ? 'on' : ''} onClick={() => setStatusTab(f.key)}>
+                  {f.label}
+                  <span>{f.count}</span>
+                </button>
+              ))}
+            </div>
           </div>
           <button
             className="btn"
@@ -491,7 +505,7 @@ export function AdminUpload() {
                 <div>
                   <b style={{ fontSize: 13 }}>{d.title || d.id}</b>
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                    {(DEPTS[d.dept] ? DEPTS[d.dept].name : d.dept) +
+                    {(d.deptName || d.dept) +
                       ' \u00b7 ' +
                       (d.answerKey || []).length +
                       ' codes' +
@@ -550,6 +564,12 @@ export function AdminUpload() {
               </div>
             ))
           )}
+          {uploads.error && (
+            <div className="cvx-msg err" role="alert">
+              {uploads.error}
+            </div>
+          )}
+          <Pagination {...uploads.pagerProps} itemLabel="uploads" />
         </div>
       </div>
     </div>

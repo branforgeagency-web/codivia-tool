@@ -14,3 +14,5 @@ module.exports.allocationService = require('./allocation.service');
 module.exports.adminDepartmentService = require('./adminDepartment.service');
 module.exports.adminChartService = require('./adminChart.service');
 module.exports.myChartService = require('./myChart.service');
+module.exports.adminStudentService = require('./adminStudent.service');
+module.exports.chartUploadService = require('./chartUpload.service');
