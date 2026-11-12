@@ -5,6 +5,8 @@ const CHART_UPLOAD = Object.freeze({
 });
 
 const UPLOAD_LIMITS = Object.freeze({
+  fileBytes: 10 * 1024 * 1024,
+  pdfPages: 300,
   title: 200,
   record: 200000, // characters of extracted record text
   rows: 100, // answer key rows

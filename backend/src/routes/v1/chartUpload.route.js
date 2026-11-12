@@ -4,11 +4,14 @@ const validate = require('../../middlewares/validate');
 const { ROLES } = require('../../config/roles');
 const { chartUploadValidation: v } = require('../../validations');
 const { chartUploadController: c } = require('../../controllers');
+const uploadChartFile = require('../../middlewares/uploadChartFile');
 
 const router = express.Router();
 
 // Admin role only: uploads carry their answer keys.
 router.use(auth(ROLES.ADMIN));
+
+router.post('/extract', uploadChartFile, c.extractText);
 
 router
   .route('/')

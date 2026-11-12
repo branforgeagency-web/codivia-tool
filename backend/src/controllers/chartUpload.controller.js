@@ -1,5 +1,12 @@
 const { chartUploadService } = require('../services');
 const httpStatus = require('../utils/httpStatus');
+const ApiError = require('../utils/ApiError');
+
+const extractText = async (req, res) => {
+  if (!req.file) throw new ApiError(httpStatus.BAD_REQUEST, 'Choose a PDF, DOC/DOCX or TXT file.');
+  const result = await chartUploadService.extractFileText(req.file);
+  res.status(httpStatus.OK).json(result);
+};
 
 const getUploads = async (req, res) => {
   res.status(httpStatus.OK).json(await chartUploadService.listUploads(req.query));
@@ -18,4 +25,4 @@ const deleteUpload = async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 };
 
-module.exports = { getUploads, createUpload, setStatus, deleteUpload };
+module.exports = { extractText, getUploads, createUpload, setStatus, deleteUpload };

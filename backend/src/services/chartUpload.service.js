@@ -1,6 +1,9 @@
+const path = require('path');
+const mammoth = require('mammoth');
+const WordExtractor = require('word-extractor');
 const { Chart, ChartResult, ChartUpload, Department } = require('../models');
 const { UPLOAD_STATUS } = require('../models/chartUpload.model');
-const { CHART_UPLOAD } = require('../config/chartUploads');
+const { CHART_UPLOAD, UPLOAD_LIMITS } = require('../config/chartUploads');
 const counterService = require('./counter.service');
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('../utils/httpStatus');
@@ -8,6 +11,12 @@ const httpStatus = require('../utils/httpStatus');
 // ---------- Admin Upload page: uploaded charts, draft → published ----------
 
 const DUPLICATE_KEY = 11000;
+const DOC_MAGIC = Buffer.from('d0cf11e0a1b11ae1', 'hex');
+const PDF_STANDARD_FONTS = `${path.resolve(
+  path.dirname(require.resolve('pdfjs-dist/legacy/build/pdf.mjs')),
+  '../../standard_fonts'
+)}${path.sep}`;
+let pdfJs;
 
 const notFound = () => new ApiError(httpStatus.NOT_FOUND, 'Uploaded chart not found');
 
@@ -32,6 +41,85 @@ const findDepartment = async (key) => {
   const dept = await Department.findById(key).select('name').lean();
   if (!dept) throw new ApiError(httpStatus.BAD_REQUEST, `Department ${key} not found`, [{ field: 'dept', message: `Department ${key} not found` }]);
   return dept;
+};
+
+const isMagic = (buffer, signature) => buffer.subarray(0, signature.length).equals(signature);
+
+const extractPdfText = async (buffer) => {
+  pdfJs ||= import('pdfjs-dist/legacy/build/pdf.mjs');
+  const { getDocument } = await pdfJs;
+  const task = getDocument({
+    data: new Uint8Array(buffer),
+    standardFontDataUrl: PDF_STANDARD_FONTS,
+  });
+  const pdf = await task.promise;
+  try {
+    if (pdf.numPages > UPLOAD_LIMITS.pdfPages) {
+      throw new ApiError(httpStatus.PAYLOAD_TOO_LARGE, `PDFs may contain at most ${UPLOAD_LIMITS.pdfPages} pages.`);
+    }
+    const pages = [];
+    let length = 0;
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const text = content.items.map((item) => (typeof item.str === 'string' ? item.str : '')).join(' ');
+      pages.push(text);
+      length += text.length;
+      if (length > UPLOAD_LIMITS.record) {
+        throw new ApiError(httpStatus.PAYLOAD_TOO_LARGE, 'Extracted text exceeds the 200,000 character limit.');
+      }
+    }
+    return pages.join('\n\n');
+  } finally {
+    await pdf.destroy();
+  }
+};
+
+const extractFileText = async (file) => {
+  const extension = path.extname(file.originalname || '').toLowerCase();
+  const buffer = file.buffer;
+  if (!Buffer.isBuffer(buffer) || !buffer.length) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'The uploaded file is empty or invalid.');
+  }
+
+  let text;
+  try {
+    if (extension === '.pdf') {
+      if (!buffer.subarray(0, 1024).includes(Buffer.from('%PDF-'))) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'The file does not appear to be a valid PDF.');
+      }
+      text = await extractPdfText(buffer);
+    } else if (extension === '.docx') {
+      if (!isMagic(buffer, Buffer.from('504b0304', 'hex'))) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'The file does not appear to be a valid DOCX document.');
+      }
+      text = (await mammoth.extractRawText({ buffer })).value;
+    } else if (extension === '.doc') {
+      if (!isMagic(buffer, DOC_MAGIC)) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'The file does not appear to be a valid DOC document.');
+      }
+      text = (await new WordExtractor().extract(buffer)).getBody();
+    } else if (extension === '.txt') {
+      if (buffer.includes(0)) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'The TXT file must contain UTF-8 text.');
+      }
+      text = buffer.toString('utf8').replace(/^\uFEFF/, '');
+    } else {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Unsupported file type. Use PDF, DOC/DOCX or TXT.');
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Could not extract text. Check that the document is valid and not password-protected.');
+  }
+
+  const normalized = String(text || '').replace(/\s+\n/g, '\n').trim();
+  if (!normalized) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'No text could be extracted. Scanned PDFs require OCR or manual text entry.');
+  }
+  if (normalized.length > UPLOAD_LIMITS.record) {
+    throw new ApiError(httpStatus.PAYLOAD_TOO_LARGE, 'Extracted text exceeds the 200,000 character limit.');
+  }
+  return { fileName: path.basename(file.originalname), text: normalized };
 };
 
 // Publishing needs a complete answer key: every row with a code, type, description and rationale.
@@ -147,4 +235,4 @@ const deleteUpload = async (id) => {
   await upload.deleteOne();
 };
 
-module.exports = { listUploads, createUpload, setStatus, deleteUpload };
+module.exports = { extractFileText, listUploads, createUpload, setStatus, deleteUpload };

@@ -45,5 +45,6 @@ export const ADMIN_STUDENT_ALLOCATIONS = (userId) => `${ADMIN_STUDENT(userId)}/a
 export const ADMIN_STUDENTS_BULK = `${ADMIN_STUDENTS}/bulk-allocate`;
 // Admin Upload page: uploaded charts, draft → published (admin only)
 export const ADMIN_UPLOADS = '/admin/uploads';
+export const ADMIN_UPLOADS_EXTRACT = `${ADMIN_UPLOADS}/extract`;
 export const ADMIN_UPLOAD = (uploadId) => `${ADMIN_UPLOADS}/${encodeURIComponent(uploadId)}`;
 export const ADMIN_UPLOAD_STATUS = (uploadId) => `${ADMIN_UPLOAD(uploadId)}/status`;

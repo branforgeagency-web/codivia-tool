@@ -4,10 +4,15 @@ import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
 import { useApiList } from '../../hooks/useApiList.js';
 import { validateCode } from '../../utils/codes.js';
-import { extractDocxText, extractPdfText } from '../../utils/extractText.js';
 import { scanPHI } from '../../utils/phi.js';
 import { del, get, patch, post } from '../../services/apiHelper.js';
-import { ADMIN_UPLOAD, ADMIN_UPLOADS, ADMIN_UPLOAD_STATUS, DEPARTMENTS } from '../../services/endpoints.js';
+import {
+  ADMIN_UPLOAD,
+  ADMIN_UPLOADS,
+  ADMIN_UPLOADS_EXTRACT,
+  ADMIN_UPLOAD_STATUS,
+  DEPARTMENTS,
+} from '../../services/endpoints.js';
 import { useAdmin } from '../../context/AdminContext.jsx';
 
 // Data: /admin/uploads. The record text is extracted in the browser; only the text, the answer key
@@ -42,30 +47,27 @@ export function AdminUpload() {
     setErr('');
     setKey([]);
     setFile(f);
-    setBusy('Reading document\u2026');
+    setBusy('Extracting text\u2026');
     try {
-      let t = '';
-      if (/\.txt$/i.test(f.name)) {
-        t = await f.text();
-      } else if (/\.pdf$/i.test(f.name)) {
-        t = await extractPdfText(f);
-      } else if (/\.docx?$/i.test(f.name)) {
-        t = await extractDocxText(f);
-      } else {
+      if (!/\.(pdf|doc|docx|txt)$/i.test(f.name)) {
         throw new Error('Unsupported file type. Use PDF, DOC/DOCX or TXT.');
       }
-      t = (t || '').replace(/\s+\n/g, '\n').trim();
-      if (!t)
-        throw new Error(
-          'No text could be extracted. If this is a scanned image PDF, paste the text manually below.',
-        );
+      if (f.size > 10 * 1024 * 1024) throw new Error('File exceeds the 10 MB limit.');
+      const form = new FormData();
+      form.append('file', f);
+      const result = await post(ADMIN_UPLOADS_EXTRACT, form);
+      const t = (result && result.text) || '';
+      if (!t) throw new Error('No text was returned by the extraction service.');
       setText(t);
       setPhi(scanPHI(t));
       if (!title) setTitle(f.name.replace(/\.[^.]+$/, ''));
     } catch (ex) {
       setErr(ex.message || String(ex));
+      setText('');
+      setPhi([]);
+    } finally {
+      setBusy('');
     }
-    setBusy('');
   };
 
   const suggest = async () => {
