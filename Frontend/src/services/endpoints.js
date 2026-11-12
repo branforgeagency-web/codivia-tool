@@ -12,6 +12,9 @@ export const ACCESS = '/access';
 export const ACCESS_PERMISSION = (role, module) =>
   `${ACCESS}/${encodeURIComponent(role)}/${encodeURIComponent(module)}`;
 export const DEPARTMENT_POOLS = '/department-pools';
+export const RESUMES = '/resumes';
+export const RESUME = (resumeId) => `${RESUMES}/${encodeURIComponent(resumeId)}`;
+export const RESUME_TEMPLATE_CATALOG = `${RESUMES}/templates`;
 // Department records (name, icon, group, code sets, chartCount). Not paged: a few dozen rows.
 export const DEPARTMENTS = '/departments';
 export const DEPARTMENT = (key) => `${DEPARTMENTS}/${encodeURIComponent(key)}`;

@@ -16,6 +16,8 @@ router
   .post(...can(ACTIONS.ADD), validate(v.createResume), c.createResume)
   .get(...can(ACTIONS.VIEW), validate(v.getResumes), c.getResumes);
 
+router.get('/templates', ...can(ACTIONS.VIEW), c.getResumeTemplates);
+
 router
   .route('/:resumeId')
   .get(...can(ACTIONS.VIEW), validate(v.getResume), c.getResume)

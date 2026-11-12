@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { RESUME_TEMPLATES, RESUME_LIMITS: L, RESUME_SORT_FIELDS } = require('../config/resumes');
+const { RESUME_LIMITS: L, RESUME_SORT_FIELDS } = require('../config/resumes');
 const { objectId } = require('./custom.validation');
 
 const id = Joi.string().custom(objectId);
@@ -19,6 +19,11 @@ const content = {
     .pattern(/^data:image\/(png|jpe?g|webp|gif);base64,/)
     .allow('')
     .messages({ 'string.pattern.base': 'photo must be a PNG, JPEG, WebP or GIF image', 'string.max': 'photo is too large' }),
+  customColor: Joi.string()
+    .trim()
+    .pattern(/^#[0-9a-f]{6}$/i)
+    .allow('')
+    .messages({ 'string.pattern.base': 'customColor must be a six-digit hex color' }),
   summary: str(L.summary),
   stats3: Joi.array().items(Joi.object({ big: str(L.short), small: str(L.short) })).max(L.highlights),
   experience: Joi.array()
@@ -40,7 +45,7 @@ const content = {
 
 const meta = {
   title: Joi.string().trim().min(1).max(L.title),
-  template: Joi.string().valid(...RESUME_TEMPLATES),
+  template: Joi.string().trim().min(1).max(100),
 };
 
 const resumeIdParam = Joi.object({ resumeId: id.required() });
@@ -54,7 +59,7 @@ const getResumes = {
     sortBy: Joi.string().valid(...RESUME_SORT_FIELDS).default('updatedAt'),
     order: Joi.string().valid('asc', 'desc').default('desc'),
     page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(100).default(20),
+    limit: Joi.number().integer().min(1).max(100).default(10),
   }),
 };
 

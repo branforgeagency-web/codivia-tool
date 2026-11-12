@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { RESUME_TEMPLATES, DEFAULT_RESUME_TEMPLATE, RESUME_LIMITS: L } = require('../config/resumes');
+const { DEFAULT_RESUME_TEMPLATE, RESUME_LIMITS: L } = require('../config/resumes');
 const { toJSON } = require('./plugins');
 
 const { ObjectId } = mongoose.Schema.Types;
@@ -21,7 +21,7 @@ const resumeSchema = new mongoose.Schema(
   {
     owner: { type: ObjectId, ref: 'User', required: true },
     title: { type: String, trim: true, maxlength: L.title, default: 'My resume' },
-    template: { type: String, enum: RESUME_TEMPLATES, default: DEFAULT_RESUME_TEMPLATE },
+    template: { type: String, required: true, default: DEFAULT_RESUME_TEMPLATE },
 
     // ---- content (same shape as the builder's resume object) ----
     name: text(L.short),
@@ -31,6 +31,7 @@ const resumeSchema = new mongoose.Schema(
     location: text(L.short),
     linkedin: text(L.url),
     photo: { type: String, maxlength: L.photo, default: '' }, // data URL
+    customColor: text(7),
     summary: text(L.summary),
     stats3: { type: [highlightSchema], default: [] },
     experience: { type: [experienceSchema], default: [] },

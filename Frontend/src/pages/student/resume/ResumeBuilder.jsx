@@ -1,16 +1,68 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AddButton, BulletList, Field, ItemCard, Section, TagInput } from './formParts.jsx';
 import { _monogram, renderResume } from './layouts.jsx';
-import { RESUME_LAYOUTS, RESUME_TEMPLATES, defaultResume } from './templates.js';
+import { PageLoader } from '../../../components/ui/PageLoader.jsx';
 import { doPrint } from '../../../utils/print.js';
-import { useStudent } from '../../../context/StudentContext.jsx';
-import { useDepartments } from '../../../context/SessionContext.jsx';
+import { get, patch, post } from '../../../services/apiHelper.js';
+import { RESUME, RESUMES, RESUME_TEMPLATE_CATALOG } from '../../../services/endpoints.js';
 
 // ---- Resume Builder. Styles: .rb-* in styles/refinements.css ----
-// A template is a layout × a colour palette (id "<layout>-<palette>"), see templates.js.
+// The template catalog and selected design are loaded from the database.
+// Saved in the database: on open the student's latest resume is loaded (GET /resumes?limit=1, then
+// GET /resumes/:id for the photo); edits auto-save (POST /resumes the first time, then PATCH /resumes/:id).
 
-const PALETTES = RESUME_TEMPLATES.reduce((out, t) => (out.some((p) => p.key === t.pal.key) ? out : out.concat(t.pal)), []);
-const findTemplate = (layout, pal) => RESUME_TEMPLATES.find((t) => t.layout === layout && t.pal.key === pal) || RESUME_TEMPLATES[0];
+// The fields the API stores (same shape as the layouts).
+const CONTENT_FIELDS = ['name', 'role', 'phone', 'email', 'location', 'linkedin', 'photo', 'customColor', 'summary', 'stats3', 'experience', 'certifications', 'education', 'projects', 'coreSkills', 'clinical', 'tools', 'strengths', 'languages'];
+const pickContent = (r) => Object.fromEntries(CONTENT_FIELDS.filter((k) => r[k] !== undefined).map((k) => [k, r[k]]));
+const emptyResume = () => ({
+  name: '',
+  role: '',
+  phone: '',
+  email: '',
+  location: '',
+  linkedin: '',
+  photo: '',
+  customColor: '',
+  summary: '',
+  stats3: [],
+  experience: [],
+  certifications: [],
+  education: [],
+  projects: [],
+  coreSkills: [],
+  clinical: [],
+  tools: [],
+  strengths: [],
+  languages: [],
+});
+const SAVE_DELAY = 1000; // ms after the last edit
+const SAVE_LABEL = { loading: 'Loading…', saving: 'Saving…', saved: 'Saved', error: 'Not saved' };
+
+const findTemplate = (templates, layout, pal) => templates.find((t) => t.layout === layout && t.pal.key === pal) || templates[0];
+const colorInputValue = (color) => {
+  const match = color.match(/^#([0-9a-f]{6})$/i) || color.match(/--tone-([0-9a-f]{6})/i);
+  return match ? `#${match[1]}` : '#00a88e';
+};
+const mixColor = (color, target, amount) => {
+  const sourceRGB = color.slice(1).match(/.{2}/g).map((part) => parseInt(part, 16));
+  const targetRGB = target.slice(1).match(/.{2}/g).map((part) => parseInt(part, 16));
+  return (
+    '#' +
+    sourceRGB
+      .map((channel, index) => Math.round(channel + (targetRGB[index] - channel) * amount).toString(16).padStart(2, '0'))
+      .join('')
+  );
+};
+const withCustomColor = (palette, color) =>
+  /^#[0-9a-f]{6}$/i.test(color)
+    ? {
+        ...palette,
+        accent: color,
+        deep: mixColor(color, '#000000', 0.58),
+        tint: mixColor(color, '#ffffff', 0.9),
+        ink: mixColor(color, '#000000', 0.76),
+      }
+    : palette;
 
 const LAYOUT_ICONS = {
   'header-band': 'bi-window',
@@ -42,19 +94,138 @@ function Thumb({ layout, pal, R, width }) {
   );
 }
 
-export function ResumeView({ stu, stats }) {
-  const worked = Object.entries(stats.perDept).filter(([, st]) => st.worked > 0);
-  const firstDept = worked[0]?.[0] || Object.keys(stu.depts)[0];
-  const departments = useDepartments(); // GET /departments
-  const initial = () => defaultResume(stu, stats, firstDept, departments);
-
-  const [tpl, setTpl] = useState(RESUME_TEMPLATES[0].id);
+export function ResumeView() {
+  const [templates, setTemplates] = useState([]);
+  const [tpl, setTpl] = useState(null);
   const [picker, setPicker] = useState(false);
   const [open, setOpen] = useState({ header: true });
-  const [R, setR] = useState(initial);
+  const [R, setR] = useState(emptyResume);
 
-  const active = RESUME_TEMPLATES.find((t) => t.id === tpl) || RESUME_TEMPLATES[0];
-  const activeLayout = RESUME_LAYOUTS.find((l) => l.key === active.layout) || RESUME_LAYOUTS[0];
+  // ---- load / auto-save (database) ----
+  const [resumeId, setResumeId] = useState(null);
+  const [saveState, setSaveState] = useState('loading'); // loading | idle | saving | saved | error
+  const [saveError, setSaveError] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const loaded = useRef(false); // no auto-save until the saved resume (if any) is in place
+  const skipNext = useRef(false); // the load itself isn't an edit
+
+  useEffect(() => {
+    let cancelled = false;
+    loaded.current = false;
+    setSaveState('loading');
+    setSaveError('');
+    setLoadFailed(false);
+    Promise.all([
+      get(RESUME_TEMPLATE_CATALOG),
+      get(RESUMES, { params: { limit: 1, sortBy: 'updatedAt', order: 'desc' } }),
+    ])
+      .then(async ([catalog, list]) => {
+        if (!Array.isArray(catalog) || !catalog.length) throw new Error('No resume templates are available.');
+        if (!list || !Array.isArray(list.results)) throw new Error('Could not read your saved resumes.');
+        const saved = list.results[0] ? await get(RESUME(list.results[0].id)) : null;
+        return { catalog, saved };
+      })
+      .then(({ catalog, saved }) => {
+        if (cancelled) return;
+        setTemplates(catalog);
+        skipNext.current = true;
+        setTpl(catalog.some((t) => saved && t.id === saved.template) ? saved.template : catalog[0].id);
+        if (saved) {
+          setResumeId(saved.id);
+          setR({ ...emptyResume(), ...pickContent(saved) });
+          setSaveState('saved');
+        } else {
+          setSaveState('idle'); // the blank resume is created on the first edit
+        }
+        loaded.current = true;
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        loaded.current = false;
+        setLoadFailed(true);
+        setSaveError(e.message || 'Could not load your saved resume.');
+        setSaveState('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadAttempt]);
+
+  const idRef = useRef(null);
+  idRef.current = resumeId;
+  const saveQueue = useRef(Promise.resolve());
+  const saveRevision = useRef(0);
+  useEffect(() => {
+    if (!loaded.current || !tpl) return undefined;
+    if (skipNext.current) {
+      skipNext.current = false;
+      return undefined;
+    }
+    const t = setTimeout(async () => {
+      const revision = ++saveRevision.current;
+      setSaveState('saving');
+      setSaveError('');
+      const body = { template: tpl, ...pickContent(R) };
+      const persist = async () => {
+        if (idRef.current) {
+          await patch(RESUME(idRef.current), body);
+        } else {
+          const created = await post(RESUMES, { title: 'My resume', ...body });
+          if (!created || !created.id) throw new Error('The saved resume response did not include an ID.');
+          idRef.current = created.id;
+          setResumeId(created.id);
+        }
+      };
+      const save = saveQueue.current.then(persist, persist);
+      saveQueue.current = save;
+      try {
+        await save;
+        if (revision === saveRevision.current) setSaveState('saved');
+      } catch (e) {
+        if (revision === saveRevision.current) {
+          const detail = e.data && Array.isArray(e.data.details) && e.data.details[0];
+          setSaveError((detail && detail.message) || e.message || 'Could not save.');
+          setSaveState('error');
+        }
+      }
+    }, SAVE_DELAY);
+    return () => clearTimeout(t);
+  }, [R, tpl]);
+
+  const palettes = templates.reduce((out, t) => (out.some((p) => p.key === t.pal.key) ? out : out.concat(t.pal)), []);
+  const layouts = Array.from(
+    new Map(
+      templates.map((t) => [
+        t.layout,
+        { key: t.layout, name: t.layoutName || t.fam, desc: t.layoutDesc || '' },
+      ])
+    ).values()
+  );
+
+  if (saveState === 'loading') {
+    return <PageLoader label="Loading your resume" />;
+  }
+  if (!templates.length || !tpl) {
+    return (
+      <div className="rb">
+        <div className="rb-hero">
+          <div>
+            <h1>Resume Builder</h1>
+            <p role="alert">{saveError || 'Resume templates could not be loaded.'}</p>
+          </div>
+          <button type="button" className="rb-btn primary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const active = templates.find((t) => t.id === tpl) || templates[0];
+  const activeLayout = layouts.find((l) => l.key === active.layout) || layouts[0];
+  const activePalette = withCustomColor(active.pal, R.customColor);
 
   // ---- state helpers (the resume object keeps the same shape the layouts read) ----
   const set = (k, v) => setR((prev) => ({ ...prev, [k]: v }));
@@ -102,7 +273,7 @@ export function ResumeView({ stu, stats }) {
   };
 
   const reset = () => {
-    if (window.confirm('Reset every field to the auto-filled CODIVIA details? Your edits will be lost.')) setR(initial());
+    if (window.confirm('Clear every resume field? Your edits will be lost.')) setR(emptyResume());
   };
 
   const list = (k) => R[k] || [];
@@ -120,12 +291,27 @@ export function ResumeView({ stu, stats }) {
           <div>
             <h1>Resume Builder</h1>
             <p>
-              Auto-filled from your CODIVIA coding work. Pick a design, edit any section, and export a print-ready
-              PDF.
+              Create your resume, choose a design, and export a print-ready PDF.
             </p>
           </div>
         </div>
         <div className="rb-hero-acts">
+          {SAVE_LABEL[saveState] && (
+            <span
+              role="status"
+              title={saveError || undefined}
+              style={{ alignSelf: 'center', fontSize: 12, fontWeight: 700, color: saveState === 'error' ? 'var(--err)' : 'var(--muted)' }}
+            >
+              <i className={'bi ' + (saveState === 'error' ? 'bi-exclamation-circle' : saveState === 'saved' ? 'bi-cloud-check' : 'bi-cloud-arrow-up')} aria-hidden="true" />{' '}
+              {SAVE_LABEL[saveState]}
+              {saveState === 'error' && saveError ? ': ' + saveError : ''}
+            </span>
+          )}
+          {loadFailed && (
+            <button type="button" className="rb-link" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+              Retry load
+            </button>
+          )}
           <button type="button" className="rb-btn ghost" onClick={reset}>
             <i className="bi bi-arrow-counterclockwise" aria-hidden="true" /> Reset
           </button>
@@ -138,26 +324,44 @@ export function ResumeView({ stu, stats }) {
       {/* ---- template bar + picker ---- */}
       <div className="rb-tpl">
         <div className="rb-tpl-bar">
-          <Thumb layout={active.layout} pal={active.pal} R={R} width={54} />
+          <Thumb layout={active.layout} pal={activePalette} R={R} width={54} />
           <div className="rb-tpl-info">
             <span className="k">Template</span>
             <strong>{activeLayout.name}</strong>
             <span className="s">{activeLayout.desc}</span>
           </div>
-          <div className="rb-swatches" role="radiogroup" aria-label="Colour">
-            {PALETTES.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                role="radio"
-                aria-checked={active.pal.key === p.key}
-                title={p.name}
-                aria-label={p.name}
-                className={'rb-swatch' + (active.pal.key === p.key ? ' on' : '')}
-                style={{ '--sw': p.accent }}
-                onClick={() => setTpl(findTemplate(active.layout, p.key).id)}
+          <div className="rb-color-options">
+            <div className="rb-swatches" role="radiogroup" aria-label="Colour">
+              {palettes.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={active.pal.key === p.key}
+                  title={p.name}
+                  aria-label={p.name}
+                  className={'rb-swatch' + (active.pal.key === p.key ? ' on' : '')}
+                  style={{ '--sw': p.accent }}
+                  onClick={() => {
+                    set('customColor', '');
+                    setTpl(findTemplate(templates, active.layout, p.key).id);
+                  }}
+                />
+              ))}
+            </div>
+            <label
+              className={'rb-swatch rb-swatch-custom' + (R.customColor ? ' on' : '')}
+              title={R.customColor ? 'Custom color selected' : 'Choose a custom color'}
+              style={{ '--sw': R.customColor || colorInputValue(active.pal.accent) }}
+            >
+              <i className="bi bi-eyedropper" aria-hidden="true" />
+              <input
+                type="color"
+                value={R.customColor || colorInputValue(active.pal.accent)}
+                onChange={(event) => set('customColor', event.target.value)}
+                aria-label="Choose a custom template color"
               />
-            ))}
+            </label>
           </div>
           <button type="button" className={'rb-btn soft' + (picker ? ' on' : '')} onClick={() => setPicker((v) => !v)} aria-expanded={picker}>
             <i className="bi bi-grid-3x3-gap" aria-hidden="true" /> {picker ? 'Close layouts' : 'Change layout'}
@@ -165,18 +369,18 @@ export function ResumeView({ stu, stats }) {
         </div>
         {picker ? (
           <div className="rb-layouts">
-            {RESUME_LAYOUTS.map((l) => {
+            {layouts.map((l) => {
               const on = l.key === active.layout;
               return (
                 <button
                   key={l.key}
                   type="button"
                   className={'rb-layout' + (on ? ' on' : '')}
-                  style={{ '--acc': active.pal.accent }}
-                  onClick={() => setTpl(findTemplate(l.key, active.pal.key).id)}
+                  style={{ '--acc': activePalette.accent }}
+                  onClick={() => setTpl(findTemplate(templates, l.key, active.pal.key).id)}
                   aria-pressed={on}
                 >
-                  <Thumb layout={l.key} pal={active.pal} R={R} width={168} />
+                  <Thumb layout={l.key} pal={activePalette} R={R} width={168} />
                   <span className="rb-layout-name">
                     <i className={'bi ' + (LAYOUT_ICONS[l.key] || 'bi-file-earmark')} aria-hidden="true" />
                     {l.name}
@@ -207,7 +411,7 @@ export function ResumeView({ stu, stats }) {
               {R.photo ? (
                 <img src={R.photo} alt="" />
               ) : (
-                <span className="rb-avatar" style={{ background: active.pal.accent }}>
+                <span className="rb-avatar" style={{ background: activePalette.accent }}>
                   {_monogram(R.name)}
                 </span>
               )}
@@ -371,12 +575,12 @@ export function ResumeView({ stu, stats }) {
               <span className="pulse" aria-hidden="true" /> Live preview
             </span>
             <span className="rb-preview-name">
-              <span className="dot" style={{ background: active.pal.accent }} />
+              <span className="dot" style={{ background: activePalette.accent }} />
               {active.name}
             </span>
           </div>
           <div className="rb-canvas">
-            <div className="print-area rb-paper">{renderResume(active.layout, R, active.pal)}</div>
+            <div className="print-area rb-paper">{renderResume(active.layout, R, activePalette)}</div>
           </div>
           <p className="rb-tip">
             <i className="bi bi-info-circle" aria-hidden="true" /> In the print dialog choose <b>Save as PDF</b>, turn on{' '}
@@ -390,6 +594,5 @@ export function ResumeView({ stu, stats }) {
 
 // route: /resume
 export default function ResumeBuilderPage() {
-  const { stu, stats } = useStudent();
-  return <ResumeView stu={stu} stats={stats} />;
+  return <ResumeView />;
 }

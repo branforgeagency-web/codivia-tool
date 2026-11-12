@@ -1,6 +1,10 @@
 const { resumeService } = require('../services');
 const httpStatus = require('../utils/httpStatus');
 
+const getResumeTemplates = async (req, res) => {
+  res.status(httpStatus.OK).json(await resumeService.queryResumeTemplates());
+};
+
 const createResume = async (req, res) => {
   res.status(httpStatus.CREATED).json(await resumeService.createResume(req.body, req.user));
 };
@@ -26,4 +30,12 @@ const deleteResume = async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 };
 
-module.exports = { createResume, getResumes, getResume, replaceResume, updateResume, deleteResume };
+module.exports = {
+  getResumeTemplates,
+  createResume,
+  getResumes,
+  getResume,
+  replaceResume,
+  updateResume,
+  deleteResume,
+};

@@ -9,6 +9,7 @@ module.exports.IcdIndexTerm = require('./icdIndexTerm.model');
 module.exports.IcdTableRow = require('./icdTableRow.model');
 module.exports.IcdNote = require('./icdNote.model');
 module.exports.Resume = require('./resume.model');
+module.exports.ResumeTemplate = require('./resumeTemplate.model');
 module.exports.ChartResult = require('./chartResult.model');
 module.exports.Certificate = require('./certificate.model');
 module.exports.Allocation = require('./allocation.model');

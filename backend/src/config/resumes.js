@@ -1,23 +1,6 @@
 // Resume Builder: saved resumes. The content fields mirror the frontend's resume object
 // (pages/student/resume/templates.js defaultResume), so the builder can save and load it as is.
 
-// Layouts and colour palettes the builder offers. A template id is "<layout>-<palette>".
-const RESUME_LAYOUTS = Object.freeze([
-  'header-band',
-  'left-rail',
-  'right-rail',
-  'top-banner',
-  'minimal',
-  'timeline',
-  'compact',
-  'classic',
-  'executive',
-  'split-header',
-  'soft-sidebar',
-  'modern-cards',
-]);
-const RESUME_PALETTES = Object.freeze(['teal', 'navy', 'gold', 'coral', 'forest']);
-const RESUME_TEMPLATES = Object.freeze(RESUME_LAYOUTS.flatMap((l) => RESUME_PALETTES.map((p) => `${l}-${p}`)));
 const DEFAULT_RESUME_TEMPLATE = 'header-band-teal';
 
 const RESUME_LIMITS = Object.freeze({
@@ -46,6 +29,7 @@ const RESUME_CONTENT_FIELDS = Object.freeze([
   'location',
   'linkedin',
   'photo',
+  'customColor',
   'summary',
   'stats3',
   'experience',
@@ -60,9 +44,6 @@ const RESUME_CONTENT_FIELDS = Object.freeze([
 ]);
 
 module.exports = {
-  RESUME_LAYOUTS,
-  RESUME_PALETTES,
-  RESUME_TEMPLATES,
   DEFAULT_RESUME_TEMPLATE,
   RESUME_LIMITS,
   RESUME_SORT_FIELDS,
