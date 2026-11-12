@@ -12,7 +12,7 @@ const getCertificates = {
     sortBy: Joi.string().valid(...CERT_SORT_FIELDS).default('issuedAt'),
     order: Joi.string().valid('asc', 'desc').default('desc'),
     page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(100).default(20),
+    limit: Joi.number().integer().min(1).max(100).default(10),
   }),
 };
 

@@ -1,4 +1,5 @@
-const { Allocation, Chart, ChartResult, Department } = require('../models');
+const { Allocation, Certificate, Chart, ChartResult, Department } = require('../models');
+const { CERT_THRESHOLD } = require('../config/certificates');
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('../utils/httpStatus');
 const { escapeRegex } = require('../utils/codeText');
@@ -91,10 +92,28 @@ const buildCards = async (student) => {
     .map(({ order, ...card }) => card);
 };
 
-// My Charts page: department cards (search + status tabs + pages) and the stat tiles.
-// Statistics and tab counts cover every allocated department.
+// Overall progress for the stat tiles (Dashboard, My Charts, sidebar): every saved score, whatever
+// the department or range, plus the certificates earned.
+const overallStats = async (student) => {
+  const [[scores], certificates] = await Promise.all([
+    ChartResult.aggregate([{ $match: { student: student._id } }, { $group: { _id: null, n: { $sum: 1 }, avg: { $avg: '$accuracy' } } }]),
+    Certificate.find({ student: student._id }).select('dept').lean(),
+  ]);
+  return {
+    totalWorked: scores ? scores.n : 0,
+    overallAvg: scores ? Math.round(scores.avg) : 0,
+    certificates: { threshold: CERT_THRESHOLD, earned: certificates.length, depts: certificates.map((c) => c.dept), anyCertified: certificates.length > 0 },
+  };
+};
+
+// My Charts page and student Dashboard: department cards (search + status tabs + pages) and the
+// stat tiles. Statistics and tab counts cover every allocated department.
+//   statistics: { assigned, worked, remaining, departments,          <- inside the allocated ranges
+//                 totalWorked, overallAvg, certificates: { threshold, earned, depts, anyCertified } }
 const getMyDepartments = async (student, { search, status = 'all', page = 1, limit = 10 } = {}) => {
-  const all = await buildCards(student);
+  const [cards, overall] = await Promise.all([buildCards(student), overallStats(student)]);
+  const certified = new Set(overall.certificates.depts);
+  const all = cards.map((d) => ({ ...d, certified: certified.has(d.key) }));
   const term = (search || '').toLowerCase();
   const searched = term ? all.filter((d) => `${d.name} ${d.key}`.toLowerCase().includes(term)) : all;
   const matched = status === 'all' ? searched : searched.filter((d) => d.status === status);
@@ -106,7 +125,7 @@ const getMyDepartments = async (student, { search, status = 'all', page = 1, lim
     totalPages: Math.max(1, Math.ceil(matched.length / limit)),
     totalResults: matched.length,
     filters: MY_CHART_FILTERS.map((f) => ({ ...f, count: f.key === 'all' ? all.length : all.filter((d) => d.status === f.key).length })),
-    statistics: { assigned: sum('assigned'), worked: sum('worked'), remaining: sum('remaining'), departments: all.length },
+    statistics: { assigned: sum('assigned'), worked: sum('worked'), remaining: sum('remaining'), departments: all.length, ...overall },
   };
 };
 

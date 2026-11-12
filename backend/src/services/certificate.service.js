@@ -52,7 +52,7 @@ const issueIfEarned = async (student, dept, fallbackDeptName) => {
 };
 
 // Students see their own certificates; managers see everyone's and can filter.
-const queryCertificates = async ({ student, dept, sortBy = 'issuedAt', order = 'desc', page = 1, limit = 20 }, actor) => {
+const queryCertificates = async ({ student, dept, sortBy = 'issuedAt', order = 'desc', page = 1, limit = 10 }, actor) => {
   const filter = isManager(actor) ? {} : { student: actor._id };
   if (student && isManager(actor)) filter.student = student;
   if (dept) filter.dept = dept;
