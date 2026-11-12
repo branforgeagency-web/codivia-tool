@@ -1,10 +1,10 @@
 /* CODIVIA platform — student workspace state: results, saving, per-department stats, score.
    Shared by every student page through useStudent(). */
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { CERT_THRESHOLD } from '../config/constants.js';
-import { put } from '../services/apiHelper.js';
-import { CHART_RESULT } from '../services/endpoints.js';
+import { get, put } from '../services/apiHelper.js';
+import { CERTIFICATES, CHART_RESULT } from '../services/endpoints.js';
 import { useSession } from './SessionContext.jsx';
 
 const StudentContext = createContext(null);
@@ -18,7 +18,32 @@ export function StudentProvider() {
   const { session, codeDB, dbStatus } = useSession();
   const stu = session.user;
   const [results, setResults] = useState(stu.initialResults || {}); // chartId -> {accuracy, dept, ...}
-  const [demoCert, setDemoCert] = useState(false); // preview: simulate a certified department
+  const [certificatePreview, setCertificatePreview] = useState(false);
+  const [certificates, setCertificates] = useState([]);
+  const [certificateLoading, setCertificateLoading] = useState(true);
+  const [certificateError, setCertificateError] = useState('');
+  const [certificateAttempt, setCertificateAttempt] = useState(0);
+  const reloadCertificates = useCallback(() => setCertificateAttempt((attempt) => attempt + 1), []);
+
+  useEffect(() => {
+    let active = true;
+    setCertificateLoading(true);
+    setCertificateError('');
+    get(CERTIFICATES, { params: { limit: 100, sortBy: 'issuedAt', order: 'desc' } })
+      .then((response) => {
+        if (!Array.isArray(response?.results)) throw new Error('The certificate response was invalid.');
+        if (active) setCertificates(response.results);
+      })
+      .catch((error) => {
+        if (active) setCertificateError(error.message || 'Could not load your certificates.');
+      })
+      .finally(() => {
+        if (active) setCertificateLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [stu.uid, certificateAttempt]);
 
   // Submitting is idempotent: re-submitting the same chart overwrites its entry.
   const [saveState, setSaveState] = useState(''); // '' | 'saving' | 'saved' | 'error'
@@ -36,8 +61,13 @@ export function StudentProvider() {
           .map((r) => ({ code: String(r.code || '').slice(0, 30), desc: String(r.desc || '').slice(0, 500), mod: String(r.mod || '').slice(0, 10), poa: String(r.poa || '').slice(0, 5) })),
         drg: drg || '',
       };
-      const { result, saved } = await put(CHART_RESULT(chartId), body);
+      const { result, saved, certificate } = await put(CHART_RESULT(chartId), body);
       setResults((cur) => ({ ...cur, [chartId]: saved }));
+      if (certificate) {
+        setCertificates((current) => [certificate, ...current.filter((item) => item.id !== certificate.id)]);
+        setCertificateError('');
+        setCertificateLoading(false);
+      }
       setSaveState('saved');
       return result;
     } catch (e) {
@@ -51,18 +81,11 @@ export function StudentProvider() {
   const stats = useMemo(() => {
     const perDept = {};
     const allocEntries = Object.entries(stu.depts); // only departments with charts (GET /my-charts)
-    const firstDept = allocEntries.length ? allocEntries[0][0] : undefined;
     allocEntries.forEach(([dk, alloc]) => {
       const worked = Object.entries(results).filter(([id, r]) => r.dept === dk);
       const accs = worked.map(([, r]) => r.accuracy);
-      let workedCount = worked.length;
-      let avg = accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 0;
-      // Preview mode: simulate the first department as fully certified so the
-      // certificate can be seen generating without working 200 real charts.
-      if (demoCert && dk === firstDept) {
-        workedCount = Math.max(workedCount, CERT_THRESHOLD + 10);
-        avg = avg || 94;
-      }
+      const workedCount = worked.length;
+      const avg = accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 0;
       perDept[dk] = {
         alloc,
         worked: workedCount,
@@ -77,7 +100,7 @@ export function StudentProvider() {
       : 0;
     const anyCertified = Object.values(perDept).some((d) => d.certified);
     return { perDept, totalWorked, overallAvg, anyCertified };
-  }, [results, stu.depts, demoCert]);
+  }, [results, stu.depts]);
 
   // CODIVIA Score is earned, not granted. A student who has coded nothing has no
   // score yet — showing a floor of 550 made an untouched account look accomplished.
@@ -95,8 +118,12 @@ export function StudentProvider() {
     submitChart,
     saveState,
     stats,
-    demoCert,
-    setDemoCert,
+    certificates,
+    certificateLoading,
+    certificateError,
+    reloadCertificates,
+    certificatePreview,
+    setCertificatePreview,
     hasScore,
     codScore,
   };

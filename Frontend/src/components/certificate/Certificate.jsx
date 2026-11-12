@@ -1,17 +1,34 @@
 import { brand } from '../../config/brand.js';
 import { ELEMENT_LABELS } from '../../config/constants.js';
-import { deptInfo, useDepartments } from '../../context/SessionContext.jsx';
 import { doPrint } from '../../utils/print.js';
 
-export function Certificate({ stu, dept, st }) {
-  const d = deptInfo(useDepartments(), dept); // GET /departments
-  const certId = 'CDV-2026-' + String(1000 + parseInt(stu.id.replace(/\D/g, ''))).padStart(6, '0');
+export function Certificate({ certificate }) {
+  const { certificateNo, studentName, deptName, elements, worked, avg, issuedAt, isPreview } = certificate;
+  const issuedDate = new Date(issuedAt);
+  const codeSetLabels = (elements || []).map((element) => ELEMENT_LABELS[element] || element);
+  const codeSets = codeSetLabels.join(', ');
   return (
     <div className="print-area" style={{ marginBottom: 16 }}>
       <div
         className="cert-body"
         style={{ background: 'var(--color-ink)', borderRadius: 14, padding: '30px 34px', color: 'var(--color-white)' }}
       >
+        {isPreview && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: '6px 10px',
+              border: '1px solid var(--tone-e3bd5c)',
+              borderRadius: 6,
+              color: 'var(--tone-fff2cf)',
+              fontSize: 11,
+              fontWeight: 800,
+              textAlign: 'center',
+            }}
+          >
+            TEST PREVIEW — NOT AN ISSUED CERTIFICATE
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 22 }}>
           <img src={brand.logo} style={{ height: 34 }} />
           <div>
@@ -22,7 +39,7 @@ export function Certificate({ stu, dept, st }) {
           </div>
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
             <div style={{ fontSize: 10, color: 'var(--tone-8fa3ba)' }}>Certificate ID</div>
-            <div style={{ fontSize: 12, fontFamily: 'monospace' }}>{certId}</div>
+            <div style={{ fontSize: 12, fontFamily: 'monospace' }}>{certificateNo}</div>
           </div>
         </div>
         <div
@@ -30,13 +47,11 @@ export function Certificate({ stu, dept, st }) {
         >
           Certificate of Coding Proficiency
         </div>
-        <div style={{ fontSize: 27, fontWeight: 900, margin: '8px 0 5px' }}>{stu.name}</div>
+        <div style={{ fontSize: 27, fontWeight: 900, margin: '8px 0 5px' }}>{studentName}</div>
         <div style={{ fontSize: 13, color: 'var(--tone-cdd9e5)', lineHeight: 1.6 }}>
           {'has successfully processed '}
-          <b style={{ color: 'var(--color-white)' }}>{st.worked + ' ' + d.name + ' charts'}</b>
-          {
-            ' on the CODIVIA live coding platform, demonstrating production-ready proficiency in ICD-10-CM, CPT, and HCPCS.'
-          }
+          <b style={{ color: 'var(--color-white)' }}>{worked + ' ' + deptName + ' charts'}</b>
+          {' on the CODIVIA live coding platform, demonstrating proficiency in ' + (codeSets || 'medical coding') + '.'}
         </div>
         <div
           style={{
@@ -47,17 +62,17 @@ export function Certificate({ stu, dept, st }) {
             borderTop: '1px solid rgba(255,255,255,.15)',
           }}
         >
-          <CertStat n={st.worked} l="Charts processed" c="var(--color-brand)" />
-          <CertStat n={st.avg + '%'} l="Average accuracy" c="var(--color-brand)" />
+          <CertStat n={worked} l="Charts processed" c="var(--color-brand)" />
+          <CertStat n={avg + '%'} l="Average accuracy" c="var(--color-brand)" />
           <CertStat
-            n={(d.elements || []).map((x) => ELEMENT_LABELS[x] || x).join(' · ')}
+            n={codeSetLabels.join(' · ')}
             l="Code sets"
             c="var(--color-gold)"
           />
           <div style={{ marginLeft: 'auto', textAlign: 'right', alignSelf: 'flex-end' }}>
             <div style={{ fontSize: 11, color: 'var(--tone-8fa3ba)' }}>Issued</div>
             <div style={{ fontSize: 12 }}>
-              {new Date().toLocaleDateString('en-GB', {
+              {issuedDate.toLocaleDateString('en-GB', {
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',

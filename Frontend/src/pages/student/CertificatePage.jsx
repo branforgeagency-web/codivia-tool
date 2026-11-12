@@ -1,10 +1,12 @@
 import { Certificate } from '../../components/certificate/Certificate.jsx';
 import { CERT_THRESHOLD } from '../../config/constants.js';
+import { PageLoader } from '../../components/ui/PageLoader.jsx';
+import { deptInfo, useDepartments } from '../../context/SessionContext.jsx';
 import { useStudent } from '../../context/StudentContext.jsx';
 
-export function CertificateView({ stu, stats }) {
-  const certified = Object.entries(stats.perDept).filter(([, st]) => st.certified);
-  if (certified.length === 0) {
+export function CertificateView({ certificates, previewCertificate }) {
+  const entries = previewCertificate ? [...certificates, previewCertificate] : certificates;
+  if (entries.length === 0) {
     return (
       <div>
         <div className="page-head">
@@ -35,10 +37,10 @@ export function CertificateView({ stu, stats }) {
     <div>
       <div className="page-head">
         <h1>Your Certificate</h1>
-        <p>Auto-generated from your completed work. Download as PDF.</p>
+        <p>Your issued certificates. Download a copy as PDF.</p>
       </div>
-      {certified.map(([dk, st]) => (
-        <Certificate key={dk} stu={stu} dept={dk} st={st} />
+      {entries.map((certificate) => (
+        <Certificate key={certificate.id} certificate={certificate} />
       ))}
     </div>
   );
@@ -46,6 +48,48 @@ export function CertificateView({ stu, stats }) {
 
 // route: /certificate
 export default function CertificatePage() {
-  const { stu, stats } = useStudent();
-  return <CertificateView stu={stu} stats={stats} />;
+  const {
+    stu,
+    certificates,
+    certificateLoading,
+    certificateError,
+    reloadCertificates,
+    certificatePreview,
+  } = useStudent();
+  const departments = useDepartments();
+
+  if (certificateError) {
+    return (
+      <div className="page">
+        <div className="cvx-msg err" role="alert">
+          {certificateError}{' '}
+          <button type="button" onClick={reloadCertificates}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (certificateLoading) return <PageLoader label="Loading your certificates" />;
+
+  let previewCertificate = null;
+  if (import.meta.env.DEV && certificatePreview) {
+    const dept = Object.keys(stu.depts || {})[0];
+    if (dept) {
+      const info = deptInfo(departments, dept);
+      previewCertificate = {
+        id: 'test-preview',
+        certificateNo: 'TEST PREVIEW — NOT ISSUED',
+        studentName: stu.name,
+        deptName: info.name,
+        elements: info.elements || [],
+        worked: CERT_THRESHOLD,
+        avg: 94,
+        issuedAt: new Date().toISOString(),
+        isPreview: true,
+      };
+    }
+  }
+
+  return <CertificateView certificates={certificates} previewCertificate={previewCertificate} />;
 }

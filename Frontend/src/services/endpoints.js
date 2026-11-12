@@ -25,6 +25,7 @@ export const MY_PROGRESS = '/my-progress';
 // A student's saved chart scores: { results: { chartId: {...} } }
 export const CHART_RESULTS = '/chart-results';
 export const CHART_RESULT = (chartId) => `${CHART_RESULTS}/${encodeURIComponent(chartId)}`; // PUT: submit a coded chart (server scores it)
+export const CERTIFICATES = '/certificates';
 // Student chart queue + one chart to code (no answer keys)
 export const MY_DEPT_CHARTS = (deptKey) => `/my-charts/${encodeURIComponent(deptKey)}/charts`;
 export const MY_CHART = (deptKey, chartId) => `${MY_DEPT_CHARTS(deptKey)}/${encodeURIComponent(chartId)}`;

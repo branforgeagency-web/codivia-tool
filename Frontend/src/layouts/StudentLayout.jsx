@@ -10,12 +10,28 @@ import { PATHS } from '../routes/paths.js';
 
 export function StudentLayout() {
   const { logout } = useSession();
-  const { session, stu, stats, hasScore, codScore, demoCert, setDemoCert } = useStudent();
+  const {
+    session,
+    stu,
+    stats,
+    hasScore,
+    codScore,
+    certificates,
+    certificateLoading,
+    certificateError,
+    certificatePreview,
+    setCertificatePreview,
+  } = useStudent();
   const navigate = useNavigate();
 
   const navItems = STUDENT_NAV.map((item) => {
     if (item.id === 'charts') return { ...item, count: stats.totalWorked };
-    if (item.id === 'certificate') return { ...item, locked: !stats.anyCertified };
+    if (item.id === 'certificate') {
+      return {
+        ...item,
+        locked: !certificates.length && !certificateLoading && !certificateError && !certificatePreview,
+      };
+    }
     return item;
   });
 
@@ -38,26 +54,28 @@ export function StudentLayout() {
         {stu.id}
         <br />
         {'Certificate unlocks at ' + CERT_THRESHOLD + ' charts'}
-        <button
-          onClick={() => {
-            setDemoCert((v) => !v);
-            navigate(PATHS.certificate);
-          }}
-          style={{
-            marginTop: 10,
-            width: '100%',
-            fontSize: 11,
-            fontWeight: 700,
-            padding: '7px 8px',
-            borderRadius: 6,
-            cursor: 'pointer',
-            border: '1px solid ' + (demoCert ? 'var(--color-brand)' : 'var(--tone-e3bd5c)'),
-            background: demoCert ? 'var(--color-brandLight)' : 'var(--tone-fff2cf)',
-            color: demoCert ? 'var(--color-brandDark)' : 'var(--tone-9a6b12)',
-          }}
-        >
-          {demoCert ? '✓ Preview ON — click to turn off' : '👁 Preview certificate'}
-        </button>
+        {import.meta.env.DEV && (
+          <button
+            onClick={() => {
+              setCertificatePreview((value) => !value);
+              navigate(PATHS.certificate);
+            }}
+            style={{
+              marginTop: 10,
+              width: '100%',
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '7px 8px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              border: '1px solid ' + (certificatePreview ? 'var(--color-brand)' : 'var(--tone-e3bd5c)'),
+              background: certificatePreview ? 'var(--color-brandLight)' : 'var(--tone-fff2cf)',
+              color: certificatePreview ? 'var(--color-brandDark)' : 'var(--tone-9a6b12)',
+            }}
+          >
+            {certificatePreview ? '✓ Test preview on' : 'Preview test certificate'}
+          </button>
+        )}
       </div>
     </>
   );
