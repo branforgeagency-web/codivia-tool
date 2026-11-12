@@ -1,13 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DeptProgressCard } from '../../components/progress/DeptProgressCard.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
+import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { ProgressRing } from '../../components/ui/ProgressRing.jsx';
 import { StatTile, StatTiles } from '../../components/ui/StatTile.jsx';
 import { CERT_THRESHOLD } from '../../config/constants.js';
-import { deptInfo, useDepartments } from '../../context/SessionContext.jsx';
-import { useStudent } from '../../context/StudentContext.jsx';
 import { usePagination } from '../../hooks/usePagination.js';
-import { accTone, DEPT_STATUS, deptStatus } from '../../utils/progress.js';
+import { get } from '../../services/apiHelper.js';
+import { MY_PROGRESS } from '../../services/endpoints.js';
+import { accTone } from '../../utils/progress.js';
 
 // ---- My Progress. Styles: .pg-* (page), .dp-* (card), .pager-* (pagination) in styles/refinements.css ----
 
@@ -37,8 +38,6 @@ const ICON = {
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z',
 };
 
-const FILTERS = [['all', 'All'], ...Object.entries(DEPT_STATUS)];
-
 function EmptyState({ title, text }) {
   return (
     <div className="pg-empty">
@@ -52,41 +51,57 @@ function EmptyState({ title, text }) {
 }
 
 // ---- Progress view ----
-export function ProgressView({ stats }) {
+export function ProgressView() {
   const [filter, setFilter] = useState('all');
-  const departments = useDepartments(); // names from GET /departments
+  const [progress, setProgress] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    get(MY_PROGRESS, { params: { status: filter } })
+      .then((data) => {
+        if (active) setProgress(data);
+      })
+      .catch((e) => {
+        if (active) setError(e.message || 'Could not load your progress.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [filter, loadAttempt]);
 
-  // Only departments that have charts are tracked in stats.perDept.
-  // Certified first, then most worked, then name.
-  const rows = useMemo(
-    () =>
-      Object.entries(stats.perDept)
-        .map(([dk, st]) => ({ dk, name: deptInfo(departments, dk).name, st, status: deptStatus(st).key }))
-        .sort(
-          (a, b) =>
-            b.st.certified - a.st.certified || b.st.worked - a.st.worked || a.name.localeCompare(b.name),
-        ),
-    [stats.perDept, departments],
-  );
-  const shown = useMemo(
-    () => (filter === 'all' ? rows : rows.filter((r) => r.status === filter)),
-    [rows, filter],
-  );
-  const pager = usePagination(shown, { pageSize: PAGE_SIZE, resetKey: filter });
-
-  const certCount = rows.filter((r) => r.st.certified).length;
-  const started = rows.filter((r) => r.st.worked > 0).length;
-  const counts = Object.fromEntries(
-    FILTERS.map(([k]) => [k, k === 'all' ? rows.length : rows.filter((r) => r.status === k).length]),
-  );
-  const hasWork = stats.totalWorked > 0;
+  const rows = progress?.status === filter ? progress.results : [];
+  const summary = progress?.summary || {};
+  const filters = progress?.filters || [];
+  const pager = usePagination(rows, { pageSize: PAGE_SIZE, resetKey: filter });
+  const hasWork = summary.totalWorked > 0;
 
   const tiles = [
-    ['files', 'Total Worked', stats.totalWorked, 'charts submitted'],
-    ['target', 'Overall Accuracy', hasWork ? stats.overallAvg + '%' : '—', 'audited average'],
-    ['grid', 'Departments Started', started + ' / ' + rows.length, 'with at least one chart'],
-    ['award', 'Certificates', certCount, CERT_THRESHOLD + ' charts per department'],
+    ['files', 'Total Worked', summary.totalWorked || 0, 'charts submitted'],
+    ['target', 'Overall Accuracy', hasWork ? summary.overallAvg + '%' : '—', 'audited average'],
+    ['grid', 'Departments Started', (summary.started || 0) + ' / ' + (summary.departments || 0), 'with at least one chart'],
+    ['award', 'Certificates', summary.certified || 0, CERT_THRESHOLD + ' charts per department'],
   ];
+
+  if (loading && !progress) return <PageLoader label="Loading your progress" />;
+  if (error && !progress) {
+    return (
+      <div className="page pg">
+        <div className="cvx-msg err" role="alert">
+          {error}{' '}
+          <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pg">
@@ -99,8 +114,8 @@ export function ProgressView({ stats }) {
         </div>
         <div className="pg-score">
           <ProgressRing
-            value={hasWork ? stats.overallAvg : null}
-            tone={hasWork ? accTone(stats.overallAvg) : ''}
+            value={hasWork ? summary.overallAvg : null}
+            tone={hasWork ? accTone(summary.overallAvg) : ''}
             size={104}
             stroke={10}
             label="Overall"
@@ -119,37 +134,51 @@ export function ProgressView({ stats }) {
           <h2>Department Breakdown</h2>
           <p>Certified departments first, then the ones you have worked most.</p>
         </div>
-        {rows.length > 0 && (
+        {(summary.departments || 0) > 0 && (
           <div className="pg-filters" role="tablist" aria-label="Filter departments">
-            {FILTERS.map(([k, lbl]) => (
+            {filters.map(({ key, label, count }) => (
               <button
-                key={k}
+                key={key}
                 type="button"
                 role="tab"
-                aria-selected={filter === k}
-                className={filter === k ? 'on' : ''}
-                onClick={() => setFilter(k)}
+                aria-selected={filter === key}
+                className={filter === key ? 'on' : ''}
+                onClick={() => setFilter(key)}
               >
-                {lbl}
-                <span>{counts[k]}</span>
+                {label}
+                <span>{count}</span>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {!rows.length ? (
+      {loading ? (
+        <PageLoader variant="inline" label="Updating departments" />
+      ) : error ? (
+        <div className="cvx-msg err" role="alert">
+          {error}{' '}
+          <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+            Retry
+          </button>
+        </div>
+      ) : !(summary.departments || 0) ? (
         <EmptyState
           title="No departments assigned yet"
           text="Once your instructor assigns departments, your progress shows up here."
         />
-      ) : !shown.length ? (
+      ) : !rows.length ? (
         <EmptyState title="No departments here" text="Nothing matches this filter yet." />
       ) : (
         <>
           <div className="pg-grid">
-            {pager.items.map((r) => (
-              <DeptProgressCard key={r.dk} deptKey={r.dk} name={r.name} stats={r.st} />
+            {pager.items.map((department) => (
+              <DeptProgressCard
+                key={department.key}
+                deptKey={department.key}
+                name={department.name}
+                stats={department}
+              />
             ))}
           </div>
           <Pagination {...pager.props} itemLabel="departments" />
@@ -161,6 +190,5 @@ export function ProgressView({ stats }) {
 
 // route: /progress
 export default function ProgressPage() {
-  const { stats } = useStudent();
-  return <ProgressView stats={stats} />;
+  return <ProgressView />;
 }

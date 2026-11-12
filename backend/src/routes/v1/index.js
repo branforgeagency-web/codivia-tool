@@ -13,6 +13,7 @@ const resumeRoute = require('./resume.route');
 const chartResultRoute = require('./chartResult.route');
 const certificateRoute = require('./certificate.route');
 const myChartRoute = require('./myChart.route');
+const myProgressRoute = require('./myProgress.route');
 const adminStudentRoute = require('./adminStudent.route');
 const chartUploadRoute = require('./chartUpload.route');
 
@@ -35,6 +36,7 @@ const routes = [
   { path: '/chart-results', route: chartResultRoute },
   { path: '/certificates', route: certificateRoute },
   { path: '/my-charts', route: myChartRoute },
+  { path: '/my-progress', route: myProgressRoute },
 ];
 
 routes.forEach(({ path, route }) => router.use(path, route));

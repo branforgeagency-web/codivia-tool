@@ -1,5 +1,3 @@
-/* CODIVIA platform — session: signed-in user + role (from the backend API), code database.
-   Everything below <SessionProvider> can read it with useSession(). */
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { loadCodeDB } from '../services/codeDb.js';
 import { useNavigate } from 'react-router-dom';

@@ -21,6 +21,7 @@ export const DEPARTMENTS = '/departments';
 export const DEPARTMENT = (key) => `${DEPARTMENTS}/${encodeURIComponent(key)}`;
 // Student My Charts: the signed-in student's allocated departments + stat tiles (student only)
 export const MY_CHARTS = '/my-charts';
+export const MY_PROGRESS = '/my-progress';
 // A student's saved chart scores: { results: { chartId: {...} } }
 export const CHART_RESULTS = '/chart-results';
 export const CHART_RESULT = (chartId) => `${CHART_RESULTS}/${encodeURIComponent(chartId)}`; // PUT: submit a coded chart (server scores it)
