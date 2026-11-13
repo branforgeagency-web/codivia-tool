@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CODIVIA — Coding Workspace (prototype)</title>
+<style>
+  :root{
+    --brand:#F26722; --brand-d:#C4501A; --brand-l:#FDEBD9;
+    --ink:#1B1F24; --ink-2:#2A3038; --text:#1F2933; --muted:#6B7785; --line:#E3E7EC; --line-2:#EEF1F4;
+    --bg:#F5F6F8; --panel:#FFFFFF;
+    --ok:#0E8A5F; --ok-l:#E3F5EE; --warn:#B7791F; --warn-l:#FFF4DB; --err:#C0392B; --err-l:#FCE9E7; --info:#2563EB; --info-l:#E8EFFD;
+    --mcc:#7C3AED; --mcc-l:#F1EAFE; --cc:#0369A1; --cc-l:#E0F2FE;
+    --ev:#FFE9A8;
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-size:13px}
+  button{font:inherit;cursor:pointer}
+  input,select,textarea{font:inherit;color:inherit}
+  .proto-note{background:#111;color:#bbb;font-size:11px;text-align:center;padding:4px}
+  .proto-note b{color:var(--brand)}
+
+  /* ---------- app frame ---------- */
+  .app{display:grid;grid-template-rows:auto auto 1fr auto;height:calc(100vh - 22px)}
+  .topbar{display:flex;align-items:center;gap:14px;background:var(--ink);color:#fff;padding:8px 14px}
+  .logo{font-weight:900;letter-spacing:.5px;color:var(--brand);font-size:15px}
+  .crumb{color:#9AA4AF;font-size:12px}
+  .crumb b{color:#fff}
+  .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700}
+  .pill.status{background:#2E3540;color:#FFD5BE}
+  .pill.status.hold{background:#5B3A00;color:#FFD48A}
+  .timer{font-variant-numeric:tabular-nums;background:#2E3540;border-radius:6px;padding:4px 8px;font-size:12px}
+  .timer.over{background:#5A1F17;color:#FFB4A8}
+  .btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:7px;padding:6px 11px;font-weight:600;font-size:12px}
+  .btn:hover{border-color:#C9D0D8}
+  .btn.dark{background:#2E3540;border-color:#3A4350;color:#fff}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.primary:hover{background:var(--brand-d)}
+  .btn.sm{padding:3px 8px;font-size:11px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+
+  /* patient / encounter banner */
+  .banner{display:flex;flex-wrap:wrap;gap:0;background:#fff;border-bottom:1px solid var(--line)}
+  .banner .f{padding:7px 14px;border-right:1px solid var(--line-2)}
+  .banner .f span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .banner .f b{font-size:12.5px}
+  .banner .f.pt b{font-size:14px}
+  .tag{display:inline-block;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:800;letter-spacing:.3px}
+  .tag.ip{background:var(--brand-l);color:var(--brand-d)}
+  .tag.alert{background:var(--err-l);color:var(--err)}
+
+  /* 3-pane workspace */
+  .work{display:grid;grid-template-columns:200px minmax(360px,1fr) minmax(460px,1.05fr);min-height:0}
+  .pane{min-height:0;display:flex;flex-direction:column;border-right:1px solid var(--line)}
+  .pane-h{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);background:#FAFBFC;font-weight:700;font-size:12px}
+  .pane-b{overflow:auto;min-height:0;flex:1}
+
+  /* document list */
+  .doclist{list-style:none;margin:0;padding:6px}
+  .doclist li{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-radius:7px;cursor:pointer;margin-bottom:2px}
+  .doclist li:hover{background:var(--line-2)}
+  .doclist li.on{background:var(--brand-l)}
+  .doclist .ic{width:22px;height:22px;border-radius:5px;background:var(--line-2);display:grid;place-items:center;font-size:12px;flex:none}
+  .doclist li.on .ic{background:var(--brand);color:#fff}
+  .doclist .t{font-weight:600;font-size:12px;line-height:1.25}
+  .doclist .s{font-size:10.5px;color:var(--muted)}
+  .doclist .ev{margin-left:auto;font-size:10px;background:var(--ev);border-radius:4px;padding:0 5px;font-weight:700}
+  .side-sec{padding:8px 12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+  .side-sec h4{margin:4px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text)}
+  .q-item{background:var(--warn-l);border:1px solid #F3D9A0;border-radius:6px;padding:6px;margin-bottom:6px;color:var(--text)}
+
+  /* document viewer */
+  .viewer-tools{display:flex;gap:6px;align-items:center}
+  .viewer-tools input{border:1px solid var(--line);border-radius:6px;padding:4px 8px;width:170px;font-size:12px}
+  .doc{padding:18px 22px;line-height:1.65;font-size:13.2px;max-width:780px}
+  .doc h3{margin:0 0 2px;font-size:15px}
+  .doc .meta{color:var(--muted);font-size:11.5px;margin-bottom:12px}
+  .doc h5{margin:14px 0 4px;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--brand-d)}
+  .doc p{margin:0 0 8px}
+  .doc table{border-collapse:collapse;font-size:12px;margin:6px 0}
+  .doc td,.doc th{border:1px solid var(--line);padding:4px 8px;text-align:left}
+  .doc .abn{color:var(--err);font-weight:700}
+  mark.ev{background:var(--ev);border-bottom:2px solid #E5B900;padding:0 1px;cursor:pointer}
+  mark.ev.flash{outline:2px solid var(--brand)}
+  mark.find{background:#C7E0FF}
+  .sel-pop{position:fixed;z-index:50;background:var(--ink);color:#fff;border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.25);display:none;max-width:280px}
+  .sel-pop .h{font-size:10.5px;color:#9AA4AF;padding:2px 4px 5px}
+  .sel-pop button{display:block;width:100%;text-align:left;background:none;border:0;color:#fff;padding:5px 6px;border-radius:5px;font-size:12px}
+  .sel-pop button:hover{background:#2E3540}
+  .sel-pop code{color:#FFB98F}
+
+  /* coding pane */
+  .tabs{display:flex;gap:2px;padding:0 8px;border-bottom:1px solid var(--line);background:#FAFBFC}
+  .tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 10px;font-weight:600;color:var(--muted);font-size:12px}
+  .tabs button.on{color:var(--text);border-color:var(--brand)}
+  .tabs .n{display:inline-block;min-width:16px;border-radius:8px;background:var(--line-2);font-size:10px;padding:0 4px;margin-left:4px;color:var(--text)}
+  .tabs .n.err{background:var(--err);color:#fff}
+
+  .encoder{padding:10px;border-bottom:1px solid var(--line);background:#fff}
+  .enc-row{display:flex;gap:6px}
+  .enc-row select{border:1px solid var(--line);border-radius:6px;padding:5px;font-size:12px}
+  .enc-row input{flex:1;border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:12.5px}
+  .enc-row input:focus{outline:2px solid var(--brand-l);border-color:var(--brand)}
+  .enc-results{margin-top:8px;max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:7px;display:none}
+  .enc-results.show{display:block}
+  .er{display:grid;grid-template-columns:80px 1fr auto;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line-2);cursor:pointer}
+  .er:hover,.er.on{background:var(--brand-l)}
+  .er .path{font-size:10.5px;color:var(--muted)}
+  .code{font-family:Consolas,"SF Mono",monospace;font-weight:700;color:var(--ink)}
+  .tab-detail{margin-top:8px;border:1px solid var(--line);border-radius:7px;padding:9px;background:#FCFCFD;display:none}
+  .tab-detail.show{display:block}
+  .tab-detail .hier{font-size:11px;color:var(--muted);margin-bottom:5px}
+  .note{border-left:3px solid var(--line);padding:3px 8px;margin:5px 0;font-size:11.5px}
+  .note.ex1{border-color:var(--err);background:var(--err-l)}
+  .note.ex2{border-color:var(--warn);background:var(--warn-l)}
+  .note.ua{border-color:var(--info);background:var(--info-l)}
+  .note b{font-size:10px;text-transform:uppercase;letter-spacing:.4px;display:block}
+
+  .section{padding:10px}
+  .grid{width:100%;border-collapse:collapse;font-size:12px}
+  .grid th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);text-align:left;padding:5px 6px;border-bottom:1px solid var(--line);background:#FAFBFC;position:sticky;top:0}
+  .grid td{padding:6px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+  .grid tr.pdx td{background:#FFF8F3}
+  .grid tr.drag-over td{border-top:2px solid var(--brand)}
+  .handle{cursor:grab;color:#A9B2BC;user-select:none}
+  .seq{font-weight:800;color:var(--muted);width:24px}
+  .badge{display:inline-block;border-radius:4px;padding:0 5px;font-size:10px;font-weight:800}
+  .badge.mcc{background:var(--mcc-l);color:var(--mcc)}
+  .badge.cc{background:var(--cc-l);color:var(--cc)}
+  .badge.pdx{background:var(--brand);color:#fff}
+  .badge.hac{background:var(--err-l);color:var(--err)}
+  .grid select{border:1px solid var(--line);border-radius:5px;padding:2px 3px;font-size:11.5px}
+  .grid select.missing{border-color:var(--err);background:var(--err-l)}
+  .evchip{display:inline-flex;align-items:center;gap:3px;background:var(--ev);border-radius:4px;padding:0 5px;font-size:10.5px;font-weight:700;cursor:pointer;border:0}
+  .evchip.none{background:var(--line-2);color:var(--muted)}
+  .icon-btn{border:0;background:none;color:#98A2AD;padding:2px 4px;border-radius:4px}
+  .icon-btn:hover{background:var(--line-2);color:var(--text)}
+  .modchips{display:flex;gap:3px;flex-wrap:wrap}
+  .modchips span{background:var(--line-2);border-radius:4px;padding:0 5px;font-size:11px;font-weight:700}
+  .mini-input{width:44px;border:1px solid var(--line);border-radius:5px;padding:2px 4px;font-size:11.5px}
+  .ptr{width:70px;text-transform:uppercase}
+  .empty{color:var(--muted);text-align:center;padding:16px;font-size:12px}
+
+  /* PCS builder */
+  .pcs{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px}
+  .pcs .col h6{margin:0 0 3px;font-size:9.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);text-align:center}
+  .pcs .col button{display:block;width:100%;border:1px solid var(--line);background:#fff;border-radius:5px;padding:4px 3px;margin-bottom:3px;font-size:10.5px;line-height:1.2;text-align:left}
+  .pcs .col button b{font-family:Consolas,monospace;color:var(--brand-d)}
+  .pcs .col button.on{border-color:var(--brand);background:var(--brand-l)}
+  .pcs-out{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px}
+  .pcs-out .code{font-size:16px;letter-spacing:2px}
+
+  /* abstract */
+  .form{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+  .form label{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);display:block;margin-bottom:2px}
+  .form input,.form select{width:100%;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-size:12px}
+
+  /* DRG panel */
+  .drg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+  .kpi{border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff}
+  .kpi span{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .kpi b{display:block;font-size:17px;margin-top:2px}
+  .drg-title{border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:8px;padding:9px 11px;margin-bottom:10px;background:#fff}
+  .drg-title .n{font-size:20px;font-weight:900}
+
+  /* edits panel (always visible at the bottom of coding pane) */
+  .edits{border-top:1px solid var(--line);background:#fff;max-height:30%;overflow:auto}
+  .edits h4{margin:0;padding:7px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;display:flex;gap:8px;align-items:center;position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line-2)}
+  .edit{display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line-2);font-size:12px;align-items:flex-start}
+  .edit .k{flex:none;width:52px;text-align:center;border-radius:4px;font-size:9.5px;font-weight:800;padding:1px 0;margin-top:1px}
+  .edit.error .k{background:var(--err);color:#fff}
+  .edit.warn .k{background:var(--warn);color:#fff}
+  .edit.info .k{background:var(--info);color:#fff}
+  .edit .src{font-size:10.5px;color:var(--muted)}
+
+  /* status bar */
+  .statusbar{display:flex;gap:16px;align-items:center;background:var(--ink-2);color:#AEB7C1;font-size:11px;padding:4px 12px}
+  .statusbar kbd{background:#3A4350;color:#fff;border-radius:3px;padding:0 4px;font-size:10px;font-family:inherit}
+  .statusbar .ok{color:#7EE2B8}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(15,20,25,.5);display:none;align-items:center;justify-content:center;z-index:80}
+  .overlay.show{display:flex}
+  .modal{background:#fff;border-radius:12px;width:min(720px,94vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+  .modal-h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .modal-h h3{margin:0;font-size:16px}
+  .modal-b{padding:14px 18px;overflow:auto}
+  .modal-f{padding:10px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+  .modal-b textarea{width:100%;border:1px solid var(--line);border-radius:7px;padding:8px;min-height:70px}
+  .opt{display:flex;gap:6px;align-items:center;margin:4px 0}
+  .score{display:flex;gap:18px;align-items:center;margin-bottom:12px}
+  .ring{width:86px;height:86px;border-radius:50%;display:grid;place-items:center;font-size:22px;font-weight:900}
+  .res{display:grid;grid-template-columns:70px 90px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:12px}
+  .res .st{font-weight:800;font-size:10.5px;border-radius:4px;text-align:center;padding:2px 0;height:fit-content}
+  .res .st.ok{background:var(--ok-l);color:var(--ok)}
+  .res .st.miss{background:var(--err-l);color:var(--err)}
+  .res .st.extra{background:var(--warn-l);color:var(--warn)}
+  .res .why{color:var(--muted);font-size:11.5px;margin-top:2px}
+  .callout{background:var(--info-l);border-radius:7px;padding:8px 10px;font-size:12px;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="proto-note"><b>PROTOTYPE</b> · static mock-up for review · sample case and grouper numbers are illustrative, not real reimbursement data</div>
+
+<div class="app">
+  <!-- ======================= top bar ======================= -->
+  <header class="topbar">
+    <span class="logo">CODIVIA</span>
+    <span class="crumb">My Charts / Inpatient Facility / <b>IP-0412</b></span>
+    <span class="pill status" id="chartStatus">● In progress</span>
+    <span class="spacer"></span>
+    <span class="timer" id="timer" title="Time on this chart · target 25:00 for an inpatient record">00:00 / 25:00</span>
+    <button class="btn dark" id="btnQuery">Physician query</button>
+    <button class="btn dark" id="btnHold">Hold</button>
+    <button class="btn dark" id="btnSave">Save draft</button>
+    <button class="btn primary" id="btnSubmit">Submit for audit ⏎</button>
+  </header>
+
+  <!-- ======================= encounter banner ======================= -->
+  <section class="banner">
+    <div class="f pt"><span>Patient</span><b>DOE, MARGARET A.</b></div>
+    <div class="f"><span>Sex / Age</span><b>F · 68 y</b></div>
+    <div class="f"><span>MRN</span><b>M00418822</b></div>
+    <div class="f"><span>Account</span><b>V0019304471</b></div>
+    <div class="f"><span>Encounter</span><b><span class="tag ip">INPATIENT</span></b></div>
+    <div class="f"><span>Admit → Discharge</span><b>03/14/2026 → 03/18/2026</b></div>
+    <div class="f"><span>LOS</span><b>4 days</b></div>
+    <div class="f"><span>Disposition</span><b>01 · Home / self-care</b></div>
+    <div class="f"><span>Payer</span><b>Medicare Part A</b></div>
+    <div class="f"><span>Attending</span><b>R. Patel, MD (Hospitalist)</b></div>
+    <div class="f"><span>Allergies</span><b><span class="tag alert">PCN</span></b></div>
+  </section>
+
+  <!-- ======================= workspace ======================= -->
+  <main class="work">
+    <!-- document navigator -->
+    <aside class="pane">
+      <div class="pane-h">Documents <span class="spacer"></span><span style="color:var(--muted);font-weight:500" id="docCount"></span></div>
+      <div class="pane-b">
+        <ul class="doclist" id="docList"></ul>
+        <div class="side-sec">
+          <h4>Queries</h4>
+          <div id="queryList">No open queries.</div>
+        </div>
+        <div class="side-sec">
+          <h4>Coder notes</h4>
+          <textarea id="notes" style="width:100%;border:1px solid var(--line);border-radius:6px;min-height:60px;font-size:11.5px;padding:5px" placeholder="Private notes for this chart…"></textarea>
+        </div>
+      </div>
+    </aside>
+
+    <!-- document viewer -->
+    <section class="pane">
+      <div class="pane-h">
+        <span id="docTitle">—</span>
+        <span class="spacer"></span>
+        <span class="viewer-tools">
+          <input id="findBox" placeholder="Find in document…  (Ctrl+F)">
+          <button class="btn sm" id="prevDoc" title="Previous document (Alt+↑)">↑</button>
+          <button class="btn sm" id="nextDoc" title="Next document (Alt+↓)">↓</button>
+        </span>
+      </div>
+      <div class="pane-b"><article class="doc" id="doc"></article></div>
+    </section>
+
+    <!-- coding pane -->
+    <section class="pane" style="border-right:0">
+      <nav class="tabs" id="tabs"></nav>
+
+      <div class="encoder" id="encoder">
+        <div class="enc-row">
+          <select id="encSys" title="Code set">
+            <option value="CM">ICD-10-CM</option>
+            <option value="PCS">ICD-10-PCS</option>
+            <option value="CPT">CPT / HCPCS</option>
+          </select>
+          <input id="encQ" placeholder="Encoder: search the Index by main term, e.g. “failure respiratory”, “diabetes kidney”  (Ctrl+K)" autocomplete="off">
+        </div>
+        <div class="enc-results" id="encResults"></div>
+        <div class="tab-detail" id="encDetail"></div>
+      </div>
+
+      <div class="pane-b" id="tabBody"></div>
+
+      <div class="edits" id="edits"></div>
+    </section>
+  </main>
+
+  <!-- ======================= status bar ======================= -->
+  <footer class="statusbar">
+    <span id="saveState" class="ok">● Draft saved</span>
+    <span><kbd>Ctrl</kbd>+<kbd>K</kbd> encoder</span>
+    <span><kbd>Alt</kbd>+<kbd>1–5</kbd> tabs</span>
+    <span><kbd>Alt</kbd>+<kbd>↑/↓</kbd> documents</span>
+    <span>Select text in a document → link it as evidence</span>
+    <span class="spacer"></span>
+    <span>Code sets: ICD-10-CM/PCS FY2026 · CPT 2026 (sample)</span>
+  </footer>
+</div>
+
+<!-- selection popover -->
+<div class="sel-pop" id="selPop"></div>
+
+<!-- modal -->
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+
+<script>
+/* =====================================================================
+   Sample data (illustrative). In the real app: documents and patient come
+   from GET /my-charts/:dept/charts/:id; encoder from /codes; scoring from
+   PUT /chart-results/:id (server side, answer key never sent to the browser).
+   ===================================================================== */
+const DOCS = [
+  { id: 'ed', icon: '🚑', title: 'ED Provider Note', sub: '03/14 21:40 · K. Ruiz, DO', html: `
+    <h3>Emergency Department Provider Note</h3><div class="meta">03/14/2026 21:40 · Mercy General ED · K. Ruiz, DO</div>
+    <h5>Chief complaint</h5><p>Worsening shortness of breath x 3 days.</p>
+    <h5>HPI</h5><p>68-year-old female with COPD on home oxygen 2 L, type 2 diabetes, hypertension and chronic kidney disease presents with increasing dyspnea, productive cough and wheezing for three days. She used her rescue inhaler every 2 hours today without relief. Former smoker, quit 2015 (40 pack-years).</p>
+    <h5>Exam</h5><p>RR 30, SpO2 82% on 2 L, accessory muscle use, diffuse expiratory wheezes, speaking in 3–4 word sentences.</p>
+    <h5>ED course</h5><p>ABG on 2 L: pH 7.31, pCO2 58, pO2 52. Duonebs x3, methylprednisolone 125 mg IV. Started on BiPAP 14/6 at 22:15.</p>
+    <h5>Impression</h5><p>Acute hypoxic respiratory failure due to COPD exacerbation. Admit to step-down, hospitalist service.</p>` },
+  { id: 'hp', icon: '📋', title: 'History & Physical', sub: '03/15 01:10 · R. Patel, MD', html: `
+    <h3>Admission History & Physical</h3><div class="meta">03/15/2026 01:10 · R. Patel, MD · Hospitalist</div>
+    <h5>Reason for admission</h5><p>Acute hypoxic respiratory failure secondary to acute exacerbation of COPD.</p>
+    <h5>Past medical history</h5><p>COPD (GOLD 3) on home O2 2 L continuous. Type 2 diabetes mellitus on metformin. Hypertension. Chronic kidney disease stage 3a, baseline creatinine 1.3. History of tobacco dependence, in remission.</p>
+    <h5>Medications</h5><p>Metformin 500 mg BID, lisinopril 10 mg daily, tiotropium, albuterol PRN, home oxygen 2 L.</p>
+    <h5>Assessment & plan</h5>
+    <p>1. <b>Acute hypoxic respiratory failure</b> — present on admission, due to #2. Continue BiPAP, wean as tolerated, titrate O2 to SpO2 88–92%.</p>
+    <p>2. <b>Acute exacerbation of COPD</b> — IV steroids, scheduled nebulizers, azithromycin.</p>
+    <p>3. <b>Type 2 diabetes with hyperglycemia</b> — glucose 286 on steroids; hold metformin while inpatient, sliding-scale insulin.</p>
+    <p>4. <b>Hypertensive chronic kidney disease, CKD stage 3a</b> — creatinine at baseline; continue lisinopril.</p>` },
+  { id: 'rt', icon: '🫁', title: 'Respiratory Therapy Flowsheet', sub: '03/14 – 03/16', html: `
+    <h3>Respiratory Therapy — Ventilation Flowsheet</h3><div class="meta">Non-invasive ventilation record</div>
+    <table><tr><th>Date/time</th><th>Event</th><th>Settings</th></tr>
+    <tr><td>03/14 22:15</td><td>BiPAP initiated in ED</td><td>IPAP 14 / EPAP 6, FiO2 40%</td></tr>
+    <tr><td>03/15 10:00</td><td>Continued</td><td>IPAP 12 / EPAP 6, FiO2 35%</td></tr>
+    <tr><td>03/16 06:30</td><td>BiPAP discontinued, to 3 L NC</td><td>—</td></tr></table>
+    <p>Total continuous non-invasive ventilation: <b>32 hours 15 minutes</b>.</p>` },
+  { id: 'pn', icon: '📝', title: 'Progress Note — Day 2', sub: '03/16 09:20 · R. Patel, MD', html: `
+    <h3>Hospitalist Progress Note</h3><div class="meta">03/16/2026 09:20 · R. Patel, MD</div>
+    <h5>Subjective</h5><p>Breathing improved. Off BiPAP this morning.</p>
+    <h5>Objective</h5><p>SpO2 92% on 3 L. Glucose 210–260 on steroids.</p>
+    <h5>Assessment</h5><p>Acute hypoxic respiratory failure, resolving. COPD exacerbation improving. Type 2 DM with hyperglycemia, steroid-related; diabetic CKD stage 3a, stable.</p>` },
+  { id: 'lab', icon: '🧪', title: 'Laboratory Results', sub: '03/14 – 03/17', html: `
+    <h3>Laboratory Results</h3><div class="meta">Collected 03/14 – 03/17</div>
+    <table><tr><th>Test</th><th>03/14</th><th>03/15</th><th>03/17</th><th>Ref</th></tr>
+    <tr><td>Glucose</td><td class="abn">248</td><td class="abn">286</td><td class="abn">198</td><td>70–99</td></tr>
+    <tr><td>Creatinine</td><td>1.34</td><td>1.30</td><td>1.28</td><td>0.6–1.1</td></tr>
+    <tr><td>eGFR</td><td class="abn">49</td><td class="abn">51</td><td class="abn">52</td><td>&gt;60</td></tr>
+    <tr><td>HbA1c</td><td>—</td><td class="abn">8.1%</td><td>—</td><td>&lt;5.7</td></tr>
+    <tr><td>ABG pO2</td><td class="abn">52</td><td>71</td><td>—</td><td>80–100</td></tr></table>` },
+  { id: 'cxr', icon: '🩻', title: 'Chest X-ray Report', sub: '03/14 22:05 · Radiology', html: `
+    <h3>Chest Radiograph, 1 view</h3><div class="meta">03/14/2026 22:05 · J. Lin, MD</div>
+    <h5>Findings</h5><p>Hyperinflated lungs with flattened diaphragms. No focal consolidation, effusion or pneumothorax.</p>
+    <h5>Impression</h5><p>Emphysematous changes. No acute pneumonia.</p>` },
+  { id: 'ds', icon: '🏁', title: 'Discharge Summary', sub: '03/18 11:05 · R. Patel, MD', html: `
+    <h3>Discharge Summary</h3><div class="meta">03/18/2026 11:05 · R. Patel, MD</div>
+    <h5>Principal diagnosis</h5><p>Acute hypoxic respiratory failure due to acute exacerbation of COPD.</p>
+    <h5>Secondary diagnoses</h5><p>Type 2 diabetes mellitus with hyperglycemia and diabetic chronic kidney disease stage 3a. Hypertension. Dependence on home oxygen. History of tobacco dependence. Long-term metformin use.</p>
+    <h5>Procedures</h5><p>Non-invasive positive pressure ventilation (BiPAP), 03/14–03/16.</p>
+    <h5>Disposition</h5><p>Home with home oxygen 2 L. Resume metformin.</p>` },
+];
+
+// Mini encoder: index terms → tabular entries with instructional notes and grouper flags (sample).
+const CODES = [
+  { s:'CM', c:'J96.01', d:'Acute respiratory failure with hypoxia', path:'Failure › respiratory › acute › with hypoxia', cc:'MCC', notes:[['ua','Code also','any associated underlying condition']] },
+  { s:'CM', c:'J96.00', d:'Acute respiratory failure, unspecified whether with hypoxia or hypercapnia', path:'Failure › respiratory › acute', cc:'MCC', unspec:true },
+  { s:'CM', c:'J44.1', d:'Chronic obstructive pulmonary disease with (acute) exacerbation', path:'Disease › pulmonary › chronic obstructive › with exacerbation (acute)', cc:'CC', notes:[['ua','Code also','type of asthma, if applicable'],['ua','Use additional code','to identify dependence on supplemental oxygen (Z99.81)']] },
+  { s:'CM', c:'J44.9', d:'Chronic obstructive pulmonary disease, unspecified', path:'Disease › pulmonary › chronic obstructive', unspec:true },
+  { s:'CM', c:'E11.22', d:'Type 2 diabetes mellitus with diabetic chronic kidney disease', path:'Diabetes › type 2 › with › chronic kidney disease', notes:[['ua','Use additional code','to identify stage of chronic kidney disease (N18.1–N18.6)']] },
+  { s:'CM', c:'E11.65', d:'Type 2 diabetes mellitus with hyperglycemia', path:'Diabetes › type 2 › with › hyperglycemia', notes:[['ua','Use additional code','to identify control using insulin (Z79.4), oral antidiabetic drugs (Z79.84) or oral hypoglycemic drugs (Z79.84)']] },
+  { s:'CM', c:'E11.9', d:'Type 2 diabetes mellitus without complications', path:'Diabetes › type 2', notes:[['ex1','Excludes1','type 2 diabetes with any documented complication (E11.0–E11.8)']] },
+  { s:'CM', c:'I12.9', d:'Hypertensive chronic kidney disease with stage 1 through stage 4 CKD, or unspecified CKD', path:'Hypertension › with › kidney disease › chronic › stage 1–4', notes:[['ua','Use additional code','to identify the stage of chronic kidney disease (N18.1–N18.4, N18.9)'],['ex1','Excludes1','hypertensive heart and chronic kidney disease (I13.-)']] },
+  { s:'CM', c:'I10', d:'Essential (primary) hypertension', path:'Hypertension', notes:[['ex1','Excludes1','hypertensive disease involving the kidney (I12.-)']] },
+  { s:'CM', c:'N18.31', d:'Chronic kidney disease, stage 3a', path:'Disease › kidney › chronic › stage 3a', notes:[['ua','Code first','any associated diabetic chronic kidney disease (E08.22, E09.22, E10.22, E11.22, E13.22) and hypertensive CKD (I12.-, I13.-)']] },
+  { s:'CM', c:'N18.9', d:'Chronic kidney disease, unspecified', path:'Disease › kidney › chronic', unspec:true },
+  { s:'CM', c:'Z99.81', d:'Dependence on supplemental oxygen', path:'Dependence › on › oxygen (long-term) (supplemental)', poaExempt:true },
+  { s:'CM', c:'Z87.891', d:'Personal history of nicotine dependence', path:'History › personal › nicotine dependence', poaExempt:true, notes:[['ex1','Excludes1','current nicotine dependence (F17.2-)']] },
+  { s:'CM', c:'Z79.84', d:'Long term (current) use of oral hypoglycemic drugs', path:'Long-term drug therapy › oral hypoglycemic', poaExempt:true },
+  { s:'CM', c:'Z79.4', d:'Long term (current) use of insulin', path:'Long-term drug therapy › insulin', poaExempt:true },
+  { s:'CM', c:'R06.02', d:'Shortness of breath', path:'Shortness, breath', symptom:true },
+  { s:'CM', c:'J18.9', d:'Pneumonia, unspecified organism', path:'Pneumonia', cc:'MCC', unspec:true },
+  { s:'CPT', c:'99223', d:'Initial hospital inpatient or observation care, high level of medical decision making', path:'Evaluation and Management › Hospital Inpatient › Initial' },
+  { s:'CPT', c:'99233', d:'Subsequent hospital inpatient or observation care, high level of MDM', path:'Evaluation and Management › Hospital Inpatient › Subsequent' },
+  { s:'CPT', c:'99239', d:'Hospital inpatient or observation discharge day management, more than 30 minutes', path:'Evaluation and Management › Discharge' },
+  { s:'CPT', c:'94660', d:'Continuous positive airway pressure ventilation (CPAP), initiation and management', path:'Medicine › Pulmonary › Ventilation management', mue:1 },
+  { s:'CPT', c:'71045', d:'Radiologic examination, chest; single view', path:'Radiology › Chest' },
+];
+const findCode = (c) => CODES.find((x) => x.c === c);
+
+// ICD-10-PCS table 5A0 (Extracorporeal Assistance) — only the rows this case needs.
+const PCS_AXES = [
+  { h:'Section', o:[['5','Extracorporeal or Systemic Assistance and Performance']] },
+  { h:'Body system', o:[['A','Physiological Systems']] },
+  { h:'Operation', o:[['0','Assistance']] },
+  { h:'Body system', o:[['9','Respiratory']] },
+  { h:'Duration', o:[['3','Less than 24 consecutive hours'],['4','24–96 consecutive hours'],['5','Greater than 96 consecutive hours']] },
+  { h:'Function', o:[['5','Ventilation']] },
+  { h:'Qualifier', o:[['7','Continuous positive airway pressure'],['8','Intermittent positive airway pressure'],['9','Continuous negative airway pressure'],['B','Intermittent negative airway pressure'],['Z','No qualifier']] },
+];
+const PCS_DESC = { '5A09358':'Assistance with respiratory ventilation, < 24 consecutive hours, intermittent positive airway pressure', '5A09458':'Assistance with respiratory ventilation, 24–96 consecutive hours, intermittent positive airway pressure', '5A09558':'Assistance with respiratory ventilation, > 96 consecutive hours, intermittent positive airway pressure', '5A09457':'Assistance with respiratory ventilation, 24–96 consecutive hours, CPAP' };
+
+// Prototype-only answer key (in the app the server holds it and scores the submission).
+const KEY = {
+  dx: [
+    ['J96.01','Y','PDx: respiratory failure documented as the reason for admission, present on admission (OCG I.C.10.b.1).'],
+    ['J44.1','Y','COPD exacerbation is the underlying cause; "Code also" note at J96.0-.'],
+    ['E11.22','Y','"With" convention (OCG I.A.15): diabetes and CKD are presumed linked; physician also states "diabetic CKD".'],
+    ['E11.65','Y','Hyperglycemia documented (glucose 286, "with hyperglycemia").'],
+    ['I12.9','Y','Hypertension with CKD is presumed hypertensive CKD (OCG I.C.9.a.2).'],
+    ['N18.31','Y','Use additional code at I12.9 / E11.22 for the CKD stage (3a).'],
+    ['Z99.81','EXEMPT','Home O2 2 L continuous — use additional code at J44.'],
+    ['Z87.891','EXEMPT','Former smoker, tobacco dependence in remission/history.'],
+    ['Z79.84','EXEMPT','Long-term metformin (held inpatient, resumed at discharge).'],
+  ],
+  pcs: [['5A09458','BiPAP 32 h 15 min → duration 24–96 consecutive hours; BiPAP = intermittent positive airway pressure.']],
+};
+
+/* ======================= state ======================= */
+const S = {
+  doc: 'ed',
+  tab: 'dx',
+  dx: [ // the student has started coding
+    { c:'J44.1', poa:'Y', ev:[] },
+    { c:'E11.65', poa:'', ev:[] },
+    { c:'I10', poa:'Y', ev:[] },
+  ],
+  pcs: [],
+  pro: [ { c:'99223', mods:[], units:1, ptr:'' } ],
+  abs: { admitType:'1 · Emergency', admitSrc:'7 · Emergency room', disp:'01 · Home / self-care', attending:'R. Patel, MD' },
+  pcsSel: ['5','A','0','9','','5',''],
+  evidence: [], // { id, doc, text, code }
+  queries: [],
+  hold: false,
+  t0: Date.now(),
+  encSel: null,
+};
+let evSeq = 0;
+
+/* ======================= helpers ======================= */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (m) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m]));
+const POA = ['', 'Y', 'N', 'U', 'W', 'EXEMPT'];
+const POA_LABEL = { '':'POA?', Y:'Y – yes', N:'N – no', U:'U – unknown', W:'W – clin. undetermined', EXEMPT:'1 – exempt' };
+function dirty() { $('saveState').textContent = '● Unsaved changes'; $('saveState').className = ''; clearTimeout(dirty.t); dirty.t = setTimeout(() => { $('saveState').textContent = '● Draft saved ' + new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); $('saveState').className = 'ok'; }, 900); }
+
+/* ======================= documents ======================= */
+function renderDocList() {
+  $('docCount').textContent = DOCS.length;
+  $('docList').innerHTML = DOCS.map((d) => {
+    const n = S.evidence.filter((e) => e.doc === d.id).length;
+    return `<li class="${d.id === S.doc ? 'on' : ''}" data-doc="${d.id}"><span class="ic">${d.icon}</span><span><div class="t">${esc(d.title)}</div><div class="s">${esc(d.sub)}</div></span>${n ? `<span class="ev" title="evidence links">${n}</span>` : ''}</li>`;
+  }).join('');
+}
+const docCache = {}; // keeps highlights when switching documents
+function renderDoc() {
+  const d = DOCS.find((x) => x.id === S.doc);
+  $('docTitle').textContent = d.title;
+  $('doc').innerHTML = docCache[d.id] || d.html;
+  applyFind();
+}
+function openDoc(id, flashEv) {
+  docCache[S.doc] = $('doc').innerHTML.replace(/<mark class="find">(.*?)<\/mark>/g, '$1');
+  S.doc = id; renderDocList(); renderDoc();
+  if (flashEv) { const m = $('doc').querySelector(`mark[data-ev="${flashEv}"]`); if (m) { m.scrollIntoView({ block:'center', behavior:'smooth' }); m.classList.add('flash'); setTimeout(() => m.classList.remove('flash'), 1500); } }
+}
+function applyFind() {
+  const q = $('findBox').value.trim();
+  $('doc').querySelectorAll('mark.find').forEach((m) => m.replaceWith(document.createTextNode(m.textContent)));
+  $('doc').normalize();
+  if (q.length < 2) return;
+  const walker = document.createTreeWalker($('doc'), NodeFilter.SHOW_TEXT);
+  const hits = []; let n;
+  while ((n = walker.nextNode())) { const i = n.nodeValue.toLowerCase().indexOf(q.toLowerCase()); if (i >= 0) hits.push([n, i]); }
+  hits.forEach(([node, i]) => { const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + q.length); const m = document.createElement('mark'); m.className = 'find'; r.surroundContents(m); });
+  const first = $('doc').querySelector('mark.find'); if (first) first.scrollIntoView({ block:'center' });
+}
+
+/* evidence: select text → link to a code */
+document.addEventListener('mouseup', (e) => {
+  const pop = $('selPop');
+  if (pop.contains(e.target)) return;
+  const sel = window.getSelection();
+  const text = sel.toString().trim();
+  if (!text || !$('doc').contains(sel.anchorNode) || text.length < 3) { pop.style.display = 'none'; return; }
+  const rect = sel.getRangeAt(0).getBoundingClientRect();
+  const codes = [...S.dx.map((r) => r.c), ...S.pcs.map((r) => r.c)];
+  pop.innerHTML = `<div class="h">Link “${esc(text.slice(0, 40))}${text.length > 40 ? '…' : ''}” as evidence for</div>` +
+    (codes.length ? codes.map((c) => `<button data-link="${c}"><code>${c}</code> ${esc((findCode(c) || { d: PCS_DESC[c] || '' }).d).slice(0, 38)}</button>`).join('') : '<div class="h">Add a code first.</div>') +
+    `<button data-search="${esc(text)}">🔎 Search the encoder for this text</button>`;
+  pop.style.left = Math.min(rect.left, window.innerWidth - 290) + 'px';
+  pop.style.top = rect.bottom + 6 + 'px';
+  pop.style.display = 'block';
+  pop._range = sel.getRangeAt(0).cloneRange();
+  pop._text = text;
+});
+$('selPop').addEventListener('click', (e) => {
+  const pop = $('selPop'); const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.search) { $('encQ').value = b.dataset.search; runEncoder(); $('encQ').focus(); }
+  if (b.dataset.link) {
+    const id = 'ev' + (++evSeq);
+    try { const m = document.createElement('mark'); m.className = 'ev'; m.dataset.ev = id; m.title = 'Evidence for ' + b.dataset.link; pop._range.surroundContents(m); }
+    catch (err) { /* selection crossed paragraphs: keep the link without a highlight */ }
+    S.evidence.push({ id, doc: S.doc, text: pop._text, code: b.dataset.link });
+    const row = S.dx.find((r) => r.c === b.dataset.link) || S.pcs.find((r) => r.c === b.dataset.link); if (row) row.ev.push(id);
+    renderDocList(); renderTab(); dirty();
+  }
+  pop.style.display = 'none'; window.getSelection().removeAllRanges();
+});
+$('doc').addEventListener('click', (e) => {
+  const m = e.target.closest('mark.ev'); if (!m) return;
+  const ev = S.evidence.find((x) => x.id === m.dataset.ev); if (ev) toast('Evidence for ' + ev.code);
+});
+
+/* ======================= encoder ======================= */
+function runEncoder() {
+  const q = $('encQ').value.trim().toLowerCase(); const sys = $('encSys').value; const box = $('encResults');
+  if (sys === 'PCS') { box.classList.remove('show'); S.tab = 'pcs'; renderTabs(); renderTab(); return; }
+  if (q.length < 2) { box.classList.remove('show'); $('encDetail').classList.remove('show'); return; }
+  const words = q.split(/\s+/);
+  const hits = CODES.filter((x) => x.s === sys && words.every((w) => (x.path + ' ' + x.d + ' ' + x.c).toLowerCase().includes(w)));
+  box.innerHTML = hits.length ? hits.map((x) => `<div class="er" data-code="${x.c}"><span class="code">${x.c}</span><span>${esc(x.d)}<div class="path">${esc(x.path)}</div></span><span>${x.cc ? `<span class="badge ${x.cc.toLowerCase()}">${x.cc}</span>` : ''}${x.unspec ? ' <span class="badge" style="background:#eee">unspec.</span>' : ''}</span></div>`).join('') : '<div class="empty">No index entries. Try the main term (condition), not the anatomy.</div>';
+  box.classList.add('show');
+}
+function showTabular(code) {
+  const x = findCode(code); if (!x) return; S.encSel = code;
+  const notes = (x.notes || []).map(([k, h, t]) => `<div class="note ${k}"><b>${h}</b>${esc(t)}</div>`).join('');
+  const where = x.s === 'CPT' ? 'pro' : 'dx';
+  $('encDetail').innerHTML = `<div class="hier">Tabular › ${esc(x.path)}</div>
+    <div><span class="code" style="font-size:15px">${x.c}</span> ${esc(x.d)} ${x.cc ? `<span class="badge ${x.cc.toLowerCase()}">${x.cc}</span>` : ''}</div>
+    ${notes || '<div class="note">No instructional notes at this code.</div>'}
+    ${x.unspec ? '<div class="note ex2"><b>Specificity</b>Unspecified code — check the record for a more specific diagnosis.</div>' : ''}
+    <div style="display:flex;gap:6px;margin-top:8px">
+      ${where === 'dx' ? `<button class="btn primary sm" data-add="pdx">Add as principal dx</button><button class="btn sm" data-add="dx">Add as secondary dx</button>` : `<button class="btn primary sm" data-add="pro">Add CPT line</button>`}
+      <button class="btn sm" data-add="close">Close</button>
+    </div>`;
+  $('encDetail').classList.add('show');
+}
+$('encResults').addEventListener('click', (e) => { const r = e.target.closest('.er'); if (r) showTabular(r.dataset.code); });
+$('encDetail').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-add]'); if (!b) return; const c = S.encSel; const a = b.dataset.add;
+  if (a === 'close') { $('encDetail').classList.remove('show'); return; }
+  if (a === 'pro') { if (!S.pro.some((r) => r.c === c)) S.pro.push({ c, mods:[], units:1, ptr:'' }); S.tab = 'pro'; }
+  else if (!S.dx.some((r) => r.c === c)) {
+    const row = { c, poa: findCode(c).poaExempt ? 'EXEMPT' : '', ev:[] };
+    a === 'pdx' ? S.dx.unshift(row) : S.dx.push(row); S.tab = 'dx';
+  } else if (a === 'pdx') { const i = S.dx.findIndex((r) => r.c === c); S.dx.unshift(S.dx.splice(i, 1)[0]); }
+  $('encDetail').classList.remove('show'); $('encResults').classList.remove('show'); $('encQ').value = '';
+  renderTabs(); renderTab(); dirty();
+});
+$('encQ').addEventListener('input', runEncoder);
+$('encSys').addEventListener('change', () => { runEncoder(); $('encQ').focus(); });
+
+/* ======================= tabs ======================= */
+const TABS = [['dx','Diagnoses'],['pcs','Procedures (PCS)'],['pro','Pro-fee (CPT)'],['abs','Abstract'],['drg','MS-DRG']];
+function renderTabs() {
+  const errs = edits().filter((x) => x.level === 'error');
+  const count = { dx:S.dx.length, pcs:S.pcs.length, pro:S.pro.length };
+  $('tabs').innerHTML = TABS.map(([k, l], i) => {
+    const bad = errs.some((x) => x.tab === k);
+    return `<button class="${S.tab === k ? 'on' : ''}" data-tab="${k}" title="Alt+${i + 1}">${l}${count[k] != null ? `<span class="n ${bad ? 'err' : ''}">${count[k]}</span>` : bad ? '<span class="n err">!</span>' : ''}</button>`;
+  }).join('');
+}
+$('tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { S.tab = b.dataset.tab; renderTabs(); renderTab(); } });
+
+function renderTab() {
+  const body = $('tabBody');
+  if (S.tab === 'dx') body.innerHTML = dxTable();
+  if (S.tab === 'pcs') body.innerHTML = pcsPanel();
+  if (S.tab === 'pro') body.innerHTML = proTable();
+  if (S.tab === 'abs') body.innerHTML = absForm();
+  if (S.tab === 'drg') body.innerHTML = drgPanel();
+  renderEdits(); renderTabs();
+}
+
+/* diagnoses */
+function dxTable() {
+  if (!S.dx.length) return '<div class="empty">No diagnoses yet. Search the encoder above (Ctrl+K).</div>';
+  return `<div class="section"><table class="grid" id="dxGrid"><thead><tr><th></th><th>#</th><th>Code</th><th>Description</th><th>POA</th><th>Flags</th><th>Evidence</th><th></th></tr></thead><tbody>` +
+    S.dx.map((r, i) => {
+      const x = findCode(r.c) || { d:'(not in sample encoder)' };
+      return `<tr draggable="true" data-i="${i}" class="${i === 0 ? 'pdx' : ''}">
+        <td class="handle" title="Drag to re-sequence">⋮⋮</td>
+        <td class="seq">${i === 0 ? '<span class="badge pdx">PDx</span>' : i + 1}</td>
+        <td class="code">${r.c}</td>
+        <td>${esc(x.d)}</td>
+        <td><select data-poa="${i}" class="${r.poa ? '' : 'missing'}">${POA.map((p) => `<option value="${p}" ${p === r.poa ? 'selected' : ''}>${POA_LABEL[p]}</option>`).join('')}</select></td>
+        <td>${x.cc ? `<span class="badge ${x.cc.toLowerCase()}">${x.cc}</span>` : ''}${x.unspec ? ' <span class="badge" style="background:#eee">unspec.</span>' : ''}</td>
+        <td>${evChips(r)}</td>
+        <td style="white-space:nowrap"><button class="icon-btn" data-info="${r.c}" title="Tabular & notes">ⓘ</button><button class="icon-btn" data-del="${i}" title="Remove">✕</button></td></tr>`;
+    }).join('') + '</tbody></table><p style="font-size:11px;color:var(--muted)">Drag rows to change sequencing. Row 1 is the principal diagnosis.</p></div>';
+}
+function evChips(r) {
+  return r.ev.length ? r.ev.map((id) => { const ev = S.evidence.find((e) => e.id === id); return `<button class="evchip" data-ev="${id}" title="${esc(ev.text)}">📎 ${esc(DOCS.find((d) => d.id === ev.doc).title.split(' ')[0])}</button>`; }).join(' ') : '<span class="evchip none" title="Select text in a document to link evidence">none</span>';
+}
+
+/* procedures: PCS builder + list */
+function pcsPanel() {
+  const code = S.pcsSel.join('');
+  const done = S.pcsSel.every(Boolean);
+  return `<div class="section">
+    <b>ICD-10-PCS table builder</b> <span style="color:var(--muted);font-size:11.5px">· Table 5A0 — Extracorporeal assistance (sample)</span>
+    <div class="pcs">${PCS_AXES.map((ax, i) => `<div class="col"><h6>${i + 1}. ${ax.h}</h6>${ax.o.map(([v, l]) => `<button data-pcs="${i}:${v}" class="${S.pcsSel[i] === v ? 'on' : ''}"><b>${v}</b> ${esc(l)}</button>`).join('')}</div>`).join('')}</div>
+    <div class="pcs-out"><span class="code">${S.pcsSel.map((v) => v || '_').join('')}</span>
+      <span style="flex:1;color:var(--muted)">${done ? esc(PCS_DESC[code] || 'Valid code in table 5A0') : 'Choose a value for every character'}</span>
+      <button class="btn primary sm" id="addPcs" ${done ? '' : 'disabled'}>Add procedure</button></div>
+    <table class="grid" style="margin-top:12px"><thead><tr><th>#</th><th>Code</th><th>Description</th><th>Date</th><th>Evidence</th><th></th></tr></thead><tbody>
+    ${S.pcs.length ? S.pcs.map((r, i) => `<tr><td class="seq">${i === 0 ? '<span class="badge pdx">Princ.</span>' : i + 1}</td><td class="code">${r.c}</td><td>${esc(PCS_DESC[r.c] || '')}</td><td><input class="mini-input" style="width:84px" value="${r.date}" data-pdate="${i}"></td><td>${evChips(r)}</td><td><button class="icon-btn" data-pdel="${i}">✕</button></td></tr>`).join('') : '<tr><td colspan="6" class="empty">No procedures coded.</td></tr>'}
+    </tbody></table></div>`;
+}
+
+/* pro-fee CPT lines */
+function proTable() {
+  const letters = S.dx.slice(0, 12).map((r, i) => `<b>${'ABCDEFGHIJKL'[i]}</b> ${r.c}`).join(' · ');
+  return `<div class="section"><div class="callout">Diagnosis pointers (claim box 21): ${letters || '—'}</div>
+    <table class="grid"><thead><tr><th>#</th><th>CPT/HCPCS</th><th>Description</th><th>Modifiers</th><th>Units</th><th>Dx ptr</th><th></th></tr></thead><tbody>
+    ${S.pro.map((r, i) => { const x = findCode(r.c) || { d:'' }; return `<tr><td class="seq">${i + 1}</td><td class="code">${r.c}</td><td>${esc(x.d)}</td>
+      <td><div class="modchips">${r.mods.map((m) => `<span>${m}</span>`).join('')}<input class="mini-input" placeholder="+mod" data-mod="${i}" maxlength="2"></div></td>
+      <td><input class="mini-input" type="number" min="1" value="${r.units}" data-units="${i}"></td>
+      <td><input class="mini-input ptr" value="${r.ptr}" placeholder="A,B" data-ptr="${i}"></td>
+      <td><button class="icon-btn" data-prdel="${i}">✕</button></td></tr>`; }).join('') || '<tr><td colspan="7" class="empty">No professional services.</td></tr>'}
+    </tbody></table></div>`;
+}
+
+/* abstract */
+function absForm() {
+  const f = (k, l, opts) => `<div><label>${l}</label>${opts ? `<select data-abs="${k}">${opts.map((o) => `<option ${o === S.abs[k] ? 'selected' : ''}>${o}</option>`).join('')}</select>` : `<input data-abs="${k}" value="${esc(S.abs[k] || '')}">`}</div>`;
+  return `<div class="section"><div class="form">
+    ${f('admitType', 'Admission type', ['1 · Emergency', '2 · Urgent', '3 · Elective'])}
+    ${f('admitSrc', 'Point of origin', ['1 · Non-health care facility', '7 · Emergency room', '4 · Transfer from hospital'])}
+    ${f('disp', 'Discharge disposition', ['01 · Home / self-care', '06 · Home health', '03 · SNF', '20 · Expired'])}
+    ${f('attending', 'Attending physician')}
+    </div><p style="font-size:11px;color:var(--muted);margin-top:10px">Disposition changes the MS-DRG for post-acute transfer DRGs and is a common audit finding.</p></div>`;
+}
+
+/* MS-DRG (mock grouper) */
+function grouper() {
+  const p = S.dx[0] && S.dx[0].c; const sec = S.dx.slice(1).map((r) => findCode(r.c) || {});
+  const mcc = sec.filter((x) => x.cc === 'MCC').map((x) => x.c); const cc = sec.filter((x) => x.cc === 'CC').map((x) => x.c);
+  if (!p) return null;
+  if (p === 'J96.01' || p === 'J96.00') return { drg:'189', t:'Pulmonary edema and respiratory failure', rw:1.21, gmlos:3.2, mdc:'04', mcc, cc };
+  if (p === 'J44.1' || p === 'J44.9') { const lvl = mcc.length ? ['190','with MCC',1.17,3.6] : cc.length ? ['191','with CC',0.92,3.0] : ['192','without CC/MCC',0.72,2.4]; return { drg:lvl[0], t:'Chronic obstructive pulmonary disease ' + lvl[1], rw:lvl[2], gmlos:lvl[3], mdc:'04', mcc, cc }; }
+  return { drg:'—', t:'Not in the sample grouper', rw:0, gmlos:0, mdc:'—', mcc, cc };
+}
+function drgPanel() {
+  const g = grouper(); if (!g) return '<div class="empty">Add a principal diagnosis to group the case.</div>';
+  const rate = 6900; // sample base rate
+  const alt = S.dx.length > 1 ? (() => { const swap = S.dx.slice(); [swap[0], swap[1]] = [swap[1], swap[0]]; const keep = S.dx; S.dx = swap; const r = grouper(); S.dx = keep; return r; })() : null;
+  return `<div class="section">
+    <div class="drg-title"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase">MS-DRG · MDC ${g.mdc} (sample grouper)</div><div class="n">${g.drg}</div><div>${esc(g.t)}</div></div>
+    <div class="drg">
+      <div class="kpi"><span>Relative weight</span><b>${g.rw.toFixed(4)}</b></div>
+      <div class="kpi"><span>GMLOS</span><b>${g.gmlos} d</b></div>
+      <div class="kpi"><span>Actual LOS</span><b>4 d</b></div>
+      <div class="kpi"><span>Est. payment</span><b>$${Math.round(g.rw * rate).toLocaleString()}</b></div>
+    </div>
+    <table class="grid"><tbody>
+      <tr><td style="width:120px">MCCs captured</td><td>${g.mcc.map((c) => `<span class="badge mcc">${c}</span>`).join(' ') || '—'}</td></tr>
+      <tr><td>CCs captured</td><td>${g.cc.map((c) => `<span class="badge cc">${c}</span>`).join(' ') || '—'}</td></tr>
+      <tr><td>What-if</td><td>${alt ? `Re-sequencing <b>${S.dx[1].c}</b> as principal → MS-DRG <b>${alt.drg}</b> (RW ${alt.rw.toFixed(4)}). Sequencing must follow the documentation and guidelines, not the weight.` : '—'}</td></tr>
+    </tbody></table></div>`;
+}
+
+/* ======================= edits engine ======================= */
+function edits() {
+  const out = []; const codes = S.dx.map((r) => r.c); const has = (c) => codes.includes(c); const hasPrefix = (p) => codes.some((c) => c.startsWith(p));
+  if (!S.dx.length) out.push({ level:'error', tab:'dx', msg:'No principal diagnosis.', src:'Inpatient claim edit' });
+  S.dx.forEach((r) => { if (!r.poa) out.push({ level:'error', tab:'dx', msg:`${r.c}: POA indicator required.`, src:'Medicare POA reporting' }); });
+  S.dx.forEach((r) => { const x = findCode(r.c); if (x && x.unspec) out.push({ level:'warn', tab:'dx', msg:`${r.c} is unspecified — the record may support a more specific code.`, src:'Specificity' }); });
+  S.dx.forEach((r) => { const x = findCode(r.c); if (x && x.symptom && codes.some((c) => c.startsWith('J96') || c.startsWith('J44'))) out.push({ level:'warn', tab:'dx', msg:`${r.c} is a symptom integral to a confirmed diagnosis — don't code it separately.`, src:'OCG I.B.5' }); });
+  if (has('I10') && hasPrefix('N18')) out.push({ level:'error', tab:'dx', msg:'I10 with CKD: hypertension and CKD are presumed linked — use I12.- instead.', src:'OCG I.C.9.a.2 · Excludes1 at I10' });
+  if (has('I12.9') && !hasPrefix('N18')) out.push({ level:'error', tab:'dx', msg:'I12.9 requires an additional N18.- code for the CKD stage.', src:'Use additional code · I12' });
+  if ((has('E11.22')) && !hasPrefix('N18')) out.push({ level:'error', tab:'dx', msg:'E11.22 requires an additional N18.- code for the CKD stage.', src:'Use additional code · E11.22' });
+  if (has('E11.9') && codes.some((c) => /^E11\.[0-8]/.test(c))) out.push({ level:'error', tab:'dx', msg:'E11.9 cannot be reported with another E11 complication code.', src:'Excludes1 · E11.9' });
+  if (has('J44.1') && has('J44.9')) out.push({ level:'error', tab:'dx', msg:'J44.9 (unspecified) conflicts with J44.1 in the same category.', src:'Code conflict' });
+  if (hasPrefix('E11') && !has('Z79.84') && !has('Z79.4')) out.push({ level:'info', tab:'dx', msg:'Diabetes on metformin: consider Z79.84 (long-term oral hypoglycemic).', src:'Use additional code · E11' });
+  if (hasPrefix('J44') && !has('Z99.81')) out.push({ level:'info', tab:'dx', msg:'Home oxygen documented: consider Z99.81.', src:'Use additional code · J44' });
+  if (S.dx[0] && findCode(S.dx[0].c) && findCode(S.dx[0].c).s === 'CM' && /^Z/.test(S.dx[0].c)) out.push({ level:'error', tab:'dx', msg:'A Z code in this category cannot be the principal diagnosis.', src:'MCE · unacceptable PDx' });
+  S.pro.forEach((r, i) => {
+    if (!r.ptr.trim()) out.push({ level:'error', tab:'pro', msg:`CPT line ${i + 1} (${r.c}) has no diagnosis pointer.`, src:'CMS-1500 box 24E' });
+    const x = findCode(r.c); if (x && x.mue && r.units > x.mue) out.push({ level:'error', tab:'pro', msg:`${r.c}: ${r.units} units exceeds the MUE of ${x.mue}.`, src:'NCCI MUE' });
+  });
+  if (S.pro.some((r) => r.c === '99223') && S.pro.some((r) => r.c === '99233')) out.push({ level:'warn', tab:'pro', msg:'99223 and 99233 by the same physician on the same date are not separately reportable.', src:'NCCI PTP (sample)' });
+  if (!S.pcs.length) out.push({ level:'info', tab:'pcs', msg:'Ventilation documented in the RT flowsheet — check whether a PCS procedure is reportable.', src:'Coder prompt' });
+  return out;
+}
+function renderEdits() {
+  const list = edits(); const n = (l) => list.filter((x) => x.level === l).length;
+  $('edits').innerHTML = `<h4>Edits & claim scrubber <span class="badge" style="background:var(--err);color:#fff">${n('error')} errors</span><span class="badge" style="background:var(--warn);color:#fff">${n('warn')} warnings</span><span class="badge" style="background:var(--info);color:#fff">${n('info')} prompts</span></h4>` +
+    (list.length ? list.map((x) => `<div class="edit ${x.level}"><span class="k">${x.level.toUpperCase()}</span><span>${esc(x.msg)}<div class="src">${esc(x.src)}</div></span></div>`).join('') : '<div class="edit"><span>✓ No edits. Ready to submit.</span></div>');
+}
+
+/* ======================= coding pane events ======================= */
+$('tabBody').addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset.poa != null) { S.dx[+t.dataset.poa].poa = t.value; renderTab(); dirty(); }
+  if (t.dataset.units != null) { S.pro[+t.dataset.units].units = Math.max(1, +t.value || 1); renderTab(); dirty(); }
+  if (t.dataset.ptr != null) { S.pro[+t.dataset.ptr].ptr = t.value.toUpperCase(); renderTab(); dirty(); }
+  if (t.dataset.abs) { S.abs[t.dataset.abs] = t.value; dirty(); }
+  if (t.dataset.pdate != null) { S.pcs[+t.dataset.pdate].date = t.value; dirty(); }
+});
+$('tabBody').addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t.dataset.mod != null && e.key === 'Enter' && t.value.trim()) { S.pro[+t.dataset.mod].mods.push(t.value.trim().toUpperCase()); renderTab(); dirty(); }
+});
+$('tabBody').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.del != null) { S.dx.splice(+b.dataset.del, 1); renderTab(); dirty(); }
+  if (b.dataset.info) { $('encSys').value = 'CM'; showTabular(b.dataset.info); }
+  if (b.dataset.ev) { const ev = S.evidence.find((x) => x.id === b.dataset.ev); openDoc(ev.doc, ev.id); }
+  if (b.dataset.pcs) { const [i, v] = b.dataset.pcs.split(':'); S.pcsSel[+i] = S.pcsSel[+i] === v ? '' : v; renderTab(); }
+  if (b.id === 'addPcs') { const c = S.pcsSel.join(''); if (!S.pcs.some((r) => r.c === c)) S.pcs.push({ c, date:'03/14/2026', ev:[] }); renderTab(); dirty(); }
+  if (b.dataset.pdel != null) { S.pcs.splice(+b.dataset.pdel, 1); renderTab(); dirty(); }
+  if (b.dataset.prdel != null) { S.pro.splice(+b.dataset.prdel, 1); renderTab(); dirty(); }
+});
+/* drag-and-drop sequencing */
+let dragFrom = null;
+$('tabBody').addEventListener('dragstart', (e) => { const tr = e.target.closest('tr[data-i]'); if (tr) { dragFrom = +tr.dataset.i; e.dataTransfer.effectAllowed = 'move'; } });
+$('tabBody').addEventListener('dragover', (e) => { const tr = e.target.closest('tr[data-i]'); if (tr && dragFrom != null) { e.preventDefault(); document.querySelectorAll('tr.drag-over').forEach((x) => x.classList.remove('drag-over')); tr.classList.add('drag-over'); } });
+$('tabBody').addEventListener('drop', (e) => { const tr = e.target.closest('tr[data-i]'); if (!tr || dragFrom == null) return; e.preventDefault(); const to = +tr.dataset.i; const [row] = S.dx.splice(dragFrom, 1); S.dx.splice(to, 0, row); dragFrom = null; renderTab(); dirty(); });
+$('tabBody').addEventListener('dragend', () => { dragFrom = null; document.querySelectorAll('tr.drag-over').forEach((x) => x.classList.remove('drag-over')); });
+
+/* ======================= documents events ======================= */
+$('docList').addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) openDoc(li.dataset.doc); });
+const stepDoc = (d) => { const i = DOCS.findIndex((x) => x.id === S.doc); const n = DOCS[(i + d + DOCS.length) % DOCS.length]; openDoc(n.id); };
+$('prevDoc').onclick = () => stepDoc(-1);
+$('nextDoc').onclick = () => stepDoc(1);
+$('findBox').addEventListener('input', applyFind);
+$('notes').addEventListener('input', dirty);
+
+/* ======================= timer ======================= */
+setInterval(() => {
+  const s = Math.floor((Date.now() - S.t0) / 1000); const mm = String(Math.floor(s / 60)).padStart(2, '0'); const ss = String(s % 60).padStart(2, '0');
+  $('timer').textContent = `${mm}:${ss} / 25:00`; $('timer').classList.toggle('over', s > 1500);
+}, 1000);
+
+/* ======================= modal: query / submit ======================= */
+function openModal(html) { $('modal').innerHTML = html; $('overlay').classList.add('show'); }
+function closeModal() { $('overlay').classList.remove('show'); }
+$('overlay').addEventListener('click', (e) => { if (e.target.id === 'overlay' || e.target.dataset.close != null) closeModal(); });
+
+$('btnQuery').onclick = () => openModal(`
+  <div class="modal-h"><h3>Physician query (CDI)</h3><span class="spacer"></span><button class="btn sm" data-close>✕</button></div>
+  <div class="modal-b">
+    <div class="callout">Queries must be non-leading: give clinical indicators and reasonable options, including “other” and “unable to determine”.</div>
+    <label style="font-size:11px;color:var(--muted)">TO</label><div style="margin-bottom:8px"><b>R. Patel, MD</b> (attending)</div>
+    <label style="font-size:11px;color:var(--muted)">CLINICAL INDICATORS</label>
+    <textarea id="qInd">Glucose 248–286 on IV methylprednisolone; HbA1c 8.1%; metformin held; sliding-scale insulin started.</textarea>
+    <label style="font-size:11px;color:var(--muted);display:block;margin-top:8px">QUESTION</label>
+    <textarea id="qText">Based on the clinical indicators, please clarify the type of hyperglycemia being treated:</textarea>
+    ${['Type 2 diabetes with hyperglycemia', 'Drug (steroid)-induced hyperglycemia in a patient with type 2 diabetes', 'Other (please specify)', 'Unable to determine'].map((o, i) => `<div class="opt"><input type="radio" name="qo" ${i === 0 ? 'checked' : ''}> ${o}</div>`).join('')}
+  </div>
+  <div class="modal-f"><button class="btn" data-close>Cancel</button><button class="btn primary" id="sendQ">Send query & hold chart</button></div>`);
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'sendQ') {
+    S.queries.push({ to:'R. Patel, MD', q:$('qText').value, at:new Date() }); S.hold = true;
+    $('queryList').innerHTML = S.queries.map((q) => `<div class="q-item"><b>Pending</b> · ${esc(q.to)}<br>${esc(q.q.slice(0, 80))}…</div>`).join('');
+    $('chartStatus').textContent = '⏸ On hold — query pending'; $('chartStatus').classList.add('hold'); closeModal(); dirty();
+  }
+});
+$('btnHold').onclick = () => { S.hold = !S.hold; $('chartStatus').textContent = S.hold ? '⏸ On hold' : '● In progress'; $('chartStatus').classList.toggle('hold', S.hold); };
+$('btnSave').onclick = () => dirty();
+
+$('btnSubmit').onclick = submit;
+function submit() {
+  const errs = edits().filter((x) => x.level === 'error');
+  if (errs.length) { openModal(`<div class="modal-h"><h3>Fix ${errs.length} edit${errs.length > 1 ? 's' : ''} before submitting</h3><span class="spacer"></span><button class="btn sm" data-close>✕</button></div><div class="modal-b">${errs.map((x) => `<div class="edit error"><span class="k">ERROR</span><span>${esc(x.msg)}<div class="src">${esc(x.src)}</div></span></div>`).join('')}</div><div class="modal-f"><button class="btn primary" data-close>Back to chart</button></div>`); return; }
+  // Prototype scoring (the real app scores on the server).
+  const rows = []; let got = 0, total = 0;
+  KEY.dx.forEach(([c, poa, why], i) => { total += 1; const at = S.dx.findIndex((r) => r.c === c); const ok = at >= 0; const seqOk = i !== 0 || at === 0; const poaOk = ok && (S.dx[at].poa === poa); if (ok) got += seqOk && poaOk ? 1 : 0.5; rows.push({ st: ok ? (seqOk && poaOk ? 'ok' : 'extra') : 'miss', label: ok ? (seqOk ? (poaOk ? 'Correct' : 'POA wrong') : 'Sequence') : 'Missed', c, why }); });
+  KEY.pcs.forEach(([c, why]) => { total += 1; const ok = S.pcs.some((r) => r.c === c); if (ok) got += 1; rows.push({ st: ok ? 'ok' : 'miss', label: ok ? 'Correct' : 'Missed', c, why }); });
+  S.dx.filter((r) => !KEY.dx.some(([c]) => c === r.c)).forEach((r) => rows.push({ st:'extra', label:'Not supported', c:r.c, why:'Not in the audited answer — check the documentation and guidelines.' }));
+  S.pcs.filter((r) => !KEY.pcs.some(([c]) => c === r.c)).forEach((r) => rows.push({ st:'extra', label:'Incorrect', c:r.c, why:'Check the duration axis: count the consecutive hours in the RT flowsheet.' }));
+  const pct = Math.round((got / total) * 100); const g = grouper();
+  const color = pct >= 95 ? 'var(--ok)' : pct >= 80 ? 'var(--warn)' : 'var(--err)';
+  const s = Math.floor((Date.now() - S.t0) / 1000);
+  openModal(`<div class="modal-h"><h3>Audit result — IP-0412</h3><span class="spacer"></span><button class="btn sm" data-close>✕</button></div>
+    <div class="modal-b">
+      <div class="score"><div class="ring" style="border:7px solid ${color};color:${color}">${pct}%</div>
+        <div><div><b>Coding accuracy</b> · industry target 95%</div><div style="color:var(--muted);font-size:12px;margin-top:4px">Time ${Math.floor(s / 60)}m ${s % 60}s (target 25m) · Your MS-DRG ${g ? g.drg : '—'} · Audited MS-DRG 189 ${g && g.drg === '189' ? '✓ DRG match' : '✗ DRG mismatch — financial impact'}</div></div></div>
+      ${rows.map((r) => `<div class="res"><span class="st ${r.st}">${r.label}</span><span class="code">${r.c}</span><span>${esc((findCode(r.c) || { d: PCS_DESC[r.c] || '' }).d)}<div class="why">${esc(r.why)}</div></span></div>`).join('')}
+    </div>
+    <div class="modal-f"><button class="btn" data-close>Review chart</button><button class="btn primary" data-close>Next chart →</button></div>`);
+}
+
+/* ======================= keyboard ======================= */
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('encQ').focus(); $('encQ').select(); }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('findBox').focus(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); submit(); }
+  if (e.altKey && /^[1-5]$/.test(e.key)) { S.tab = TABS[+e.key - 1][0]; renderTab(); }
+  if (e.altKey && e.key === 'ArrowDown') { e.preventDefault(); stepDoc(1); }
+  if (e.altKey && e.key === 'ArrowUp') { e.preventDefault(); stepDoc(-1); }
+  if (e.key === 'Escape') { closeModal(); $('selPop').style.display = 'none'; $('encResults').classList.remove('show'); $('encDetail').classList.remove('show'); }
+});
+
+let toastT; function toast(msg) { $('saveState').textContent = msg; clearTimeout(toastT); toastT = setTimeout(() => dirty(), 1500); }
+
+/* ======================= boot ======================= */
+renderDocList(); renderDoc(); renderTabs(); renderTab();
+</script>
+</body>
+</html>
