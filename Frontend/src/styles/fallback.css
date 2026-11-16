@@ -1,0 +1,18 @@
+/* CODIVIA platform — fallback UI: error states, offline / degraded banners */
+.cv-fallback{display:flex;align-items:center;justify-content:center;padding:40px 20px;min-height:320px}
+.cv-fallback.full{position:fixed;inset:0;z-index:500;background:var(--bg,#F4F3F0);min-height:100vh}
+.cv-fallback.inline{min-height:0;padding:16px}
+.cv-fallback-card{max-width:520px;width:100%;text-align:center;background:var(--color-white,#fff);border:1px solid var(--line,#E6E3DE);border-radius:16px;padding:30px 28px;box-shadow:0 10px 30px rgba(20,18,16,.06)}
+.cv-fallback.inline .cv-fallback-card{box-shadow:none;padding:18px}
+.cv-fallback-icon{width:56px;height:56px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;font-size:26px;background:var(--teal-lt,#FFF1E7);color:var(--teal-d,#C4501A)}
+.cv-fallback h2{margin:0 0 8px;font-size:20px;color:var(--ink,#1A1A1A)}
+.cv-fallback p{margin:0 auto;max-width:420px;color:var(--muted,#6E6A64);font-size:14px;line-height:1.55}
+.cv-fallback-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.cv-fallback-details{margin-top:16px;text-align:left;font-size:12px;color:var(--muted,#6E6A64)}
+.cv-fallback-details pre{white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto;background:#F7F6F3;border-radius:8px;padding:10px;margin-top:6px}
+
+/* thin bars at the top of the page */
+.cv-banner{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;padding:8px 16px;font-size:13px;font-weight:700;text-align:center}
+.cv-banner.offline{position:fixed;left:0;right:0;bottom:0;z-index:450;background:#141210;color:#fff}
+.cv-banner.degraded{position:fixed;left:0;right:0;bottom:0;z-index:440;background:#FFF5DC;color:#7a4e00;border-top:1px solid #F2D489}
+.cv-banner button{border:1px solid currentColor;background:transparent;color:inherit;border-radius:7px;padding:3px 10px;font-weight:800;font-size:12.5px;cursor:pointer}

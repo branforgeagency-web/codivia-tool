@@ -16,6 +16,7 @@ const myChartRoute = require('./myChart.route');
 const myProgressRoute = require('./myProgress.route');
 const adminStudentRoute = require('./adminStudent.route');
 const chartUploadRoute = require('./chartUpload.route');
+const referenceRoute = require('./reference.route');
 
 const router = express.Router();
 
@@ -30,6 +31,7 @@ const routes = [
   { path: '/admin/charts', route: adminChartRoute },
   { path: '/admin/students', route: adminStudentRoute },
   { path: '/admin/uploads', route: chartUploadRoute },
+  { path: '/reference', route: referenceRoute },
   { path: '/codes', route: codeRoute },
   { path: '/guidelines', route: codingGuidelineRoute },
   { path: '/resumes', route: resumeRoute },

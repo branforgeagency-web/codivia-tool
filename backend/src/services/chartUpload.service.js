@@ -4,6 +4,7 @@ const WordExtractor = require('word-extractor');
 const { Chart, ChartResult, ChartUpload, Department } = require('../models');
 const { UPLOAD_STATUS } = require('../models/chartUpload.model');
 const { CHART_UPLOAD, UPLOAD_LIMITS } = require('../config/chartUploads');
+const { WORK_TYPES } = require('../config/workQueue');
 const counterService = require('./counter.service');
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('../utils/httpStatus');
@@ -30,6 +31,13 @@ const toView = (u, deptName) => ({
   answerKey: u.answerKey,
   difficulty: u.difficulty,
   patient: u.patient,
+  workType: u.workType || WORK_TYPES.CODE,
+  documents: u.documents || [],
+  encounter: u.encounter || null,
+  original: u.original || null,
+  denial: u.denial || null,
+  keyMeta: u.keyMeta || null,
+  cdiResponse: u.cdiResponse || '',
   sourceName: u.sourceName,
   status: u.status,
   chart: u.chart,
@@ -130,11 +138,37 @@ const checkPublishable = (upload) => {
   if (incomplete.length) {
     throw new ApiError(httpStatus.BAD_REQUEST, `${incomplete.length} answer key row(s) need a code, type, description and rationale before publishing`);
   }
+  // What each work type needs so the student workspace can show it.
+  const bad = (msg) => {
+    throw new ApiError(httpStatus.BAD_REQUEST, msg);
+  };
+  const type = upload.workType || WORK_TYPES.CODE;
+  const o = upload.original || {};
+  if (type === WORK_TYPES.REVIEW && !(o.dx || []).length && !(o.lines || []).length) bad('A charge review needs the provider’s original diagnoses or charge lines');
+  if (type === WORK_TYPES.DRG && !(o.dx || []).length) bad('A DRG validation needs the pre-coded diagnoses');
+  if (type === WORK_TYPES.DENIAL) {
+    if (!(o.lines || []).length) bad('A denial needs the charge lines as billed (with remit codes)');
+    if (!(o.lines || []).some((l) => l.remit)) bad('A denial needs at least one remit (reason) code on the billed lines');
+    if (!upload.denial || !upload.denial.invoice || !upload.denial.invoice.num) bad('A denial needs the invoice / claim number');
+    if (!upload.keyMeta || !upload.keyMeta.decision) bad('A denial needs the correct decision (correct, appeal or write off)');
+  }
 };
+
+// The answer key as Chart stores it: only the optional checks that were filled in.
+const toChartKey = (rows) =>
+  rows.map(({ code, type, desc, why, poa, mods, units, ptrs }) => {
+    const row = { code, type, desc, why };
+    if (poa) row.poa = poa;
+    if (Array.isArray(mods)) row.mods = mods; // [] = the line must carry no modifier
+    if (units) row.units = units;
+    if (ptrs && ptrs.length) row.ptrs = ptrs;
+    return row;
+  });
 
 // Adds the upload to the department's chart pool, after the last chart (allocations are by position).
 const publish = async (upload, deptName) => {
   checkPublishable(upload);
+  const u = typeof upload.toObject === 'function' ? upload.toObject() : upload; // plain copy for Chart
   const id = `${upload.dept}-${CHART_UPLOAD.idBase + (await counterService.nextSequence(CHART_UPLOAD.counter))}`;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const last = await Chart.findOne({ dept: upload.dept }).sort({ position: -1 }).select('position').lean();
@@ -144,12 +178,19 @@ const publish = async (upload, deptName) => {
         dept: upload.dept,
         deptName,
         position: (last?.position || 0) + 1,
-        difficulty: upload.difficulty,
-        title: upload.title,
-        patient: upload.patient,
-        record: upload.record,
-        answerKey: upload.answerKey.map(({ code, type, desc, why }) => ({ code, type, desc, why })),
+        difficulty: u.difficulty,
+        title: u.title,
+        patient: u.patient,
+        record: u.record,
+        answerKey: toChartKey(u.answerKey),
         source: 'upload',
+        workType: u.workType || WORK_TYPES.CODE,
+        documents: u.documents && u.documents.length ? u.documents : undefined,
+        encounter: u.encounter || undefined,
+        original: u.workType && u.workType !== WORK_TYPES.CODE ? u.original || undefined : undefined,
+        denial: u.workType === WORK_TYPES.DENIAL ? u.denial || undefined : undefined,
+        keyMeta: u.keyMeta || undefined,
+        cdiResponse: u.cdiResponse || undefined,
       });
       upload.chart = id;
       upload.status = UPLOAD_STATUS.PUBLISHED;

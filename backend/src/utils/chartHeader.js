@@ -2,7 +2,7 @@
 // DeptQueue queueFields): MRN, date of service (or start of care / admission), payer, facility,
 // and new / established patient.
 const chartHeader = (record) => {
-  const out = { mrn: '', dos: '', dosLabel: '', payer: '', facility: '', ptype: '' };
+  const out = { mrn: '', dos: '', dosLabel: '', payer: '', facility: '', ptype: '', provider: '' };
   if (!record) return out;
   const lines = String(record).split('\n');
   for (let i = 0; i < lines.length && i < 14; i += 1) {
@@ -21,6 +21,7 @@ const chartHeader = (record) => {
       out.dosLabel = 'Admission';
     }
     if (!out.ptype && (m = l.match(/^Patient type:\s*(New patient|Established patient)/i))) out.ptype = m[1];
+    if (!out.provider && (m = l.match(/^(?:Provider|Attending|Clinician):\s*(.+?)(?:\s+\(.*)?$/))) out.provider = m[1].trim();
   }
   // A header line may carry a second field after the date (e.g. "Arrival Time: 15:27").
   if (out.dos) {

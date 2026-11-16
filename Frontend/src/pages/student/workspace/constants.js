@@ -1,41 +1,5 @@
-// ---------------- CODER (live coding with full code DB) ----------------
-// Common MS-DRG options for the inpatient DRG picker
-export const DRG_OPTIONS = [
-  '871 — Septicemia w/o MV >96hr w MCC',
-  '872 — Septicemia w/o MV >96hr w/o MCC',
-  '291 — Heart failure & shock w MCC',
-  '292 — Heart failure & shock w CC',
-  '293 — Heart failure & shock w/o CC/MCC',
-  '193 — Simple pneumonia & pleurisy w MCC',
-  '194 — Simple pneumonia & pleurisy w CC',
-  '195 — Simple pneumonia & pleurisy w/o CC/MCC',
-  '190 — COPD w MCC',
-  '191 — COPD w CC',
-  '192 — COPD w/o CC/MCC',
-  '377 — GI hemorrhage w MCC',
-  '378 — GI hemorrhage w CC',
-  '379 — GI hemorrhage w/o CC/MCC',
-  '338 — Appendectomy w complicated principal dx w MCC',
-  '339 — Appendectomy w complicated principal dx w CC',
-  '343 — Appendectomy w/o complicated principal dx w/o CC/MCC',
-  '417 — Laparoscopic cholecystectomy w/o CDE w MCC',
-  '418 — Laparoscopic cholecystectomy w/o CDE w CC',
-  '419 — Laparoscopic cholecystectomy w/o CDE w/o CC/MCC',
-  '480 — Hip & femur procedures except major joint w MCC',
-  '481 — Hip & femur procedures except major joint w CC',
-  '482 — Hip & femur procedures except major joint w/o CC/MCC',
-  '469 — Major hip & knee joint replacement w MCC',
-  '470 — Major hip & knee joint replacement w/o MCC',
-  '061 — Ischemic stroke w use of thrombolytic w MCC',
-  '064 — Intracranial hemorrhage or cerebral infarction w MCC',
-  '066 — Intracranial hemorrhage or cerebral infarction w/o CC/MCC',
-  '637 — Diabetes w MCC',
-  '638 — Diabetes w CC',
-  '639 — Diabetes w/o CC/MCC',
-  '682 — Renal failure w MCC',
-  '683 — Renal failure w CC',
-  '684 — Renal failure w/o CC/MCC',
-];
+// MS-DRG options come from the database (GET /reference/work-queue → drgs).
+
 
 // ---- Parse a record string into tabbed sections ---------------------------
 // Records store sections as ALL-CAPS headings ending in ":". We split on those

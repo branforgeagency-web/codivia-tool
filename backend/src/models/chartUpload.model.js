@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 const { DIFFICULTIES } = require('./chart.model');
+const { WORK_TYPE_LIST, WORK_TYPES } = require('../config/workQueue');
 const { toJSON } = require('./plugins');
 
-const { ObjectId } = mongoose.Schema.Types;
+const { ObjectId, Mixed } = mongoose.Schema.Types;
 
 const UPLOAD_STATUS = Object.freeze({ DRAFT: 'draft', PUBLISHED: 'published' });
 
@@ -10,12 +11,27 @@ const UPLOAD_STATUS = Object.freeze({ DRAFT: 'draft', PUBLISHED: 'published' });
 // pool, allocations or students. Publishing copies it into Chart (source: 'upload') as `chart`;
 // moving it back to draft removes that Chart.
 // Drafts may be incomplete (empty desc / why), so the answer key is checked only when publishing.
+// The optional poa / mods / units / ptrs make grading stricter (same as Chart's answer key).
 const uploadAnswerSchema = new mongoose.Schema(
   {
     code: { type: String, trim: true, default: '' },
     type: { type: String, trim: true, default: '' },
     desc: { type: String, default: '' },
     why: { type: String, default: '' },
+    poa: { type: String, default: undefined },
+    mods: { type: [String], default: undefined },
+    units: { type: Number, default: undefined },
+    ptrs: { type: [String], default: undefined },
+  },
+  { _id: false }
+);
+
+const uploadDocumentSchema = new mongoose.Schema(
+  {
+    key: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true },
+    sub: { type: String, default: '' },
+    body: { type: String, required: true },
   },
   { _id: false }
 );
@@ -32,6 +48,14 @@ const chartUploadSchema = new mongoose.Schema(
       sex: { type: String, enum: ['M', 'F'], default: 'F' },
       age: { type: Number, min: 0, default: 45 },
     },
+    // Work queue (copied into Chart on publish; same meaning as there).
+    workType: { type: String, enum: WORK_TYPE_LIST, default: WORK_TYPES.CODE },
+    documents: { type: [uploadDocumentSchema], default: undefined },
+    encounter: { type: Mixed, default: undefined },
+    original: { type: Mixed, default: undefined },
+    denial: { type: Mixed, default: undefined },
+    keyMeta: { type: Mixed, default: undefined },
+    cdiResponse: { type: String, default: undefined },
     sourceName: { type: String, default: null }, // original file name, for the list
     status: { type: String, enum: Object.values(UPLOAD_STATUS), default: UPLOAD_STATUS.DRAFT },
     chart: { type: String, ref: 'Chart', default: null }, // the published Chart's ID

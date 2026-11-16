@@ -1,4 +1,6 @@
 import { RouteLoading } from '../components/ui/RouteLoading.jsx';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary.jsx';
+import { ErrorState } from '../components/ui/ErrorState.jsx';
 /* CODIVIA platform — routes per role. Pages are lazy-loaded: each one is downloaded
    the first time its route is opened. */
 import { Suspense, lazy } from 'react';
@@ -13,7 +15,7 @@ import { PATHS, deptQueuePath } from './paths.js';
 const Dashboard = lazy(() => import('../pages/student/Dashboard.jsx'));
 const MyCharts = lazy(() => import('../pages/student/MyCharts.jsx'));
 const DeptQueue = lazy(() => import('../pages/student/DeptQueue.jsx'));
-const Coder = lazy(() => import('../pages/student/coder/CoderPage.jsx'));
+const Coder = lazy(() => import('../pages/student/workspace/WorkspacePage.jsx'));
 const Progress = lazy(() => import('../pages/student/Progress.jsx'));
 const CodeSearch = lazy(() => import('../pages/student/CodeSearch.jsx'));
 const CodingGuidelines = lazy(() => import('../pages/student/CodingGuidelines.jsx'));
@@ -93,13 +95,21 @@ function AuditorRoutes() {
   );
 }
 
+// A crash or a failed page download is contained to the page: the error boundary resets when the
+// user opens another page, so the rest of the app keeps working.
 export function AppRoutes() {
   const { session } = useSession();
+  const { pathname } = useLocation();
   return (
-    <Suspense fallback={<RouteLoading />}>
-      {session.role === 'student' && <StudentRoutes />}
-      {session.role === 'admin' && <AdminRoutes />}
-      {session.role === 'auditor' && <AuditorRoutes />}
-    </Suspense>
+    <ErrorBoundary resetKey={pathname}>
+      <Suspense fallback={<RouteLoading />}>
+        {session.role === 'student' && <StudentRoutes />}
+        {session.role === 'admin' && <AdminRoutes />}
+        {session.role === 'auditor' && <AuditorRoutes />}
+        {!['student', 'admin', 'auditor'].includes(session.role) && (
+          <ErrorState title="No workspace for this account" message={`Your account role (${session.role}) has no pages yet. Contact your administrator.`} />
+        )}
+      </Suspense>
+    </ErrorBoundary>
   );
 }

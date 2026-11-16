@@ -48,20 +48,14 @@ export function StudentProvider() {
   // Submitting is idempotent: re-submitting the same chart overwrites its entry.
   const [saveState, setSaveState] = useState(''); // '' | 'saving' | 'saved' | 'error'
 
-  // The server scores the chart against its answer key and saves the result:
-  // PUT /chart-results/:chartId { rows: [{code, desc, mod, poa}], drg } -> { result, saved, certificate }.
-  // Returns the full result for the result screen.
-  const submitChart = async (chartId, rows, drg) => {
+  // The server scores the work against the chart's answer key and saves the result:
+  // PUT /chart-results/:chartId { dx, lines, pcs, drg, disp, decision, comment, notified, draft, timeSpent }
+  //   -> { result: { accuracy, total, correct, checks: [{ ok, title, why }] ... }, saved, certificate }.
+  // Returns { result, certificate } for the result screen.
+  const submitChart = async (chartId, submission) => {
     setSaveState('saving');
     try {
-      const body = {
-        rows: rows
-          .filter((r) => r && (r.code || r.mod))
-          .slice(0, 200)
-          .map((r) => ({ code: String(r.code || '').slice(0, 30), desc: String(r.desc || '').slice(0, 500), mod: String(r.mod || '').slice(0, 10), poa: String(r.poa || '').slice(0, 5) })),
-        drg: drg || '',
-      };
-      const { result, saved, certificate } = await put(CHART_RESULT(chartId), body);
+      const { result, saved, certificate } = await put(CHART_RESULT(chartId), submission);
       setResults((cur) => ({ ...cur, [chartId]: saved }));
       if (certificate) {
         setCertificates((current) => [certificate, ...current.filter((item) => item.id !== certificate.id)]);
@@ -69,7 +63,7 @@ export function StudentProvider() {
         setCertificateLoading(false);
       }
       setSaveState('saved');
-      return result;
+      return { result, certificate };
     } catch (e) {
       console.error('submit chart', e);
       setSaveState('error');

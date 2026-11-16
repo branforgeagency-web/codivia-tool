@@ -29,6 +29,17 @@ export const CERTIFICATES = '/certificates';
 // Student chart queue + one chart to code (no answer keys)
 export const MY_DEPT_CHARTS = (deptKey) => `/my-charts/${encodeURIComponent(deptKey)}/charts`;
 export const MY_CHART = (deptKey, chartId) => `${MY_DEPT_CHARTS(deptKey)}/${encodeURIComponent(chartId)}`;
+// The signed-in student's work on one chart: GET/PUT (autosave), defer, transfer, physician query, comment
+export const MY_CHART_WORK = (deptKey, chartId) => `${MY_CHART(deptKey, chartId)}/work`;
+export const MY_CHART_DEFER = (deptKey, chartId) => `${MY_CHART(deptKey, chartId)}/defer`;
+export const MY_CHART_TRANSFER = (deptKey, chartId) => `${MY_CHART(deptKey, chartId)}/transfer`;
+export const MY_CHART_QUERIES = (deptKey, chartId) => `${MY_CHART(deptKey, chartId)}/queries`;
+export const MY_CHART_COMMENTS = (deptKey, chartId) => `${MY_CHART(deptKey, chartId)}/comments`;
+export const MY_CHART_SESSION = (deptKey, chartId) => `${MY_CHART(deptKey, chartId)}/session`; // denial: accept correction
+// Reference lists for the workspace and admin upload (dispositions, POA, MS-DRGs, remit codes …)
+export const REFERENCE_WORK_QUEUE = '/reference/work-queue';
+// ICD-10-CM tabular notes for a code and its parents (Excludes1, Use additional code …)
+export const CODE_NOTES = (code) => `/codes/notes/${encodeURIComponent(code)}`;
 // Public (no sign-in): active departments with charts, for the sign-in page
 export const PUBLIC_DEPARTMENTS = '/departments/public';
 // Admin Departments page + Manage allocation (admin only)

@@ -1,5 +1,7 @@
-const { Allocation, Certificate, Chart, ChartResult, Department } = require('../models');
+const { Allocation, Certificate, Chart, ChartResult, ChartWork, Department } = require('../models');
 const { CERT_THRESHOLD } = require('../config/certificates');
+const { QUEUE_TABS, WORK_STATUS, WORK_TYPES, WORK_TYPE_LIST } = require('../config/workQueue');
+const chartWorkService = require('./chartWork.service');
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('../utils/httpStatus');
 const { escapeRegex } = require('../utils/codeText');
@@ -25,12 +27,6 @@ const MY_CHART_FILTERS = [
   { key: 'active', label: 'In progress' },
   { key: 'new', label: 'Not started' },
   { key: 'complete', label: 'Completed' },
-];
-
-const QUEUE_FILTERS = [
-  { key: 'all', label: 'All charts' },
-  { key: 'pending', label: 'Not started' },
-  { key: 'worked', label: 'Worked' },
 ];
 
 // The student's scores in these departments, each with the chart's position (allocations are by position).
@@ -140,33 +136,71 @@ const findMyRange = async (student, deptKey) => {
   return { department, pool, range: clampRange(allocation.start, allocation.end, pool) };
 };
 
-// Chart queue for one department: the student's allocated charts, 10 per page, with the header
-// columns, the student's score, status tabs (all / pending / worked) and a search over the header.
-const getMyQueue = async (student, deptKey, { search, status = 'all', page = 1, limit = 10 } = {}) => {
+// Where a chart sits in the student's queue: deferred, done (scored or transferred) or to do.
+const tabOf = (work, scored) => {
+  if (work && work.status === WORK_STATUS.DEFERRED) return 'deferred';
+  if (scored || (work && work.status === WORK_STATUS.TRANSFERRED)) return 'done';
+  return 'todo';
+};
+
+// Queue columns: the structured encounter wins over what the record header says.
+const queueColumns = (c) => {
+  const h = chartHeader(c.record);
+  const e = c.encounter || {};
+  const ptype = e.ptype ? (e.ptype === 'new' ? 'New patient' : 'Established patient') : h.ptype;
+  return {
+    mrn: e.mrn || h.mrn,
+    dos: e.dos || e.discharge || h.dos,
+    dosLabel: e.discharge && !e.dos ? 'Discharge' : h.dosLabel,
+    payer: e.payer || h.payer,
+    facility: e.facility || h.facility,
+    provider: e.provider || h.provider,
+    ptype,
+  };
+};
+
+// Chart queue for one department: the student's allocated charts, 10 per page. Tabs follow the
+// student's own work (to do / deferred / completed), chips filter by work type, search covers the
+// chart ID, patient name and record header.
+const getMyQueue = async (student, deptKey, { search, status = 'todo', type = 'all', page = 1, limit = 10 } = {}) => {
   const { department, pool, range } = await findMyRange(student, deptKey);
   const inRange = { dept: deptKey, position: { $gte: range.start, $lte: range.end } };
 
-  const results = await ChartResult.find({ student: student._id, dept: deptKey }).select('chart accuracy').lean();
-  const scoreOf = new Map(results.map((r) => [r.chart, r.accuracy]));
-  const rangeIds = await Chart.find(inRange).distinct('_id');
-  const workedIds = rangeIds.filter((id) => scoreOf.has(id));
+  const [rangeCharts, results, works] = await Promise.all([
+    Chart.find(inRange).select('_id workType').lean(),
+    ChartResult.find({ student: student._id, dept: deptKey }).select('chart accuracy at').lean(),
+    ChartWork.find({ student: student._id, dept: deptKey }).select('chart status defer transfer updatedAt').lean(),
+  ]);
+  const scoreOf = new Map(results.map((r) => [r.chart, r]));
+  const workOf = new Map(works.map((w) => [w.chart, w]));
+  const byTab = { todo: [], deferred: [], done: [] };
+  rangeCharts.forEach((c) => byTab[tabOf(workOf.get(c._id), scoreOf.has(c._id))].push(c));
+  const inTab = status === 'all' ? rangeCharts : byTab[status];
+  const typeCounts = WORK_TYPE_LIST.map((t) => ({ key: t, count: inTab.filter((c) => (c.workType || WORK_TYPES.CODE) === t).length }));
+  const ids = inTab.filter((c) => type === 'all' || (c.workType || WORK_TYPES.CODE) === type).map((c) => c._id);
 
-  const match = { ...inRange };
-  if (status === 'worked') match._id = { $in: workedIds };
-  else if (status === 'pending') match._id = { $nin: workedIds };
+  const match = { ...inRange, _id: { $in: ids } };
   if (search) {
     const term = escapeRegex(search);
     match.$or = [
       { _id: new RegExp(term, 'i') },
+      { 'patient.name': new RegExp(term, 'i') },
       { record: new RegExp(`^(${HEADER_FIELDS.join('|')}):.*${term}`, 'im') },
+      { 'encounter.mrn': new RegExp(term, 'i') },
+      { 'encounter.payer': new RegExp(term, 'i') },
     ];
   }
 
   const [rows, totalResults] = await Promise.all([
-    Chart.find(match).sort({ position: 1 }).skip((page - 1) * limit).limit(limit).select('position handwritten difficulty record').lean(),
+    Chart.find(match)
+      .sort({ position: 1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .select('position handwritten difficulty record patient workType encounter original.rules original.lines denial.invoice')
+      .lean(),
     Chart.countDocuments(match),
   ]);
-  const accs = workedIds.map((id) => scoreOf.get(id));
+  const scored = rangeCharts.filter((c) => scoreOf.has(c._id));
   const assigned = range.end - range.start + 1;
 
   return {
@@ -174,22 +208,34 @@ const getMyQueue = async (student, deptKey, { search, status = 'all', page = 1, 
     summary: {
       range,
       assigned,
-      worked: workedIds.length,
-      avg: average(accs),
-      percent: assigned ? Math.round((workedIds.length / assigned) * 100) : 0,
+      worked: scored.length,
+      avg: average(scored.map((c) => scoreOf.get(c._id).accuracy)),
+      percent: assigned ? Math.round((scored.length / assigned) * 100) : 0,
     },
-    filters: QUEUE_FILTERS.map((f) => ({
-      ...f,
-      count: f.key === 'all' ? assigned : f.key === 'worked' ? workedIds.length : assigned - workedIds.length,
-    })),
-    results: rows.map((c) => ({
-      id: c._id,
-      position: c.position,
-      handwritten: !!c.handwritten,
-      difficulty: c.difficulty,
-      ...chartHeader(c.record),
-      accuracy: scoreOf.has(c._id) ? scoreOf.get(c._id) : null,
-    })),
+    filters: QUEUE_TABS.map((f) => ({ ...f, count: byTab[f.key].length })),
+    types: typeCounts.filter((t) => t.count > 0 || t.key === WORK_TYPES.CODE),
+    results: rows.map((c) => {
+      const work = workOf.get(c._id);
+      const score = scoreOf.get(c._id);
+      const remits = ((c.original && c.original.lines) || []).map((l) => l.remit).filter(Boolean);
+      return {
+        id: c._id,
+        position: c.position,
+        workType: c.workType || WORK_TYPES.CODE,
+        handwritten: !!c.handwritten,
+        difficulty: c.difficulty,
+        patient: c.patient ? c.patient.name : '',
+        ...queueColumns(c),
+        tab: tabOf(work, !!score),
+        accuracy: score ? score.accuracy : null,
+        inProgress: !!work && work.status === WORK_STATUS.IN_PROGRESS && !score,
+        deferReason: work && work.status === WORK_STATUS.DEFERRED ? (work.defer || {}).reason || '' : '',
+        transferredTo: work && work.status === WORK_STATUS.TRANSFERRED ? (work.transfer || {}).queue || '' : '',
+        rules: (c.original && c.original.rules) || [],
+        remit: remits.find((r) => r !== 'CO-97') || remits[0] || '',
+        daysToAppeal: c.denial && c.denial.invoice ? c.denial.invoice.daysToAppeal : null,
+      };
+    }),
     page,
     limit,
     totalPages: Math.max(1, Math.ceil(totalResults / limit)),
@@ -197,16 +243,46 @@ const getMyQueue = async (student, deptKey, { search, status = 'all', page = 1, 
   };
 };
 
-// One chart to code: the record and patient, no answer key. Only charts in the student's range.
+const isInpatientDept = (elements) => (elements || []).some((e) => e === 'ICD10PCS' || e === 'DRG');
+
+// One chart to work: documents, encounter, what arrived with it (review / denial), the student's
+// saved work and the option lists. Never the answer key. Only charts in the student's range.
 const getMyChart = async (student, deptKey, chartId) => {
   const { department, range } = await findMyRange(student, deptKey);
   const chart = await Chart.findOne({ _id: chartId, dept: deptKey, position: { $gte: range.start, $lte: range.end } })
-    .select('-answerKey -createdAt -updatedAt -__v')
+    .select('-answerKey -keyMeta -cdiResponse -createdAt -updatedAt -__v')
     .lean();
   if (!chart) throw new ApiError(httpStatus.NOT_FOUND, 'Chart not found in your allocation');
+  const [work, result, queue] = await Promise.all([
+    ChartWork.findOne({ student: student._id, chart: chartId }).lean(),
+    ChartResult.findOne({ student: student._id, chart: chartId }).select('-_id -student').lean(),
+    // Charts seeded before work types existed have no workType: they are "code".
+    Chart.find({
+      dept: deptKey,
+      position: { $gte: range.start, $lte: range.end },
+      workType: !chart.workType || chart.workType === WORK_TYPES.CODE ? { $in: [null, WORK_TYPES.CODE] } : chart.workType,
+    })
+      .select('_id')
+      .sort({ position: 1 })
+      .lean(),
+  ]);
   const { _id, source, ...rest } = chart;
-  return { id: _id, ...rest, uploaded: source === 'upload', elements: department.elements };
+  const usedRemits = new Set(((chart.original && chart.original.lines) || []).map((l) => l.remit).filter(Boolean));
+  return {
+    id: _id,
+    ...rest,
+    workType: chart.workType || WORK_TYPES.CODE,
+    uploaded: source === 'upload',
+    elements: department.elements,
+    deptName: chart.deptName || department.name,
+    isInpatient: isInpatientDept(department.elements),
+    position: { index: queue.findIndex((c) => c._id === _id) + 1, of: queue.length },
+    work: chartWorkService.toClientWork(work),
+    result: result || null,
+    // Option lists (defer reasons, remit descriptions …) come from GET /reference/work-queue.
+    remits: [...usedRemits],
+  };
 };
 
 
-module.exports = { getMyDepartments, getMyQueue, getMyChart };
+module.exports = { getMyDepartments, getMyQueue, getMyChart, findMyRange, isInpatientDept };

@@ -1,5 +1,6 @@
 /* CODIVIA platform — dashboard layout: header on top, sidebar on the left, and the
    current route's page in the center (loaded on demand). */
+import { ErrorBoundary } from '../ui/ErrorBoundary.jsx';
 import { RouteLoading } from '../ui/RouteLoading.jsx';
 import { Suspense, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
@@ -37,9 +38,12 @@ export function DashboardLayout({
         <Sidebar items={navItems}>{sidebarFooter}</Sidebar>
         <main className="main" id="main-content" ref={mainRef} tabIndex={-1}>
           <div className="page-content">
-            <Suspense fallback={<RouteLoading />}>
-              <Outlet />
-            </Suspense>
+            {/* A page that crashes or fails to download shows its fallback here; header and sidebar keep working. */}
+            <ErrorBoundary resetKey={pathname}>
+              <Suspense fallback={<RouteLoading />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

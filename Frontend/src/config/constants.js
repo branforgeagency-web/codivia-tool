@@ -2,35 +2,8 @@ export const SYS = ['ICD10CM', 'ICD10PCS', 'CPT', 'HCPCS'];
 
 export const SYS_SHORT = ['ICD', 'PCS', 'CPT', 'HCPCS'];
 
-export const POA_OPTIONS = [
-  ['Y', 'Y — Present'],
-  ['N', 'N — Not present'],
-  ['U', 'U — Insufficient doc'],
-  ['W', 'W — Undetermined'],
-  ['1', '1 — Exempt'],
-];
+// POA values and modifiers come from the database (GET /reference/work-queue).
 
-export const MODIFIERS = [
-  ['25', 'Significant, separately identifiable E/M same day'],
-  ['59', 'Distinct procedural service'],
-  ['51', 'Multiple procedures'],
-  ['50', 'Bilateral procedure'],
-  ['RT', 'Right side'],
-  ['LT', 'Left side'],
-  ['76', 'Repeat procedure, same physician'],
-  ['77', 'Repeat procedure, another physician'],
-  ['26', 'Professional component'],
-  ['TC', 'Technical component'],
-  ['24', 'Unrelated E/M during postop period'],
-  ['57', 'Decision for surgery'],
-  ['58', 'Staged/related procedure in postop period'],
-  ['78', 'Return to OR for related procedure'],
-  ['79', 'Unrelated procedure in postop period'],
-  ['91', 'Repeat clinical diagnostic lab test'],
-  ['GA', 'Waiver of liability on file (ABN)'],
-  ['XS', 'Separate structure'],
-  ['XE', 'Separate encounter'],
-];
 
 export const DEPTS = {
   // Group A — Physician specialty tracks (by body system)

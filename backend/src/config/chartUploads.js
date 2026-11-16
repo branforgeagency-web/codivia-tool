@@ -18,4 +18,15 @@ const UPLOAD_LIMITS = Object.freeze({
   sourceName: 255,
 });
 
-module.exports = { CHART_UPLOAD, UPLOAD_LIMITS };
+// Work-queue fields an uploaded chart can carry (documents, encounter, original charges, denial …).
+const CASE_LIMITS = Object.freeze({
+  documents: 12,
+  docTitle: 120,
+  docBody: 100000,
+  short: 200,
+  code: 30,
+  desc: 500,
+  why: 2000,
+});
+
+module.exports = { CHART_UPLOAD, UPLOAD_LIMITS, CASE_LIMITS };

@@ -14,9 +14,24 @@ import {
   DEPARTMENTS,
 } from '../../services/endpoints.js';
 import { useAdmin } from '../../context/AdminContext.jsx';
+import { CaseFields, caseProblems, emptyCase, toCasePayload } from './UploadCase.jsx';
+import { useReference, workTypeInfo } from '../../hooks/useReference.js';
 
-// Data: /admin/uploads. The record text is extracted in the browser; only the text, the answer key
-// and the file name are sent (the original file itself is not stored).
+// Data: /admin/uploads. The record text is extracted on the server (POST /admin/uploads/extract);
+// the text, the chart setup (work type, patient, documents, encounter, original charges, denial,
+// grading extras) and the answer key are sent: the same structure as a published chart.
+// The original file itself is not stored.
+
+const DX_TYPES = ['PDx', 'SDx', 'Dx'];
+const LINE_TYPES = ['CPT', 'HCPCS'];
+const NOT_A_CODE = ['DRG', 'PDGM']; // not in the code database, so not validated against it
+const blankRow = (type = 'SDx') => ({ code: '', type, desc: '', why: '', poa: '', mods: '', units: '', ptrs: '', valid: null });
+const csv = (s) =>
+  String(s || '')
+    .split(/[,\s]+/)
+    .map((x) => x.trim().toUpperCase())
+    .filter(Boolean);
+const validFor = (code, type) => (NOT_A_CODE.includes(type) ? null : validateCode(code));
 
 export function AdminUpload() {
   const [file, setFile] = useState(null);
@@ -27,6 +42,8 @@ export function AdminUpload() {
   const [err, setErr] = useState('');
   const [phi, setPhi] = useState([]);
   const [key, setKey] = useState([]); // suggested answer key rows
+  const [cs, setCs] = useState(emptyCase); // chart setup: work type, patient, documents, encounter …
+  const { ref: lists } = useReference(); // option lists from the database
   const [statusTab, setStatusTab] = useState('all');
   const { refreshAll: refreshAdmin, version } = useAdmin();
   // Uploaded charts, newest first, 10 per page (GET /admin/uploads).
@@ -42,6 +59,11 @@ export function AdminUpload() {
       .catch((e) => setErr('Could not load departments: ' + e.message));
   }, []);
   const deptOf = (k) => departments.find((d) => d.key === k || d.id === k);
+  const inpatient = ((deptOf(dept) || {}).elements || []).some((e) => e === 'ICD10PCS' || e === 'DRG');
+  // DRG validation is inpatient only.
+  useEffect(() => {
+    if (!inpatient && cs.workType === 'drg') setCs((c) => ({ ...c, workType: 'code' }));
+  }, [inpatient, cs.workType]);
 
   const readFile = async (f) => {
     setErr('');
@@ -108,11 +130,11 @@ export function AdminUpload() {
       const parsed = JSON.parse(clean);
       if (parsed.title && !title) setTitle(parsed.title);
       const rows = (parsed.codes || []).map((c) => ({
+        ...blankRow((c.type || 'PDx').trim()),
         code: (c.code || '').trim(),
-        type: (c.type || 'PDx').trim(),
         desc: (c.desc || '').trim(),
         why: (c.why || '').trim(),
-        valid: validateCode((c.code || '').trim()),
+        valid: validFor((c.code || '').trim(), (c.type || 'PDx').trim()),
       }));
       if (!rows.length)
         throw new Error('No codes were returned. Review the record text and try again.');
@@ -126,11 +148,12 @@ export function AdminUpload() {
   const setRow = (i, f, v) =>
     setKey((k) =>
       k.map((r, ix) =>
-        ix === i ? { ...r, [f]: v, valid: f === 'code' ? validateCode(v) : r.valid } : r,
+        ix === i
+          ? { ...r, [f]: v, valid: f === 'code' ? validFor(v, r.type) : f === 'type' ? validFor(r.code, v) : r.valid }
+          : r,
       ),
     );
-  const addRow = () =>
-    setKey((k) => [...k, { code: '', type: 'SDx', desc: '', why: '', valid: null }]);
+  const addRow = () => setKey((k) => [...k, blankRow()]);
   const delRow = (i) => setKey((k) => k.filter((_, ix) => ix !== i));
 
   const publish = async (asDraft) => {
@@ -144,7 +167,7 @@ export function AdminUpload() {
         setErr('Add at least one code before publishing.');
         return;
       }
-      const bad = key.filter((r) => !r.code || r.valid === false);
+      const bad = key.filter((r) => !r.code || (r.valid === false && !NOT_A_CODE.includes(r.type)));
       if (bad.length) {
         setErr(
           bad.length +
@@ -161,6 +184,11 @@ export function AdminUpload() {
         setErr('One code must be marked PDx (principal diagnosis).');
         return;
       }
+      const problems = caseProblems(cs);
+      if (problems.length) {
+        setErr(problems.join(' '));
+        return;
+      }
     }
     setBusy(asDraft ? 'Saving draft\u2026' : 'Publishing\u2026');
     try {
@@ -168,15 +196,25 @@ export function AdminUpload() {
         dept,
         title: title || 'Uploaded chart',
         record: text,
-        answerKey: key.map((r) => ({ code: r.code, type: r.type, desc: r.desc, why: r.why })),
-        patient: { name: 'Uploaded Record', sex: 'F', age: 45 },
-        difficulty: 'moderate',
+        ...toCasePayload(cs, { inpatient }),
+        answerKey: key.map((r) => {
+          const row = { code: r.code, type: r.type, desc: r.desc, why: r.why };
+          if (DX_TYPES.includes(r.type) && inpatient && r.poa) row.poa = r.poa;
+          if (LINE_TYPES.includes(r.type)) {
+            // Blank = not graded; "-" = the line must carry no modifier.
+            if (r.mods.trim()) row.mods = r.mods.trim() === '-' ? [] : csv(r.mods).slice(0, 4);
+            if (r.units) row.units = Number(r.units);
+            if (csv(r.ptrs).length) row.ptrs = csv(r.ptrs).slice(0, 4);
+          }
+          return row;
+        }),
         sourceName: file ? file.name : null,
         status: asDraft ? 'draft' : 'published',
       });
       setFile(null);
       setText('');
       setKey([]);
+      setCs(emptyCase());
       setTitle('');
       setPhi([]);
       refresh();
@@ -360,6 +398,7 @@ export function AdminUpload() {
           </div>
         </div>
       </div>
+      {text && <CaseFields value={cs} onChange={setCs} inpatient={inpatient} lists={lists} onError={setErr} />}
       {key.length > 0 && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-h">
@@ -407,7 +446,7 @@ export function AdminUpload() {
                   onChange={(ev) => setRow(i, 'type', ev.target.value)}
                   style={{ ...inp, width: 96 }}
                 >
-                  {['PDx', 'SDx', 'CPT', 'HCPCS', 'MOD', 'PCS'].map((t) => (
+                  {['PDx', 'SDx', 'Dx', 'CPT', 'HCPCS', 'MOD', 'PCS', ...(inpatient ? ['DRG'] : [])].map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
@@ -425,6 +464,23 @@ export function AdminUpload() {
                   placeholder="why this code (required)"
                   style={{ ...inp, flex: 2, minWidth: 220 }}
                 />
+                {DX_TYPES.includes(r.type) && inpatient && (
+                  <select value={r.poa} onChange={(ev) => setRow(i, 'poa', ev.target.value)} style={{ ...inp, width: 104 }} title="POA indicator the student must report">
+                    <option value="">POA —</option>
+                    {((lists && lists.poa) || []).map((p) => (
+                      <option key={p.value} value={p.value} title={p.label}>
+                        {'POA ' + p.value}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {LINE_TYPES.includes(r.type) && (
+                  <>
+                    <input value={r.mods} onChange={(ev) => setRow(i, 'mods', ev.target.value.toUpperCase())} placeholder="mods 25,59" title="Modifiers the line must carry. Blank = not graded; '-' = must have none" style={{ ...inp, width: 120 }} />
+                    <input value={r.units} onChange={(ev) => setRow(i, 'units', ev.target.value.replace(/\D/g, ''))} placeholder="units" title="Units the line must bill (blank = not graded)" style={{ ...inp, width: 70 }} />
+                    <input value={r.ptrs} onChange={(ev) => setRow(i, 'ptrs', ev.target.value.toUpperCase())} placeholder="dx pointers J01.01,J45.20" title="Diagnoses this line points to, first = main reason (blank = not graded)" style={{ ...inp, width: 200 }} />
+                  </>
+                )}
                 <button
                   onClick={() => delRow(i)}
                   style={{
@@ -508,6 +564,8 @@ export function AdminUpload() {
                   <b style={{ fontSize: 13 }}>{d.title || d.id}</b>
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                     {(d.deptName || d.dept) +
+                      ' \u00b7 ' +
+                      workTypeInfo(lists, d.workType || 'code').label +
                       ' \u00b7 ' +
                       (d.answerKey || []).length +
                       ' codes' +

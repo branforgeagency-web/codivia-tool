@@ -4,6 +4,7 @@ const { UPLOAD_LIMITS: L } = require('../config/chartUploads');
 const { DIFFICULTIES } = require('../models/chart.model');
 const { UPLOAD_STATUS } = require('../models/chartUpload.model');
 const { objectId } = require('./custom.validation');
+const { answerRow, caseFields } = require('./chartCase.validation');
 
 const text = (max) => Joi.string().trim().max(max).allow('');
 const status = Joi.string().valid(...Object.values(UPLOAD_STATUS));
@@ -15,10 +16,9 @@ const createUpload = {
     dept: Joi.string().trim().uppercase().pattern(DEPARTMENT_KEY_PATTERN).required(),
     title: Joi.string().trim().min(1).max(L.title).required(),
     record: Joi.string().trim().min(1).max(L.record).required(),
-    answerKey: Joi.array()
-      .items(Joi.object({ code: text(L.code), type: text(L.type), desc: text(L.desc), why: text(L.why) }))
-      .max(L.rows)
-      .default([]),
+    answerKey: Joi.array().items(answerRow).max(L.rows).default([]),
+    // work queue: work type, documents, encounter banner, original charges, denial, grading extras
+    ...caseFields,
     difficulty: Joi.string().valid(...DIFFICULTIES).default('moderate'),
     patient: Joi.object({
       name: Joi.string().trim().min(1).max(L.patientName),
