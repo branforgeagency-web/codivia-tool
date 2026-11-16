@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CODIVIA — Real-world coding workspace (prototype)</title>
+<style>
+:root{
+  --dark:#141210; --dark2:#24201c; --brand:#F26722; --brand-d:#C4501A; --brand-lt:#FFF1E7; --brand-ln:#F8CDAF;
+  --navy:#0f2f56; --navy2:#16406f; --navy-lt:#EAF2FB; --navy-ln:#C9DCF1; --navy-mut:#BED3EC;
+  --ink:#1A1A1A; --ink2:#3B3B3B; --muted:#6E6A64; --line:#E6E3DE; --line2:#F1EFEB; --bg:#F4F3F0; --white:#fff;
+  --ok:#0B7A55; --ok-lt:#E4F5EE; --warn:#9A6200; --warn-lt:#FFF5DC; --warn-ln:#F2D489; --err:#B42318; --err-lt:#FDECEA; --err-ln:#F4B9B2;
+  --mono:"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+  --r:10px; --sh:0 1px 2px rgba(20,18,16,.05),0 4px 14px rgba(20,18,16,.05);
+  font-family:Inter,"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45;height:100%}
+body{display:flex;flex-direction:column}
+#app{flex:1;min-height:0;display:flex;flex-direction:column}
+.scroll{flex:1;min-height:0;overflow:auto}
+button{font:inherit;cursor:pointer;color:inherit}
+button:disabled{cursor:not-allowed;opacity:.5}
+input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #F8B98F;outline-offset:1px}
+.proto{background:#000;color:#bbb;font-size:12px;text-align:center;padding:5px}
+.proto b{color:var(--brand)}
+
+/* ---------- top bar ---------- */
+.top{display:flex;align-items:center;gap:18px;background:var(--dark);color:#fff;padding:0 22px;height:58px}
+.logo{font-weight:900;font-size:19px;letter-spacing:1.5px}
+.logo i{font-style:normal;color:var(--brand)}
+.crumb{font-size:14px;color:#A9A39B}
+.crumb b{color:#fff;font-weight:700}
+.crumb span{margin:0 8px;color:#5f5a54}
+.sp{flex:1}
+.timer{font-family:var(--mono);font-size:14px;background:var(--dark2);border:1px solid #3a342e;border-radius:8px;padding:6px 12px}
+.timer small{color:#A9A39B;font-family:inherit;margin-right:6px;font-size:12px}
+.role{background:#3a1d0c;color:#FFB48A;border:1px solid #7a3a14;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:800;letter-spacing:.4px}
+.user{font-weight:700;font-size:14px}
+
+/* ---------- generic ---------- */
+.btn{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:14px;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:#cfcac3;background:#FBFAF8}
+.btn.sm{height:32px;padding:0 11px;font-size:13px;border-radius:7px}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary:hover:not(:disabled){background:var(--brand-d);border-color:var(--brand-d)}
+.btn.navy{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover:not(:disabled){background:var(--line2)}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;white-space:nowrap}
+.pill.err{background:var(--err-lt);color:var(--err)}
+.pill.warn{background:var(--warn-lt);color:var(--warn)}
+.pill.ok{background:var(--ok-lt);color:var(--ok)}
+.pill.gray{background:var(--line2);color:var(--muted)}
+.pill.navy{background:var(--navy-lt);color:var(--navy)}
+.pill.brand{background:var(--brand-lt);color:var(--brand-d)}
+.code{font-family:var(--mono);font-weight:700;letter-spacing:.2px}
+.muted{color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12.5px;font-weight:700;color:var(--muted)}
+.inp{height:40px;border:1px solid var(--line);border-radius:8px;padding:0 12px;background:#fff;font-size:14px;width:100%}
+.inp:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-lt)}
+textarea.inp{height:auto;padding:10px 12px;resize:vertical;min-height:90px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;padding:3px;background:var(--line2);gap:2px}
+.seg button{border:none;background:transparent;padding:6px 14px;border-radius:7px;font-size:13.5px;font-weight:700;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.empty{border:1.5px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--dark);color:#fff;padding:12px 20px;border-radius:10px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:200}
+
+/* ---------- queue view ---------- */
+.qwrap{display:grid;grid-template-columns:290px 1fr;gap:20px;padding:22px;max-width:1600px;margin:0 auto;align-items:start}
+.qmain{padding:0;overflow:hidden}
+.qhead{display:flex;align-items:center;gap:14px;padding:18px 20px 0}
+.qhead h1{margin:0;font-size:21px}
+.qhead .id{font-family:var(--mono);color:var(--muted);font-size:14px}
+.qtabs{display:flex;gap:4px;padding:14px 20px 0;border-bottom:1px solid var(--line)}
+.qtab{border:none;background:none;padding:10px 14px;font-weight:700;font-size:14px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+.qtab.on{color:var(--ink);border-bottom-color:var(--brand)}
+.qtab span{margin-left:6px;background:var(--line2);border-radius:999px;padding:1px 8px;font-size:12px}
+.filters{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr)) auto;gap:12px;padding:16px 20px;background:#FCFBFA;border-bottom:1px solid var(--line);align-items:end}
+table.grid{width:100%;border-collapse:collapse}
+.grid th{text-align:left;font-size:12.5px;font-weight:700;color:var(--muted);padding:11px 14px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;white-space:nowrap}
+.grid td{padding:13px 14px;border-bottom:1px solid var(--line2);font-size:14px;vertical-align:middle}
+.grid tbody tr{cursor:pointer}
+.grid tbody tr:hover td{background:#FFF8F2}
+.score{display:inline-grid;place-items:center;width:38px;height:28px;border-radius:7px;background:var(--navy-lt);color:var(--navy);font-weight:800;font-size:13px}
+
+/* ---------- departments ---------- */
+.qpage{max-width:1500px;margin:0 auto;padding:22px}
+.phead{margin:14px 0 18px}
+.phead h1{margin:0 0 4px;font-size:24px}
+.phead p{margin:0;color:var(--muted)}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.dcard{text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--sh)}
+.dcard:hover{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-lt)}
+.dn{font-size:17px;font-weight:800}
+.ds{font-size:13px;color:var(--muted);margin:3px 0 14px}
+.dstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dstats b{display:block;font-size:20px}
+.dstats span{font-size:12px;color:var(--muted)}
+.bar{height:6px;border-radius:9px;background:var(--line2);margin:14px 0 12px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--brand)}
+.dtypes{display:flex;gap:6px;flex-wrap:wrap}
+.srow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--sh)}
+.stat span{font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.stat b{display:block;font-size:26px;margin:4px 0 2px}
+.stat small{color:var(--muted);font-size:12.5px}
+.stat.teal b{color:var(--brand-d)}
+.typebar{display:flex;gap:6px;padding:14px 20px 0;flex-wrap:wrap}
+.grid tbody tr{cursor:default}
+.acc{display:inline-block;font-weight:800;border-radius:7px;padding:3px 9px}
+.acc.hi{background:var(--ok-lt);color:var(--ok)}.acc.mid{background:var(--warn-lt);color:var(--warn)}.acc.lo{background:var(--err-lt);color:var(--err)}
+
+/* ---------- workspace ---------- */
+.wbar{display:flex;align-items:center;gap:10px;padding:10px 22px;background:#fff;border-bottom:1px solid var(--line)}
+.wbar .q{font-weight:800}
+.wbar .q small{font-family:var(--mono);font-weight:600;color:var(--muted);margin-left:6px;font-size:13px}
+.banner{display:flex;flex-wrap:wrap;align-items:stretch;background:linear-gradient(180deg,var(--navy),var(--navy2));color:#fff;padding:0 10px}
+.banner .who{padding:12px 14px;min-width:220px}
+.banner .who .nm{font-size:19px;font-weight:800;letter-spacing:.2px}
+.banner .who .sub{font-size:13px;color:var(--navy-mut);margin-top:2px}
+.banner .who .tags{display:flex;gap:6px;margin-top:6px}
+.btag{font-size:11.5px;font-weight:800;letter-spacing:.4px;border-radius:5px;padding:2px 8px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3)}
+.btag.alert{background:#7a1f15;border-color:#b5483b}
+.bf{padding:12px 16px;border-left:1px solid rgba(255,255,255,.14)}
+.bf span{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--navy-mut)}
+.bf b{display:block;font-size:14.5px;margin-top:3px;font-weight:700}
+.bf b.m{font-family:var(--mono);font-size:14px}
+
+.ws{flex:1;min-height:0;display:grid;grid-template-columns:minmax(330px,.85fr) minmax(660px,1.4fr) 320px;gap:16px;padding:16px 22px}
+.ws.closed{grid-template-columns:minmax(380px,1fr) minmax(660px,1.4fr) 52px}
+.panel{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ph{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.ph h2{margin:0;font-size:15px;font-weight:800}
+.ph .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.pb{flex:1;overflow:auto;min-height:0}
+.tabs{display:flex;flex-wrap:wrap;gap:2px;padding:0 10px;border-bottom:1px solid var(--line);background:#FCFBFA}
+.tab{border:none;background:none;padding:11px 12px;font-weight:700;font-size:13.5px;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
+.tab.on{color:var(--ink);border-bottom-color:var(--brand)}
+
+/* chart */
+.note{padding:18px 22px}
+.note .meta{font-size:13px;color:var(--muted);padding-bottom:12px;border-bottom:1px solid var(--line2);margin-bottom:14px}
+.note h4{margin:16px 0 5px;font-size:12.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--brand-d)}
+.note p{margin:0;font-size:15px;line-height:1.7;white-space:pre-wrap}
+.vlist .v{display:grid;grid-template-columns:110px 1fr auto;gap:12px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line2);cursor:pointer}
+.vlist .v:hover{background:#FFF8F2}
+.vlist .v.on{background:var(--navy-lt)}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:9px 14px;padding:18px 22px;font-size:14.5px}
+.kv div:nth-child(odd){color:var(--muted);font-weight:600}
+table.simple{width:100%;border-collapse:collapse;font-size:14px}
+.simple th{text-align:left;font-size:12.5px;color:var(--muted);padding:10px 16px;border-bottom:1px solid var(--line)}
+.simple td{padding:11px 16px;border-bottom:1px solid var(--line2)}
+
+/* coding */
+.sec{padding:16px 18px;border-bottom:1px solid var(--line2)}
+.sec:last-child{border-bottom:none}
+.sh{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:11px}
+.sh h3{margin:0;font-size:14.5px;font-weight:800}
+.sh .hint{font-size:13px;color:var(--muted)}
+.sh .r{margin-left:auto;font-size:12.5px;color:var(--muted)}
+.dx{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;background:#fff}
+.dx.over{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-lt)}
+.dx.dragging{opacity:.45}
+.grip{cursor:grab;color:#B0AAA2;font-size:18px;line-height:1;user-select:none}
+.letter{width:28px;height:28px;flex:0 0 auto;border-radius:8px;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13.5px}
+.dx .code{font-size:15px;min-width:78px}
+.dx .desc{flex:1;font-size:14px}
+.ibtn{border:none;background:none;width:30px;height:30px;border-radius:7px;color:var(--muted);font-size:14px}
+.ibtn:hover:not(:disabled){background:var(--line2);color:var(--ink)}
+.ibtn.x:hover{background:var(--err-lt);color:var(--err)}
+.search{position:relative}
+.search .inp{padding-left:38px}
+.search::before{content:"⌕";position:absolute;left:13px;top:8px;font-size:18px;color:var(--muted)}
+.drop{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 40px rgba(0,0,0,.14);z-index:40;max-height:300px;overflow:auto}
+.drop .it{display:grid;grid-template-columns:86px 58px 1fr;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:14px}
+.drop .it:hover{background:var(--brand-lt)}
+.drop .sys{font-size:11.5px;font-weight:800;color:var(--muted);padding-top:2px}
+
+.los{display:grid;grid-template-columns:auto 1fr;gap:12px 16px;align-items:center}
+.los .lbl{font-size:13px;font-weight:700;color:var(--muted)}
+.lvls{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.lv{border:1px solid var(--navy-ln);background:var(--navy-lt);color:var(--navy);border-radius:9px;padding:9px 6px;text-align:center}
+.lv .code{display:block;font-size:15.5px}
+.lv small{display:block;font-size:12px;color:#4f6c8e;margin-top:2px;font-weight:600}
+.lv.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.lv.on small{color:var(--navy-mut)}
+.lv:hover:not(.on){border-color:var(--navy)}
+.time{width:90px}
+
+table.lines{width:100%;border-collapse:separate;border-spacing:0}
+.lines th{text-align:left;font-size:12.5px;color:var(--muted);font-weight:700;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.lines td{padding:10px 6px;border-bottom:1px solid var(--line2);vertical-align:middle;font-size:14px}
+.lines tr.hl td{background:#FFF8E6}
+.lines tr.flag td:first-child{box-shadow:inset 3px 0 0 var(--err)}
+.lines tr.wflag td:first-child{box-shadow:inset 3px 0 0 #E0A526}
+.lines .ln{font-weight:800;color:var(--muted);width:26px}
+.lines .code{font-size:15px}
+.lines .ds{font-size:12.5px;color:var(--muted);max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mods{display:flex;gap:4px}
+.mod{width:42px;height:34px;border:1px solid var(--line);border-radius:7px;text-align:center;font-family:var(--mono);font-weight:700;font-size:14px;text-transform:uppercase;background:#fff}
+.mod.f{background:var(--brand-lt);border-color:var(--brand-ln);color:var(--brand-d)}
+.mod:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-lt)}
+.units{width:58px;height:34px;border:1px solid var(--line);border-radius:7px;text-align:center;font-size:14px}
+.ptrs{display:flex;gap:4px;flex-wrap:wrap}
+.pc{width:28px;height:28px;border-radius:8px;border:1px solid var(--navy-ln);background:#fff;color:#5d7ea5;font-weight:800;font-size:13px}
+.pc.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.amt{font-family:var(--mono);text-align:right;white-space:nowrap}
+.tot td{border-bottom:none;font-weight:800;padding-top:12px}
+.chg{background:#FFF1C9;border-radius:4px;padding:0 4px}
+.del{text-decoration:line-through;color:var(--err)}
+.add{color:var(--ok);font-weight:700}
+.remit{font-family:var(--mono);font-weight:800;font-size:12.5px}
+
+/* edits sidebar */
+.rail{display:flex;flex-direction:column;align-items:center;padding-top:12px;gap:10px}
+.rail button{writing-mode:vertical-rl;transform:rotate(180deg);border:none;background:var(--navy);color:#fff;border-radius:8px;padding:14px 8px;font-weight:800;font-size:13px}
+.efilters{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+.chipf{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:700}
+.chipf.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.edit{margin:12px 14px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.edit .eh{display:flex;align-items:center;gap:8px;padding:9px 12px;font-weight:800;font-size:13.5px}
+.edit.err .eh{background:var(--err-lt);color:var(--err)}
+.edit.warn .eh{background:var(--warn-lt);color:var(--warn)}
+.edit.acked{opacity:.6}
+.edit .eb{padding:10px 12px;font-size:13.5px;line-height:1.5}
+.edit .rule{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:4px}
+.edit .ef{display:flex;gap:8px;padding:0 12px 11px}
+.clean{margin:16px;padding:16px;border-radius:10px;background:var(--ok-lt);color:var(--ok);font-weight:700;text-align:center}
+.act{padding:10px 16px;border-top:1px solid var(--line2);font-size:13px}
+.act .t{color:var(--muted);font-size:12px}
+.payer{margin:12px 14px;padding:12px;border-radius:10px;background:var(--navy-lt);font-size:13.5px;line-height:1.5;color:#1d3f66}
+.payer b{display:block;margin-bottom:3px}
+
+/* action bar */
+.abar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--line);background:#FCFBFA}
+.abar .status{font-size:13.5px;font-weight:700}
+
+/* modals */
+.ov{position:fixed;inset:0;background:rgba(20,18,16,.45);display:grid;place-items:center;z-index:100;padding:20px}
+.modal{width:min(560px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.3)}
+.modal.wide{width:min(980px,100%)}
+.mh{display:flex;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line)}
+.mh h2{margin:0;font-size:18px}
+.mh .x{margin-left:auto}
+.mb{padding:20px 22px;display:flex;flex-direction:column;gap:16px}
+.mf{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--line);background:#FCFBFA}
+.reasons{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.reasons label{display:flex;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:14px}
+.reasons label:last-child{border-bottom:none}
+.reasons label:hover{background:#FFF8F2}
+.reasons .num{margin-left:auto;font-family:var(--mono);color:var(--muted);font-size:13px}
+
+/* EOB */
+.eob{padding:20px 22px;font-size:14px}
+.eob .eh{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 20px;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.eob .eh span{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.eob .eh b{font-size:14px}
+.denied{display:flex;gap:14px;align-items:center;padding:14px 16px;margin:14px 16px 0;border-radius:10px;background:var(--err-lt);border:1px solid var(--err-ln)}
+.denied .big{font-size:22px}
+.denied b{display:block;color:var(--err);font-size:15px}
+.decide{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.opt{border:1.5px solid var(--line);border-radius:10px;padding:12px;background:#fff;text-align:left}
+.opt b{display:block;font-size:14px;margin-bottom:3px}
+.opt span{font-size:12.5px;color:var(--muted)}
+.opt.on{border-color:var(--brand);background:var(--brand-lt)}
+.steps{display:flex;gap:6px;padding:12px 16px;border-bottom:1px solid var(--line2);font-size:13px;font-weight:700;color:var(--muted)}
+.steps span{display:flex;align-items:center;gap:6px}
+.steps span i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--line2);font-size:12px}
+.steps span.on{color:var(--ink)}
+.steps span.on i{background:var(--brand);color:#fff}
+.steps span.done i{background:var(--ok);color:#fff}
+.steps .sep{color:#cfc9c1}
+
+/* result */
+.res{max-width:980px;margin:24px auto;padding:0 22px}
+.rhead{display:flex;align-items:center;gap:22px;padding:24px}
+.ring{width:110px;height:110px;border-radius:50%;display:grid;place-items:center;font-size:30px;font-weight:900}
+.ring.hi{background:var(--ok-lt);color:var(--ok)}
+.ring.mid{background:var(--warn-lt);color:var(--warn)}
+.ring.lo{background:var(--err-lt);color:var(--err)}
+.chk{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:13px 22px;border-top:1px solid var(--line2)}
+.chk .i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:900}
+.chk .i.y{background:var(--ok-lt);color:var(--ok)}
+.chk .i.n{background:var(--err-lt);color:var(--err)}
+.chk b{font-size:14.5px}
+.chk p{margin:3px 0 0;font-size:13.5px;color:var(--muted)}
+
+/* ---------- inpatient facility (documents, evidence, encoder, POA, PCS, DRG) ---------- */
+.ws.ip{grid-template-columns:minmax(520px,1fr) minmax(600px,1.15fr) 300px}
+.ws.ip.closed{grid-template-columns:minmax(560px,1fr) minmax(640px,1.2fr) 52px}
+.ipchart{display:grid;grid-template-columns:178px 1fr;flex:1;min-height:0}
+.doclist{border-right:1px solid var(--line);overflow:auto;padding:8px}
+.doclist .d{display:block;width:100%;text-align:left;border:none;background:none;border-radius:8px;padding:8px 9px;margin-bottom:2px}
+.doclist .d:hover{background:var(--line2)}
+.doclist .d.on{background:var(--navy-lt)}
+.doclist .d b{display:block;font-size:13px;line-height:1.3}
+.doclist .d small{font-size:11.5px;color:var(--muted)}
+.doclist .evn{float:right;background:#FFE9A8;border-radius:5px;padding:0 6px;font-size:11px;font-weight:800}
+.doclist .d.new b::after{content:" NEW";color:var(--ok);font-size:10.5px}
+.doc{padding:18px 22px;font-size:14.5px;line-height:1.65}
+.doc h3{margin:0 0 2px;font-size:17px}
+.doc .meta{font-size:13px;color:var(--muted);padding-bottom:10px;border-bottom:1px solid var(--line2);margin-bottom:10px}
+.doc h5{margin:16px 0 5px;font-size:12.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--brand-d)}
+.doc p{margin:0 0 8px}
+.doc table{border-collapse:collapse;font-size:13.5px;margin:6px 0}
+.doc td,.doc th{border:1px solid var(--line);padding:5px 9px;text-align:left}
+.doc .abn{color:var(--err);font-weight:700}
+mark.ev{background:#FFE9A8;border-bottom:2px solid #E5B900;padding:0 1px;cursor:pointer}
+mark.ev.flash{outline:3px solid var(--brand)}
+mark.find{background:#C7E0FF}
+.selpop{position:fixed;z-index:150;background:var(--dark);color:#fff;border-radius:10px;padding:6px;box-shadow:0 12px 30px rgba(0,0,0,.3);max-width:320px}
+.selpop .h{font-size:12px;color:#A9A39B;padding:3px 6px 6px}
+.selpop button{display:block;width:100%;text-align:left;background:none;border:0;color:#fff;padding:6px 8px;border-radius:6px;font-size:13px}
+.selpop button:hover{background:var(--dark2)}
+.selpop .code{color:#FFB48A}
+.enc{padding:12px 16px;border-bottom:1px solid var(--line);background:#FCFBFA}
+.enc .row{display:flex;gap:8px}
+.encres{margin-top:8px;border:1px solid var(--line);border-radius:9px;max-height:220px;overflow:auto;background:#fff}
+.er{display:grid;grid-template-columns:82px 1fr auto;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:13.5px}
+.er:hover{background:var(--brand-lt)}
+.er .path{font-size:12px;color:var(--muted)}
+.tabular{margin-top:8px;border:1px solid var(--line);border-radius:9px;padding:12px;background:#fff}
+.tabular .hier{font-size:12px;color:var(--muted);margin-bottom:6px}
+.tnote{border-left:3px solid var(--line);padding:4px 10px;margin:6px 0;font-size:13px}
+.tnote.ex1{border-color:var(--err);background:var(--err-lt)}
+.tnote.ex2{border-color:#E0A526;background:var(--warn-lt)}
+.tnote.ua{border-color:var(--navy);background:var(--navy-lt)}
+.tnote b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+.badge{display:inline-block;border-radius:5px;padding:1px 6px;font-size:11px;font-weight:800;vertical-align:middle}
+.badge.mcc{background:#F1EAFE;color:#7C3AED}.badge.cc{background:#E0F2FE;color:#0369A1}.badge.un{background:var(--line2);color:var(--muted)}
+.poa{height:32px;border:1px solid var(--line);border-radius:7px;padding:0 6px;font-size:13px;background:#fff;max-width:150px}
+.poa.missing{border-color:var(--err);background:var(--err-lt)}
+.evchip{border:0;background:#FFE9A8;border-radius:5px;padding:1px 7px;font-size:12px;font-weight:700;margin-right:4px}
+.evchip.none{background:var(--line2);color:var(--muted);cursor:default;font-weight:600}
+.seqb{min-width:40px;text-align:center;font-weight:800;color:var(--muted);font-size:13px}
+.seqb.p{background:var(--brand);color:#fff;border-radius:7px;padding:3px 0}
+.pcs{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.pcs h6{margin:0 0 4px;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);text-align:center}
+.pcs button{display:block;width:100%;border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 4px;margin-bottom:4px;font-size:11.5px;line-height:1.25;text-align:left}
+.pcs button b{font-family:var(--mono);color:var(--brand-d)}
+.pcs button.on{border-color:var(--brand);background:var(--brand-lt)}
+.pcsout{display:flex;align-items:center;gap:12px;margin-top:10px}
+.pcsout .code{font-size:20px;letter-spacing:3px}
+.form2{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.drgt{border:1px solid var(--line);border-left:5px solid var(--brand);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.drgt .n{font-size:26px;font-weight:900}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.kpis div{border:1px solid var(--line);border-radius:10px;padding:10px}
+.kpis span{font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.kpis b{display:block;font-size:19px;margin-top:2px}
+.edit.info .eh{background:var(--navy-lt);color:var(--navy)}
+.qitem{margin:10px 14px;padding:10px 12px;border-radius:10px;background:var(--warn-lt);border:1px solid var(--warn-ln);font-size:13px}
+.qitem.ans{background:var(--ok-lt);border-color:#a6dcc5}
+.qopt{display:flex;gap:10px;align-items:center;padding:5px 0;font-size:14px}
+</style>
+</head>
+<body>
+<div class="proto">PROTOTYPE · clickable mock-up for review · all patients, payers, providers and fees are made up</div>
+<div id="app"></div>
+
+<script>
+/* =====================================================================
+   SAMPLE DATA (all fictional)
+   ===================================================================== */
+const ICD = [
+  ['J01.01','Acute recurrent maxillary sinusitis'],['J01.00','Acute maxillary sinusitis, unspecified'],['J01.90','Acute sinusitis, unspecified'],
+  ['J32.0','Chronic maxillary sinusitis'],['R50.9','Fever, unspecified'],['J45.20','Mild intermittent asthma, uncomplicated'],
+  ['J45.909','Unspecified asthma, uncomplicated'],['R09.81','Nasal congestion'],['R51.9','Headache, unspecified'],['R11.10','Vomiting, unspecified'],
+  ['F41.1','Generalized anxiety disorder'],['F10.10','Alcohol abuse, uncomplicated'],['Z79.899','Other long term (current) drug therapy'],
+  ['F32.A','Depression, unspecified'],['I10','Essential (primary) hypertension'],['E11.9','Type 2 diabetes mellitus without complications'],
+];
+const CPT = [
+  ['99211','Office/outpatient visit, established, minimal',25],['99212','Office/outpatient visit, established, straightforward MDM',58],
+  ['99213','Office/outpatient visit, established, low MDM',95],['99214','Office/outpatient visit, established, moderate MDM',135],
+  ['99215','Office/outpatient visit, established, high MDM',185],['99202','Office/outpatient visit, new, straightforward MDM',75],
+  ['99203','Office/outpatient visit, new, low MDM',115],['99204','Office/outpatient visit, new, moderate MDM',170],['99205','Office/outpatient visit, new, high MDM',225],
+  ['96372','Therapeutic, prophylactic or diagnostic injection; subcutaneous or intramuscular',38],['J0696','Injection, ceftriaxone sodium, per 250 mg',4],
+  ['J0697','Injection, sterile cefuroxime sodium, per 750 mg',6],['31231','Nasal endoscopy, diagnostic',210],['94640','Pressurized or nonpressurized inhalation treatment',22],
+  ['87804','Infectious agent antigen detection by immunoassay, influenza',18],['G2211','Visit complexity inherent to longitudinal care',16],
+  ['T1015','Clinic visit/encounter, all-inclusive',416.77],['3075F','Most recent systolic blood pressure 130-139 mm Hg',10],
+  ['3079F','Most recent diastolic blood pressure 80-89 mm Hg',10],['1159F','Medication list documented in medical record',0],['1160F','Review of all medications by prescribing practitioner documented',0],
+];
+const MODS = [['25','Significant, separately identifiable E/M, same day'],['59','Distinct procedural service'],['XS','Separate structure'],['XU','Unusual non-overlapping service'],
+  ['RT','Right side'],['LT','Left side'],['50','Bilateral procedure'],['76','Repeat procedure, same physician'],['95','Synchronous telemedicine, audio-video'],
+  ['93','Synchronous telemedicine, audio only'],['GT','Interactive telecommunication (legacy)'],['GA','Waiver of liability on file'],['JW','Drug amount discarded'],
+  ['JZ','Zero drug amount discarded'],['26','Professional component'],['TC','Technical component']];
+const cptInfo = (c) => CPT.find(x => x[0] === c);
+const icdInfo = (c) => ICD.find(x => x[0] === c);
+const isEM = (c) => /^99(2[0-1][1-5]|20[2-5])$/.test(c);
+
+/* ---- Queue 1: coding review (charges stopped by rules) ---- */
+const REVIEW_ROWS = [
+  {id:'2354249095',dos:'2026-09-23',pt:'Iyer, Sharon',prov:'Rao, Anita MD',payer:'Aetna PPO',err:2,warn:4,amt:239,score:70,rules:['Missing diagnosis pointer','Drug units vs administered dose','E/M review for 25/59 modifier','Sign/symptom with definitive diagnosis'],status:'active'},
+  {id:'2286274325',dos:'2026-09-24',pt:'Okafor, Daniel',prov:'Lim, Grace DO',payer:'Medicare Part B',err:1,warn:1,amt:182,score:70,rules:['Conflicting diagnosis (Excludes1)'],status:'active'},
+  {id:'2289528359',dos:'2026-09-24',pt:'Fleming, Dana',prov:'Rao, Anita MD',payer:'Keystone Medicaid',err:0,warn:2,amt:95,score:60,rules:['Unspecified diagnosis'],status:'active'},
+  {id:'2291298319',dos:'2026-09-25',pt:'Daniels, Tillie',prov:'Ortiz, Mark MD',payer:'BlueCross PPO',err:1,warn:0,amt:310,score:70,rules:['New patient code on established patient'],status:'active'},
+  {id:'2324787440',dos:'2026-09-26',pt:'Rodriguez, Ana',prov:'Lim, Grace DO',payer:'Aetna PPO',err:0,warn:1,amt:135,score:60,rules:['E/M review for 25/59 modifier'],status:'active'},
+  {id:'2335081655',dos:'2026-09-27',pt:'Williams, Mustafa',prov:'Carter, Rhonda CRNP',payer:'Keystone Medicaid',err:1,warn:1,amt:520,score:70,rules:['Missing diagnosis pointer'],status:'active'},
+  {id:'2295570903',dos:'2026-09-28',pt:'Reyes, Rafael',prov:'Ortiz, Mark MD',payer:'Medicare Part B',err:2,warn:0,amt:410,score:80,rules:['Drug units vs administered dose'],status:'active'},
+  {id:'2297229048',dos:'2026-09-29',pt:'Joseph, Roy',prov:'Carter, Rhonda CRNP',payer:'BlueCross PPO',err:0,warn:1,amt:58,score:60,rules:['Diagnosis not linked to a charge'],status:'deferred',deferReason:'Following up with provider'},
+];
+/* ---- Queue 2: denial follow-up ---- */
+const DENIAL_ROWS = [
+  {id:'INV-55018273',dos:'2026-02-19',remit:'CO-4',pt:'Bell, Marcus',payer:'Keystone Medicaid',billed:436.77,days:26,status:'active'},
+  {id:'INV-55017764',dos:'2026-02-17',remit:'CO-11',pt:'Senior, Daejah',payer:'Keystone Medicaid',billed:205,days:24,status:'active'},
+  {id:'INV-55019120',dos:'2026-02-18',remit:'PI-4',pt:'Mejias, Victoria',payer:'Health Partners',billed:205,days:25,status:'active'},
+  {id:'INV-55020331',dos:'2026-03-05',remit:'CO-16',pt:'Ramos, Jose',payer:'Aetna PPO',billed:310,days:40,status:'active'},
+  {id:'INV-55020870',dos:'2026-03-10',remit:'CO-97',pt:'Camara, Ben',payer:'Medicare Part B',billed:148,days:45,status:'active'},
+  {id:'INV-55021405',dos:'2026-03-12',remit:'PI-4',pt:'Sturgis, Lateefa',payer:'Health Partners',billed:205,days:52,status:'active'},
+];
+/* ---- Departments (the app's flow: Department → chart list → coding page) ---- */
+const DEPTS = [
+  {key:'EM', name:'Evaluation & Management', sets:'ICD-10-CM · E/M · CPT/HCPCS · Modifiers', live:true},
+  {key:'RAD', name:'Radiology', sets:'ICD-10-CM · CPT · Modifiers', stats:{assigned:40,worked:12,avg:84,pct:30}},
+  {key:'SURG', name:'General Surgery', sets:'ICD-10-CM · CPT · Modifiers', stats:{assigned:30,worked:4,avg:71,pct:13}},
+  {key:'IP', name:'Inpatient Facility', sets:'ICD-10-CM · POA · ICD-10-PCS · MS-DRG', live:true},
+];
+const NEW_ROWS = [
+  {id:'EM-0101',dos:'2026-09-23',pt:'Iyer, Sharon',mrn:'Y712976',prov:'Rao, Anita MD',payer:'Aetna PPO'},
+  {id:'EM-0102',dos:'2026-09-22',pt:'Patel, Kiran',mrn:'Y713402',prov:'Lim, Grace DO',payer:'Medicare Part B'},
+  {id:'EM-0103',dos:'2026-09-21',pt:'Moore, Alicia',mrn:'Y713877',prov:'Ortiz, Mark MD',payer:'BlueCross PPO'},
+  {id:'EM-0104',dos:'2026-09-20',pt:'Nguyen, Bao',mrn:'Y714015',prov:'Rao, Anita MD',payer:'Keystone Medicaid'},
+  {id:'EM-0105',dos:'2026-09-19',pt:'Clarke, Jordan',mrn:'Y714260',prov:'Carter, Rhonda CRNP',payer:'Aetna PPO'},
+].map(r => ({...r, type:'new', status:'active'}));
+REVIEW_ROWS.forEach((r, i) => { r.type = 'review'; r.mrn = i === 0 ? 'Y712976' : 'R' + (552100 + i * 37); });
+DENIAL_ROWS.forEach((r, i) => { r.type = 'denial'; r.mrn = i === 0 ? 'K550231' : 'K' + (550300 + i * 41); r.prov = ['Nunez, Katia CRNP','Lim, Grace DO','Ortiz, Mark MD'][i % 3]; });
+const ROWS = [...NEW_ROWS, ...REVIEW_ROWS, ...DENIAL_ROWS];
+const CARC = {
+  'CO-4':'The procedure code is inconsistent with the modifier used.',
+  'CO-11':'The diagnosis is inconsistent with the procedure.',
+  'PI-4':'The procedure code is inconsistent with the modifier used (payer-initiated reduction).',
+  'CO-16':'Claim/service lacks information or has submission/billing error(s).',
+  'CO-97':'Payment is included in the allowance for another service/procedure already adjudicated.',
+};
+
+/* ---- The full coding-review sample case ---- */
+const CASE = {
+  queue:{name:'PB Coding Review',id:'WQ 31875'},
+  pt:{name:'Sharon Iyer',sex:'Female',age:28,dob:'03/14/1998',mrn:'Y712976',acct:'V39794453',status:'est',lastSeen:'06/12/2026',allergy:'NKDA'},
+  enc:{id:'E-882130',dos:'09/23/2026',prov:'Anita Rao, MD',spec:'Family Medicine',type:'Office visit',pos:'11 · Office',dept:'Northside Family Clinic',payer:'Aetna PPO',plan:'Open Access Choice',member:'W221044719'},
+  marDose:1000,
+  note:[
+    ['Chief complaint','Facial pressure and nasal congestion for 12 days.'],
+    ['History of present illness','28-year-old female with facial pain over both cheeks, thick yellow nasal discharge and low-grade fever for 12 days. Symptoms improved on day 5 and then worsened again. This is her third sinus infection this year; last treated in June.'],
+    ['Past medical history','Recurrent sinusitis.\nMild intermittent asthma, well controlled on albuterol as needed.'],
+    ['Review of systems','Positive for nasal congestion, facial pain and fever. Negative for vision change, neck stiffness and shortness of breath.'],
+    ['Examination','Vitals: BP 112/68, HR 91, RR 20, Temp 37.8 °C, SpO2 98%.\nHEENT: maxillary sinuses tender to palpation bilaterally. Nasal mucosa red and swollen with purulent discharge in the middle meatus. Posterior pharyngeal drainage. No periorbital swelling; eye movements intact.\nNeck: supple. Lungs: clear, no wheeze.'],
+    ['Procedure','Ceftriaxone 1 g IM, left gluteal, given in clinic by RN at 10:40 (patient vomited oral amoxicillin-clavulanate this morning). Single-dose vial, no waste. Tolerated well.'],
+    ['Assessment & plan','1. Acute recurrent maxillary sinusitis — ceftriaxone 1 g IM today, then doxycycline 100 mg twice daily for 7 days. Saline irrigation.\n2. Fever — due to #1; acetaminophen as needed.\n3. Mild intermittent asthma — stable; continue albuterol as needed.\nMDM moderate: acute illness with systemic symptoms, prescription drug management. Total time 32 minutes.\nRefer to ENT if another episode.'],
+  ],
+  visits:[
+    {d:'09/23/2026',type:'Office visit',with:'Anita Rao, MD',desc:'Sinus pain, fever',current:true},
+    {d:'09/23/2026',type:'Medication admin',with:'Nurse, RN',desc:'Ceftriaxone 1 g IM',note:'MAR: ceftriaxone 1,000 mg IM left gluteal at 10:40. Lot 4471A. Single-dose vial, 0 mg wasted.'},
+    {d:'06/12/2026',type:'Office visit',with:'Anita Rao, MD',desc:'Acute maxillary sinusitis',note:'Assessment: acute maxillary sinusitis, 2nd episode this year. Amoxicillin-clavulanate x 10 days. Asthma stable.'},
+    {d:'03/02/2026',type:'Telephone',with:'Nurse, RN',desc:'Refill albuterol',note:'Patient requested albuterol refill. Sent to pharmacy.'},
+    {d:'11/20/2025',type:'Annual physical',with:'Anita Rao, MD',desc:'Preventive visit',note:'Routine adult physical. Asthma well controlled. Flu vaccine given.'},
+  ],
+  problems:[['Recurrent sinusitis','J01.01','Active','06/12/2026'],['Mild intermittent asthma','J45.20','Active','11/20/2025']],
+  meds:[['Ceftriaxone 1 g IM','Given in clinic 09/23/2026 10:40','Administered'],['Doxycycline 100 mg tablet','1 tablet twice daily x 7 days','New'],['Albuterol HFA 90 mcg','2 puffs every 4–6 h as needed','Active']],
+  vitals:[['BP','112/68'],['Pulse','91'],['Resp','20'],['Temp','37.8 °C'],['SpO2','98%'],['Weight','61 kg']],
+  // What the provider entered (the charge session the coder must review)
+  original:{
+    dx:['R50.9','J01.90','J45.909'],
+    lines:[{c:'99214',mods:[],units:1,ptrs:['R50.9','J01.90']},{c:'96372',mods:[],units:1,ptrs:[]},{c:'J0696',mods:[],units:1,ptrs:['J01.90']}],
+  },
+  key:{
+    dx:['J01.01','J45.20'],
+    lines:[{c:'99214',mods:['25'],units:1,ptrs:['J01.01','J45.20']},{c:'96372',mods:[],units:1,ptrs:['J01.01']},{c:'J0696',mods:[],units:4,ptrs:['J01.01']}],
+    why:{
+      'J01.01':'HPI and plan document a third episode this year — "acute recurrent maxillary sinusitis".',
+      'J45.20':'Asthma was assessed ("stable; continue albuterol") so it is reported. Type is documented as mild intermittent.',
+      'R50.9':'Fever is a symptom of the sinusitis. Signs and symptoms that are part of a confirmed diagnosis are not coded (OCG I.B.5).',
+      'J01.90':'Unspecified. The note documents both the site (maxillary) and that it is recurrent → J01.01. J01.90 and J01.01 also conflict (Excludes1).',
+      'J45.909':'Unspecified. The note says "mild intermittent" → J45.20.',
+      '99214':'Moderate MDM (acute illness with systemic symptoms + prescription drug management); 32 min also supports 99214. Needs modifier 25 because a separate procedure (96372) was billed the same day.',
+      '96372':'IM injection administered by clinic staff. Linked to the sinusitis it treated.',
+      'J0696':'J0696 is per 250 mg. 1 g = 1,000 mg ÷ 250 = 4 units.',
+    },
+  },
+};
+
+/* ---- The denial sample case ---- */
+const DENIAL = {
+  queue:{name:'PB Follow-up — Coding Denials',id:'WQ 27428'},
+  pt:{name:'Marcus Bell',sex:'Male',age:41,dob:'07/02/1985',mrn:'K550231',acct:'G7781204',allergy:'Penicillin'},
+  enc:{id:'E-771045',dos:'02/19/2026',prov:'Katia Nunez, CRNP',spec:'Behavioral Health',type:'Office visit (FQHC)',pos:'50 · FQHC',dept:'Riverside Community Health',payer:'Keystone Medicaid',plan:'Medicaid Managed Care',member:'MCD-0038812'},
+  invoice:{num:'INV-55018273',icn:'2026031901125',status:'Denied',daysToAppeal:26,received:'03/18/2026',billed:436.77,allowed:0},
+  billed:{
+    dx:['Z79.899','F41.1','F10.10'],
+    lines:[
+      {c:'T1015',mods:['25'],units:1,ptrs:['Z79.899','F41.1','F10.10'],remit:'CO-4',paid:0},
+      {c:'99213',mods:['25'],units:1,ptrs:['Z79.899','F41.1'],remit:'',paid:0},
+      {c:'3075F',mods:[],units:1,ptrs:['Z79.899'],remit:'CO-97',paid:0},
+      {c:'3079F',mods:[],units:1,ptrs:['Z79.899'],remit:'CO-97',paid:0},
+      {c:'1159F',mods:[],units:1,ptrs:['Z79.899'],remit:'',paid:0},
+      {c:'1160F',mods:[],units:1,ptrs:['Z79.899'],remit:'',paid:0},
+    ],
+  },
+  note:[
+    ['Chief complaint','Follow-up for anxiety and medication management.'],
+    ['Subjective','41-year-old male here for follow-up of generalized anxiety disorder on sertraline. Reports worry and poor sleep are improving. Drinks 4–5 beers most evenings; agrees it is a problem, no withdrawal symptoms, no prior treatment.'],
+    ['Objective','BP 134/86, HR 78. Alert, cooperative, mildly anxious affect. No tremor.'],
+    ['Assessment & plan','1. Generalized anxiety disorder — improving; continue sertraline 100 mg, refills sent.\n2. Alcohol abuse, uncomplicated — counselled 10 min, referred to behavioral health program.\n3. Long-term sertraline use — monitoring.\nMedication list reviewed and documented. BP recorded.'],
+  ],
+  history:[
+    ['02/19/2026','Charge posted','T1015, 99213, 3075F, 3079F, 1159F, 1160F','$436.77'],
+    ['02/20/2026','Claim sent','Keystone Medicaid · electronic 837P',''],
+    ['03/18/2026','Remittance (835)','Denied — CO-4 on T1015; CO-97 on 3075F, 3079F','$0.00'],
+    ['03/18/2026','Moved to WQ 27428','Coding denial follow-up',''],
+  ],
+  key:{decision:'correct',primary:'F41.1',noMod25:['T1015','99213'],keepLines:['3075F','3079F']},
+};
+
+/* =====================================================================
+   INPATIENT FACILITY (ported from coding-workspace.html)
+   Documents · evidence linking · encoder with tabular notes · POA ·
+   ICD-10-PCS table builder · abstract · MS-DRG grouper · CDI query
+   ===================================================================== */
+const IP_CODES = [
+  {c:'J96.01', syn:'ARF hypoxic respiratory failure', d:'Acute respiratory failure with hypoxia', path:'Failure › respiratory › acute › with hypoxia', cc:'MCC', notes:[['ua','Code also','any associated underlying condition']]},
+  {c:'J96.00', syn:'ARF', d:'Acute respiratory failure, unspecified whether with hypoxia or hypercapnia', path:'Failure › respiratory › acute', cc:'MCC', unspec:true},
+  {c:'J44.1', syn:'COPD AECOPD exacerbation', d:'Chronic obstructive pulmonary disease with (acute) exacerbation', path:'Disease › pulmonary › chronic obstructive › with exacerbation (acute)', cc:'CC', notes:[['ua','Code also','type of asthma, if applicable'],['ua','Use additional code','to identify dependence on supplemental oxygen (Z99.81)']]},
+  {c:'J44.9', syn:'COPD', d:'Chronic obstructive pulmonary disease, unspecified', path:'Disease › pulmonary › chronic obstructive', unspec:true},
+  {c:'E11.22', syn:'DM T2DM CKD diabetic nephropathy', d:'Type 2 diabetes mellitus with diabetic chronic kidney disease', path:'Diabetes › type 2 › with › chronic kidney disease', notes:[['ua','Use additional code','to identify stage of chronic kidney disease (N18.1–N18.6)']]},
+  {c:'E11.65', syn:'DM T2DM high blood sugar', d:'Type 2 diabetes mellitus with hyperglycemia', path:'Diabetes › type 2 › with › hyperglycemia', notes:[['ua','Use additional code','to identify control using insulin (Z79.4) or oral hypoglycemic drugs (Z79.84)']]},
+  {c:'E11.9', syn:'DM T2DM', d:'Type 2 diabetes mellitus without complications', path:'Diabetes › type 2', notes:[['ex1','Excludes1','type 2 diabetes with any documented complication (E11.0–E11.8)']]},
+  {c:'I12.9', syn:'HTN CKD hypertensive kidney', d:'Hypertensive chronic kidney disease with stage 1 through stage 4 CKD, or unspecified CKD', path:'Hypertension › with › kidney disease › chronic › stage 1–4', notes:[['ua','Use additional code','to identify the stage of chronic kidney disease (N18.1–N18.4, N18.9)'],['ex1','Excludes1','hypertensive heart and chronic kidney disease (I13.-)']]},
+  {c:'I10', syn:'HTN high blood pressure', d:'Essential (primary) hypertension', path:'Hypertension', notes:[['ex1','Excludes1','hypertensive disease involving the kidney (I12.-)']]},
+  {c:'N18.31', syn:'CKD 3a', d:'Chronic kidney disease, stage 3a', path:'Disease › kidney › chronic › stage 3a', notes:[['ua','Code first','any associated diabetic CKD (E08.22, E09.22, E10.22, E11.22, E13.22) and hypertensive CKD (I12.-, I13.-)']]},
+  {c:'N18.9', syn:'CKD', d:'Chronic kidney disease, unspecified', path:'Disease › kidney › chronic', unspec:true},
+  {c:'Z99.81', syn:'home O2 oxygen dependence', d:'Dependence on supplemental oxygen', path:'Dependence › on › oxygen (long-term) (supplemental)', poaExempt:true},
+  {c:'Z87.891', syn:'former smoker tobacco', d:'Personal history of nicotine dependence', path:'History › personal › nicotine dependence', poaExempt:true, notes:[['ex1','Excludes1','current nicotine dependence (F17.2-)']]},
+  {c:'Z79.84', syn:'metformin oral diabetes medication', d:'Long term (current) use of oral hypoglycemic drugs', path:'Long-term drug therapy › oral hypoglycemic', poaExempt:true},
+  {c:'Z79.4', syn:'insulin', d:'Long term (current) use of insulin', path:'Long-term drug therapy › insulin', poaExempt:true},
+  {c:'R06.02', syn:'SOB dyspnea', d:'Shortness of breath', path:'Shortness, breath', symptom:true},
+  {c:'J18.9', syn:'PNA', d:'Pneumonia, unspecified organism', path:'Pneumonia', cc:'MCC', unspec:true},
+];
+const ipInfo = (c) => IP_CODES.find(x => x.c === c);
+// ICD-10-PCS table 5A0 (Extracorporeal assistance) — only the rows this case needs.
+const PCS_AXES = [
+  {h:'Section', o:[['5','Extracorporeal or Systemic Assistance and Performance']]},
+  {h:'Body system', o:[['A','Physiological Systems']]},
+  {h:'Operation', o:[['0','Assistance']]},
+  {h:'Body system', o:[['9','Respiratory']]},
+  {h:'Duration', o:[['3','Less than 24 consecutive hours'],['4','24–96 consecutive hours'],['5','Greater than 96 consecutive hours']]},
+  {h:'Function', o:[['5','Ventilation']]},
+  {h:'Qualifier', o:[['7','Continuous positive airway pressure'],['8','Intermittent positive airway pressure'],['9','Continuous negative airway pressure'],['B','Intermittent negative airway pressure'],['Z','No qualifier']]},
+];
+const PCS_DESC = {'5A09358':'Assistance with respiratory ventilation, < 24 consecutive hours, intermittent positive airway pressure','5A09458':'Assistance with respiratory ventilation, 24–96 consecutive hours, intermittent positive airway pressure','5A09558':'Assistance with respiratory ventilation, > 96 consecutive hours, intermittent positive airway pressure','5A09457':'Assistance with respiratory ventilation, 24–96 consecutive hours, continuous positive airway pressure','5A09357':'Assistance with respiratory ventilation, < 24 consecutive hours, continuous positive airway pressure','5A09557':'Assistance with respiratory ventilation, > 96 consecutive hours, continuous positive airway pressure'};
+const POA = ['', 'Y', 'N', 'U', 'W', 'EXEMPT'];
+const POA_LABEL = {'':'POA?', Y:'Y – yes', N:'N – no', U:'U – unknown', W:'W – clinically undetermined', EXEMPT:'1 – exempt'};
+const IP_DOCS = [
+  {id:'ed', title:'ED Provider Note', sub:'03/14 21:40 · K. Ruiz, DO', html:`
+    <h3>Emergency Department Provider Note</h3><div class="meta">03/14/2026 21:40 · Mercy General ED · K. Ruiz, DO</div>
+    <h5>Chief complaint</h5><p>Worsening shortness of breath x 3 days.</p>
+    <h5>HPI</h5><p>68-year-old female with COPD on home oxygen 2 L, type 2 diabetes, hypertension and chronic kidney disease presents with increasing dyspnea, productive cough and wheezing for three days. She used her rescue inhaler every 2 hours today without relief. Former smoker, quit 2015 (40 pack-years).</p>
+    <h5>Exam</h5><p>RR 30, SpO2 82% on 2 L, accessory muscle use, diffuse expiratory wheezes, speaking in 3–4 word sentences.</p>
+    <h5>ED course</h5><p>ABG on 2 L: pH 7.31, pCO2 58, pO2 52. Duonebs x3, methylprednisolone 125 mg IV. Started on BiPAP 14/6 at 22:15.</p>
+    <h5>Impression</h5><p>Acute hypoxic respiratory failure due to COPD exacerbation. Admit to step-down, hospitalist service.</p>`},
+  {id:'hp', title:'History & Physical', sub:'03/15 01:10 · R. Patel, MD', html:`
+    <h3>Admission History &amp; Physical</h3><div class="meta">03/15/2026 01:10 · R. Patel, MD · Hospitalist</div>
+    <h5>Reason for admission</h5><p>Acute hypoxic respiratory failure secondary to acute exacerbation of COPD.</p>
+    <h5>Past medical history</h5><p>COPD (GOLD 3) on home O2 2 L continuous. Type 2 diabetes mellitus on metformin. Hypertension. Chronic kidney disease stage 3a, baseline creatinine 1.3. History of tobacco dependence, in remission.</p>
+    <h5>Medications</h5><p>Metformin 500 mg BID, lisinopril 10 mg daily, tiotropium, albuterol PRN, home oxygen 2 L.</p>
+    <h5>Assessment &amp; plan</h5>
+    <p>1. <b>Acute hypoxic respiratory failure</b> — present on admission, due to #2. Continue BiPAP, wean as tolerated, titrate O2 to SpO2 88–92%.</p>
+    <p>2. <b>Acute exacerbation of COPD</b> — IV steroids, scheduled nebulizers, azithromycin.</p>
+    <p>3. <b>Type 2 diabetes with hyperglycemia</b> — glucose 286 on steroids; hold metformin while inpatient, sliding-scale insulin.</p>
+    <p>4. <b>Hypertensive chronic kidney disease, CKD stage 3a</b> — creatinine at baseline; continue lisinopril.</p>`},
+  {id:'rt', title:'Respiratory Therapy Flowsheet', sub:'03/14 – 03/16', html:`
+    <h3>Respiratory Therapy — Ventilation Flowsheet</h3><div class="meta">Non-invasive ventilation record</div>
+    <table><tr><th>Date/time</th><th>Event</th><th>Settings</th></tr>
+    <tr><td>03/14 22:15</td><td>BiPAP initiated in ED</td><td>IPAP 14 / EPAP 6, FiO2 40%</td></tr>
+    <tr><td>03/15 10:00</td><td>Continued</td><td>IPAP 12 / EPAP 6, FiO2 35%</td></tr>
+    <tr><td>03/16 06:30</td><td>BiPAP discontinued, to 3 L NC</td><td>—</td></tr></table>
+    <p>Total continuous non-invasive ventilation: <b>32 hours 15 minutes</b>.</p>`},
+  {id:'pn', title:'Progress Note — Day 2', sub:'03/16 09:20 · R. Patel, MD', html:`
+    <h3>Hospitalist Progress Note</h3><div class="meta">03/16/2026 09:20 · R. Patel, MD</div>
+    <h5>Subjective</h5><p>Breathing improved. Off BiPAP this morning.</p>
+    <h5>Objective</h5><p>SpO2 92% on 3 L. Glucose 210–260 on steroids.</p>
+    <h5>Assessment</h5><p>Acute hypoxic respiratory failure, resolving. COPD exacerbation improving. Type 2 DM with hyperglycemia, steroid-related; diabetic CKD stage 3a, stable.</p>`},
+  {id:'lab', title:'Laboratory Results', sub:'03/14 – 03/17', html:`
+    <h3>Laboratory Results</h3><div class="meta">Collected 03/14 – 03/17</div>
+    <table><tr><th>Test</th><th>03/14</th><th>03/15</th><th>03/17</th><th>Ref</th></tr>
+    <tr><td>Glucose</td><td class="abn">248</td><td class="abn">286</td><td class="abn">198</td><td>70–99</td></tr>
+    <tr><td>Creatinine</td><td>1.34</td><td>1.30</td><td>1.28</td><td>0.6–1.1</td></tr>
+    <tr><td>eGFR</td><td class="abn">49</td><td class="abn">51</td><td class="abn">52</td><td>&gt;60</td></tr>
+    <tr><td>HbA1c</td><td>—</td><td class="abn">8.1%</td><td>—</td><td>&lt;5.7</td></tr>
+    <tr><td>ABG pO2</td><td class="abn">52</td><td>71</td><td>—</td><td>80–100</td></tr></table>`},
+  {id:'cxr', title:'Chest X-ray Report', sub:'03/14 22:05 · Radiology', html:`
+    <h3>Chest Radiograph, 1 view</h3><div class="meta">03/14/2026 22:05 · J. Lin, MD</div>
+    <h5>Findings</h5><p>Hyperinflated lungs with flattened diaphragms. No focal consolidation, effusion or pneumothorax.</p>
+    <h5>Impression</h5><p>Emphysematous changes. No acute pneumonia.</p>`},
+  {id:'ds', title:'Discharge Summary', sub:'03/18 11:05 · R. Patel, MD', html:`
+    <h3>Discharge Summary</h3><div class="meta">03/18/2026 11:05 · R. Patel, MD</div>
+    <h5>Principal diagnosis</h5><p>Acute hypoxic respiratory failure due to acute exacerbation of COPD.</p>
+    <h5>Secondary diagnoses</h5><p>Type 2 diabetes mellitus with hyperglycemia and diabetic chronic kidney disease stage 3a. Hypertension. Dependence on home oxygen. History of tobacco dependence. Long-term metformin use.</p>
+    <h5>Procedures</h5><p>Non-invasive positive pressure ventilation (BiPAP), 03/14–03/16.</p>
+    <h5>Disposition</h5><p>Home with home oxygen 2 L. Resume metformin. No home health services ordered.</p>`},
+];
+const IP_CASE = {
+  pt:{name:'Margaret A. Doe', sex:'Female', age:68, dob:'05/09/1957', mrn:'M00418822', acct:'V0019304471', allergy:'Penicillin'},
+  enc:{id:'IP-0412', admit:'03/14/2026', disch:'03/18/2026', los:4, att:'R. Patel, MD', spec:'Hospitalist', payer:'Medicare Part A', facility:'Mercy General Hospital'},
+  // What a DRG-validation chart arrives with (pre-coded by another coder / auto-coder)
+  precoded:{dx:[['J44.1','Y'],['E11.65',''],['I10','Y'],['J96.01','Y']], disp:'06 · Home health'},
+  key:{
+    dx:[
+      ['J96.01','Y','Respiratory failure is the condition that occasioned the admission and was present on admission (OCG I.C.10.b.1; Section II).'],
+      ['J44.1','Y','COPD exacerbation is the underlying cause — "Code also" note at J96.0-.'],
+      ['E11.22','Y','"With" convention (OCG I.A.15): diabetes and CKD are presumed linked; the physician also states "diabetic CKD".'],
+      ['E11.65','Y','Hyperglycemia documented (glucose 286, "with hyperglycemia"), confirmed by the query response.'],
+      ['I12.9','Y','Hypertension with CKD is presumed hypertensive CKD (OCG I.C.9.a.2).'],
+      ['N18.31','Y','"Use additional code" at I12.9 and E11.22 for the CKD stage (3a).'],
+      ['Z99.81','EXEMPT','Home O2 2 L continuous — "Use additional code" at J44.'],
+      ['Z87.891','EXEMPT','Former smoker; tobacco dependence in remission/history.'],
+      ['Z79.84','EXEMPT','Long-term metformin (held inpatient, resumed at discharge).'],
+    ],
+    pcs:[['5A09458','BiPAP for 32 h 15 min → duration 24–96 consecutive hours; BiPAP = intermittent positive airway pressure.']],
+    disp:'01 · Home / self-care', drg:'189',
+  },
+  extraWhy:{
+    'I10':'Hypertension with CKD is presumed hypertensive CKD → I12.9 (OCG I.C.9.a.2). I10 has an Excludes1 for I12.-.',
+    'E11.9':'Complications (CKD, hyperglycemia) are documented, so "without complications" is wrong.',
+    'J44.9':'Unspecified — the exacerbation is documented → J44.1.',
+    'J96.00':'Unspecified — hypoxia is documented (pO2 52, "hypoxic") → J96.01.',
+    'N18.9':'Unspecified — stage 3a is documented → N18.31.',
+    'R06.02':'Shortness of breath is integral to respiratory failure / COPD exacerbation (OCG I.B.5).',
+    'J18.9':'Chest X-ray: "No acute pneumonia". Never code from a rule-out or an unsupported condition.',
+    'Z79.4':'Sliding-scale insulin during the stay is not long-term insulin use.',
+  },
+};
+const IP_ROWS = [
+  {id:'IP-0412',dos:'2026-03-18',pt:'Doe, Margaret',mrn:'M00418822',prov:'Patel, R. MD',payer:'Medicare Part A',type:'new'},
+  {id:'IP-0413',dos:'2026-03-17',pt:'Hughes, Walter',mrn:'M00419035',prov:'Patel, R. MD',payer:'Medicare Part A',type:'new'},
+  {id:'IP-0416',dos:'2026-03-16',pt:'Santos, Elena',mrn:'M00419310',prov:'Kim, Susan MD',payer:'Aetna Medicare',type:'new'},
+  {id:'IP-0398',dos:'2026-03-12',pt:'Lowe, Patricia',mrn:'M00417702',prov:'Patel, R. MD',payer:'Medicare Part A',type:'drg',err:1,warn:1,rules:['POA indicator missing','Principal diagnosis sequencing']},
+  {id:'IP-0401',dos:'2026-03-13',pt:'Grant, Harold',mrn:'M00417955',prov:'Kim, Susan MD',payer:'Medicare Part A',type:'drg',err:1,warn:0,rules:['POA indicator missing']},
+].map(r => ({...r, status:'active'}));
+const rowsOf = (k) => k === 'IP' ? IP_ROWS : ROWS;
+const allRows = () => [...ROWS, ...IP_ROWS];
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const S = {
+  view:'depts', dept:'EM', qtab:'active',
+  f:{from:'',to:'',prov:'',payer:'',rule:'',q:'',type:'all'},
+  work:null, modal:null, sidebar:true, efilter:'all', chartTab:'note', visit:0, linesMode:'current',
+  startedAt:Date.now(), openRow:null, result:null,
+};
+let uid = 0;
+const $ = (s, r=document) => r.querySelector(s);
+const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const L = (i) => 'ABCDEFGHIJKL'[i];
+const money = (n) => '$' + Number(n).toFixed(2);
+const fmtDate = (iso) => { const [y,m,d] = iso.split('-'); return `${m}/${d}/${y}`; };
+const now = () => new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+
+function cloneSession(src){
+  const dx = src.dx.map(c => ({id:++uid, c, d:(icdInfo(c)||[c,''])[1]}));
+  const idOf = (c) => (dx.find(d => d.c === c) || {}).id;
+  const lines = src.lines.map(l => ({id:++uid, c:l.c, d:(cptInfo(l.c)||[l.c,''])[1], fee:(cptInfo(l.c)||[0,0,0])[2],
+    mods:[...l.mods, '', '', '', ''].slice(0,4), units:l.units, ptrs:l.ptrs.map(idOf).filter(Boolean), remit:l.remit||'', paid:l.paid||0}));
+  return {dx, lines};
+}
+function openCoding(rowId, mode){
+  const s = cloneSession(mode === 'new' ? {dx:[], lines:[]} : CASE.original);
+  S.work = {kind:'coding', mode, ...s, acks:new Set(), comments:[], time:'', ptGrid:'est'};
+  S.view = 'coding'; S.openRow = rowId; S.chartTab = 'note'; S.linesMode = 'current'; S.startedAt = Date.now(); S.efilter = 'all';
+  if (rowId !== (mode === 'new' ? NEW_ROWS : REVIEW_ROWS)[0].id) toast('Prototype: every row of this type opens the same sample chart');
+  render();
+}
+function openDenial(rowId){
+  const s = cloneSession(DENIAL.billed);
+  S.work = {kind:'denial', ...s, decision:'', comment:'', step:1, session:'', notified:false, comments:[]};
+  S.view = 'denial'; S.openRow = rowId; S.chartTab = 'eob'; S.startedAt = Date.now();
+  if (rowId !== DENIAL_ROWS[0].id) toast('Prototype: every row opens the same sample denial');
+  render();
+}
+function openIP(rowId, mode){
+  const pre = mode === 'drg' ? IP_CASE.precoded : {dx:[], disp:''};
+  S.work = {kind:'ip', mode, lines:[], acks:new Set(), comments:[],
+    dx: pre.dx.map(([c, poa]) => ({id:++uid, c, d:(ipInfo(c) || {d:''}).d, poa, ev:[]})),
+    pcs:[], pcsSel:['5','A','0','9','','5',''],
+    abs:{admitType:'1 · Emergency', admitSrc:'7 · Emergency room', disp:pre.disp, attending:'R. Patel, MD'},
+    docs:IP_DOCS.slice(), doc:'ed', docHtml:{}, find:'', evidence:[], tab:'dx',
+    enc:{q:'', sel:null}, queries:[], hold:false, notes:''};
+  S.view = 'ip'; S.openRow = rowId; S.startedAt = Date.now(); S.efilter = 'all'; S.flash = null;
+  if (rowId !== 'IP-0412' && rowId !== 'IP-0398') toast('Prototype: every row of this type opens the same sample chart');
+  render();
+}
+
+/* ---- inpatient edits (claim scrubber / MCE-style) ---- */
+function ipEdits(w){
+  const out = [];
+  const add = (sev, tab, title, msg, src) => out.push({sev, tab, title, msg, src, key:tab + '|' + msg});
+  const codes = w.dx.map(d => d.c), has = (c) => codes.includes(c), hasPre = (p) => codes.some(c => c.startsWith(p));
+  if (!codes.length) add('err', 'dx', 'No principal diagnosis', 'Add the principal diagnosis first.', 'Inpatient claim edit');
+  w.dx.forEach(d => { if (!d.poa) add('err', 'dx', 'POA indicator missing', `${d.c}: a present-on-admission indicator is required.`, 'Medicare POA reporting'); });
+  w.dx.forEach(d => { const x = ipInfo(d.c); if (x && x.poaExempt && d.poa && d.poa !== 'EXEMPT') add('warn', 'dx', 'POA-exempt code', `${d.c} is on the POA-exempt list — report 1 (exempt).`, 'POA exempt list'); });
+  w.dx.forEach(d => { const x = ipInfo(d.c); if (x && x.unspec) add('warn', 'dx', 'Unspecified diagnosis', `${d.c} is unspecified — the record may support a more specific code.`, 'Specificity'); });
+  w.dx.forEach(d => { const x = ipInfo(d.c); if (x && x.symptom && codes.some(c => /^J(96|44)/.test(c))) add('warn', 'dx', 'Symptom with a confirmed diagnosis', `${d.c} is integral to a confirmed diagnosis — don't code it separately.`, 'OCG I.B.5'); });
+  if (has('I10') && hasPre('N18')) add('err', 'dx', 'Hypertension coded with CKD', 'I10 with CKD: hypertension and CKD are presumed linked — use I12.- instead.', 'OCG I.C.9.a.2 · Excludes1 at I10');
+  if (has('I12.9') && !hasPre('N18')) add('err', 'dx', 'Missing CKD stage', 'I12.9 requires an additional N18.- code for the CKD stage.', 'Use additional code · I12');
+  if (has('E11.22') && !hasPre('N18')) add('err', 'dx', 'Missing CKD stage', 'E11.22 requires an additional N18.- code for the CKD stage.', 'Use additional code · E11.22');
+  if (has('E11.9') && codes.some(c => /^E11\.[0-8]/.test(c))) add('err', 'dx', 'Conflicting diabetes codes', 'E11.9 cannot be reported with another E11 complication code.', 'Excludes1 · E11.9');
+  if (has('J44.1') && has('J44.9')) add('err', 'dx', 'Conflicting COPD codes', 'J44.9 (unspecified) conflicts with J44.1 in the same category.', 'Code conflict');
+  if (codes[0] && /^Z/.test(codes[0])) add('err', 'dx', 'Unacceptable principal diagnosis', `${codes[0]} cannot be the principal diagnosis.`, 'MCE · unacceptable PDx');
+  if (codes[0] === 'J44.1' && has('J96.01')) add('warn', 'dx', 'Principal diagnosis sequencing', 'Respiratory failure is documented as the reason for admission. Check which condition should be sequenced first.', 'OCG I.C.10.b.1');
+  if (hasPre('E11') && !has('Z79.84') && !has('Z79.4')) add('info', 'dx', 'Consider additional code', 'Diabetes on metformin: consider Z79.84 (long-term oral hypoglycemic).', 'Use additional code · E11');
+  if (hasPre('J44') && !has('Z99.81')) add('info', 'dx', 'Consider additional code', 'Home oxygen documented: consider Z99.81.', 'Use additional code · J44');
+  if (!w.pcs.length) add('info', 'pcs', 'Procedure check', 'Ventilation is documented in the RT flowsheet — check whether an ICD-10-PCS procedure is reportable.', 'Coder prompt');
+  if (!w.abs.disp) add('err', 'abs', 'Discharge disposition missing', 'Choose the discharge disposition (UB-04 FL 17).', 'UB-04 required field');
+  return out;
+}
+function grouper(dx){
+  const p = dx[0] && dx[0].c, sec = dx.slice(1).map(d => ipInfo(d.c) || {});
+  const mcc = sec.filter(x => x.cc === 'MCC').map(x => x.c), cc = sec.filter(x => x.cc === 'CC').map(x => x.c);
+  if (!p) return null;
+  if (p === 'J96.01' || p === 'J96.00') return {drg:'189', t:'Pulmonary edema and respiratory failure', rw:1.21, gmlos:3.2, mdc:'04', mcc, cc};
+  if (p === 'J44.1' || p === 'J44.9'){ const v = mcc.length ? ['190','with MCC',1.17,3.6] : cc.length ? ['191','with CC',0.92,3.0] : ['192','without CC/MCC',0.72,2.4];
+    return {drg:v[0], t:'Chronic obstructive pulmonary disease ' + v[1], rw:v[2], gmlos:v[3], mdc:'04', mcc, cc}; }
+  return {drg:'—', t:'Not in the sample grouper', rw:0, gmlos:0, mdc:'—', mcc, cc};
+}
+function scoreIP(w, action){
+  const K = IP_CASE.key, checks = [];
+  const add = (ok, title, why) => checks.push({ok, title, why});
+  if (action !== 'submit'){
+    add(false, 'Chosen action: ' + action, 'The record supports complete coding. It should have been coded and submitted, not ' + (action === 'defer' ? 'deferred' : 'transferred') + '. If something is unclear, send a physician query instead.');
+    return {checks, pct:0};
+  }
+  const codes = w.dx.map(d => d.c), pdxOk = codes[0] === K.dx[0][0];
+  add(pdxOk, `Principal diagnosis ${codes[0] || '(none)'}` + (pdxOk ? '' : ` → should be ${K.dx[0][0]}`), K.dx[0][2]);
+  K.dx.forEach(([c, poa, why], i) => {
+    const d = w.dx.find(x => x.c === c);
+    if (i > 0) add(!!d, `${c} ${d ? 'reported' : 'missing'}`, why);
+    if (d) add(d.poa === poa, `${c} POA: ${d.poa ? POA_LABEL[d.poa] : 'blank'}` + (d.poa === poa ? '' : ` → should be ${POA_LABEL[poa]}`),
+      poa === 'EXEMPT' ? 'This code is on the POA-exempt list — report 1 (exempt).' : 'The condition was present when the order to admit was written.');
+  });
+  codes.filter(c => !K.dx.some(k => k[0] === c)).forEach(c => add(false, `${c} should not be reported`, IP_CASE.extraWhy[c] || 'Not supported by the documentation and guidelines.'));
+  K.pcs.forEach(([c, why]) => { const ok = w.pcs.some(p => p.c === c); add(ok, `Procedure ${c} ${ok ? 'coded' : 'missing'}`, why); });
+  w.pcs.filter(p => !K.pcs.some(k => k[0] === p.c)).forEach(p => add(false, `Procedure ${p.c} is incorrect`, 'Count the consecutive hours in the RT flowsheet (32 h 15 min → 24–96 hours). BiPAP = intermittent positive airway pressure.'));
+  add(w.abs.disp === K.disp, `Discharge disposition ${w.abs.disp || '(blank)'}` + (w.abs.disp === K.disp ? '' : ` → should be ${K.disp}`), 'Discharged home with home oxygen only and no home health services ordered → 01. Disposition changes the payment for post-acute transfer DRGs.');
+  const g = grouper(w.dx), gOk = g && g.drg === K.drg;
+  add(gOk, `MS-DRG ${g ? g.drg : '—'}` + (gOk ? ' matches the audit' : ` → audited MS-DRG ${K.drg}`), 'MS-DRG 189 (pulmonary edema & respiratory failure) follows from J96.01 as principal diagnosis. A different DRG means the hospital is paid the wrong amount.');
+  return {checks, pct:Math.round(checks.filter(c => c.ok).length / checks.length * 100)};
+}
+const scoreAny = (action) => S.work.kind === 'ip' ? scoreIP(S.work, action) : scoreCoding(S.work, action);
+
+/* =====================================================================
+   EDITS ENGINE (charge review rules) — runs live on every change
+   ===================================================================== */
+const EXCLUDES1 = [['J01.01','J01.90'],['J01.00','J01.01'],['J01.00','J01.90'],['J01.01','J32.0'],['J01.00','J32.0'],['J45.20','J45.909']];
+const SYMPTOMS_OF = {'R50.9':/^J01/,'R09.81':/^J01/,'R51.9':/^J01/};
+const UNSPEC = ['J01.90','J01.00','J45.909','R51.9'];
+function runEdits(w){
+  const out = [];
+  const add = (sev, rule, title, msg, line) => out.push({sev, rule, title, msg, line, key:rule + '|' + (line||'') + '|' + msg});
+  const codes = w.dx.map(d => d.c);
+  if (!codes.length) add('err', 900001, 'No diagnosis on the encounter', 'Add at least one diagnosis before submitting.');
+  EXCLUDES1.forEach(([a,b]) => { if (codes.includes(a) && codes.includes(b)) add('err', 925383, 'Conflicting diagnosis (Excludes1)', `${a} and ${b} cannot be reported together. Check the Excludes1 note.`); });
+  codes.forEach(c => { if (SYMPTOMS_OF[c] && codes.some(x => SYMPTOMS_OF[c].test(x))) add('warn', 930112, 'Sign/symptom with a confirmed diagnosis', `${c} (${icdInfo(c)[1]}) is usually part of the confirmed diagnosis and not coded separately.`); });
+  if (codes[0] && /^R/.test(codes[0]) && codes.some(c => !/^R/.test(c))) add('warn', 930140, 'Primary diagnosis is a symptom code', `Diagnosis A is ${codes[0]}. A confirmed diagnosis that explains the visit should be listed first.`);
+  codes.forEach(c => { if (UNSPEC.includes(c)) add('warn', 940210, 'Unspecified diagnosis', `${c} is unspecified. Check the documentation for a more specific code.`); });
+  const seen = {};
+  w.lines.forEach((l, i) => {
+    const n = i + 1;
+    if (!l.ptrs.length) add('err', 900010, 'Missing diagnosis pointer', `Line ${n} (${l.c}) is not linked to any diagnosis.`, n);
+    if (seen[l.c]) add('err', 900030, 'Duplicate charge', `${l.c} appears on lines ${seen[l.c]} and ${n}. Use units instead.`, n);
+    seen[l.c] = seen[l.c] || n;
+    if (/^9920[2-5]$/.test(l.c) && CASE.pt.status === 'est') add('err', 915002, 'New-patient code on an established patient', `Line ${n}: ${l.c} is a new-patient code but this patient was last seen ${CASE.pt.lastSeen}.`, n);
+    if (l.c === 'J0696' && l.units * 250 !== CASE.marDose) add('err', 961150, 'Drug units do not match administered dose', `Line ${n}: ${l.units} × 250 mg = ${l.units*250} mg billed, but the MAR shows ${CASE.marDose.toLocaleString()} mg given.`, n);
+  });
+  const emIdx = w.lines.findIndex(l => isEM(l.c));
+  const hasProc = w.lines.some(l => !isEM(l.c) && !/^[JG]/.test(l.c));
+  if (emIdx > -1 && hasProc && !w.lines[emIdx].mods.includes('25')) add('warn', 952363, 'E/M review for 25/59 modifier', 'Please review E/M codes if modifier 25 or 59 is needed when billed with other procedures.', emIdx + 1);
+  if (w.lines.some(l => l.c === '96372') && !w.lines.some(l => /^J/.test(l.c))) add('warn', 961010, 'Injection without drug supply code', 'Line for 96372 has no matching drug (J-code) line.');
+  w.dx.forEach((d, k) => { if (!w.lines.some(l => l.ptrs.includes(d.id))) add('warn', 900020, 'Diagnosis not linked to a charge', `${L(k)} · ${d.c} is not pointed to by any charge line.`); });
+  return out;
+}
+
+/* =====================================================================
+   SCORING (in the real app this runs on the server)
+   ===================================================================== */
+function scoreCoding(w, action){
+  const K = CASE.key, checks = [];
+  const add = (ok, title, why) => checks.push({ok, title, why});
+  if (action !== 'submit'){
+    add(false, 'Chosen action: ' + action, 'This encounter is billable and fully documented. It should have been corrected and resubmitted, not ' + (action === 'defer' ? 'deferred.' : 'transferred.'));
+    return {checks, pct:0};
+  }
+  add(true, 'Correct action: fix and resubmit', 'The encounter is billable and the documentation supports every charge.');
+  const codes = w.dx.map(d => d.c);
+  add(codes[0] === K.dx[0], `Primary diagnosis ${codes[0] || '(none)'}` + (codes[0] === K.dx[0] ? '' : ` → should be ${K.dx[0]}`), K.why[K.dx[0]]);
+  K.dx.slice(1).forEach(c => add(codes.includes(c), `Diagnosis ${c} ${codes.includes(c) ? 'reported' : 'missing'}`, K.why[c]));
+  codes.filter(c => !K.dx.includes(c)).forEach(c => add(false, `Diagnosis ${c} should not be reported`, K.why[c] || 'Not supported by the documentation.'));
+  const codeOf = (id) => (w.dx.find(d => d.id === id) || {}).c;
+  K.lines.forEach(k => {
+    const l = w.lines.find(x => x.c === k.c);
+    if (!l){ add(false, `Charge ${k.c} missing`, K.why[k.c]); return; }
+    const mods = l.mods.filter(m => m && !['JZ','JW'].includes(m)).sort().join(',');
+    const kmods = k.mods.slice().sort().join(',');
+    add(mods === kmods, `${k.c} modifiers: ${mods || 'none'}` + (mods === kmods ? '' : ` → should be ${kmods || 'none'}`), K.why[k.c]);
+    add(l.units === k.units, `${k.c} units: ${l.units}` + (l.units === k.units ? '' : ` → should be ${k.units}`), k.c === 'J0696' ? K.why.J0696 : 'Units match the service performed.');
+    const ptrs = l.ptrs.map(codeOf);
+    const ok = ptrs[0] === k.ptrs[0] && k.ptrs.every(p => ptrs.includes(p)) && ptrs.every(p => k.ptrs.includes(p));
+    add(ok, `${k.c} diagnosis pointers: ${ptrs.join(', ') || 'none'}` + (ok ? '' : ` → should be ${k.ptrs.join(', ')}`), 'Each charge points first to the diagnosis it treats.');
+  });
+  w.lines.filter(l => !K.lines.some(k => k.c === l.c)).forEach(l => add(false, `Charge ${l.c} should not be billed`, 'Not documented as performed, or included in another service.'));
+  const pct = Math.round(checks.filter(c => c.ok).length / checks.length * 100);
+  return {checks, pct};
+}
+function scoreDenial(w){
+  const K = DENIAL.key, checks = [];
+  const add = (ok, title, why) => checks.push({ok, title, why});
+  add(w.decision === 'correct', 'Decision: ' + ({correct:'correct the charge and resubmit', appeal:'appeal', writeoff:'write off'}[w.decision] || '—'),
+    'CO-4 means the modifier is wrong for the code. That is a billing error on our side, so the fix is a corrected claim, not an appeal or a write-off.');
+  K.noMod25.forEach(c => { const l = w.lines.find(x => x.c === c); const ok = l && !l.mods.includes('25');
+    add(ok, `${c}: modifier 25 ${ok ? 'removed' : 'still attached'}`, c === 'T1015' ? 'T1015 is the all-inclusive FQHC encounter code; modifier 25 is not valid on it and caused the CO-4.' : 'The E/M is bundled into the FQHC encounter rate, so there is no separate procedure to justify modifier 25.'); });
+  add(w.dx[0] && w.dx[0].c === K.primary, `Primary diagnosis: ${w.dx[0] ? w.dx[0].c : 'none'}` + (w.dx[0] && w.dx[0].c === K.primary ? '' : ' → should be F41.1'),
+    'The visit was for anxiety follow-up. A Z code for long-term drug therapy should not be listed first when the condition being treated is documented.');
+  K.noMod25.forEach(c => { const l = w.lines.find(x => x.c === c); const first = l && (w.dx.find(d => d.id === l.ptrs[0]) || {}).c;
+    add(first === K.primary, `${c} first diagnosis pointer: ${first || 'none'}` + (first === K.primary ? '' : ' → should be F41.1'),
+      'Re-sequencing the diagnosis list is not enough — each line\'s first pointer must be the reason for that service.'); });
+  K.keepLines.forEach(c => { const l = w.lines.find(x => x.c === c); const ok = l && !l.mods.some(Boolean);
+    add(ok, `${c} left as billed`, 'CO-97 = paid as part of another service. Quality (Category II) codes are informational; no correction needed.'); });
+  add(w.comment.trim().length >= 10, 'Correction comment entered', 'Every charge correction needs a comment saying what changed and why, for the audit trail.');
+  add(w.notified, 'Charge review team notified of the pending session', 'Corrected charges sit in a pending queue until the charge review team processes them.');
+  return {checks, pct: Math.round(checks.filter(c => c.ok).length / checks.length * 100)};
+}
+
+/* =====================================================================
+   VIEWS
+   ===================================================================== */
+function vTop(){
+  const inWork = S.view === 'coding' || S.view === 'denial' || S.view === 'ip';
+  const dname = (DEPTS.find(x => x.key === S.dept) || {}).name;
+  const pname = !S.work ? '' : S.work.kind === 'denial' ? DENIAL.pt.name : S.work.kind === 'ip' ? IP_CASE.pt.name : CASE.pt.name;
+  return `<div class="top">
+    <div class="logo">C<i>O</i>DIVIA</div>
+    <div class="crumb"><b>My Charts</b>${S.view !== 'depts' ? `<span>›</span>${esc(dname)}` : ''}${inWork ? `<span>›</span><b>${esc(pname)}</b>` : ''}</div>
+    <div class="sp"></div>
+    ${inWork ? `<div class="timer"><small>Time on chart</small><span id="timer">00:00</span></div>` : ''}
+    <span class="role">STUDENT</span><span class="user">Student name</span>
+  </div>`;
+}
+
+const TYPE = {
+  new:{label:'New chart', cls:'navy', act:'Code it', hint:'Code from the documentation'},
+  review:{label:'Charge review', cls:'brand', act:'Review', hint:'Fix the provider’s charges'},
+  denial:{label:'Denial', cls:'err', act:'Work denial', hint:'Payer denied the claim'},
+  drg:{label:'DRG validation', cls:'brand', act:'Validate', hint:'Check the pre-coded abstract'},
+};
+const TYPE_PL = {new:'new charts', review:'charge reviews', denial:'denials', drg:'DRG validations'};
+const typesIn = (rows) => Object.keys(TYPE).filter(t => rows.some(r => r.type === t));
+const deptStats = (rows) => {
+  const done = rows.filter(r => r.status === 'done'), scored = done.filter(r => r.acc != null);
+  return {assigned:rows.length, worked:done.length, avg:scored.length ? Math.round(scored.reduce((a,r) => a + r.acc, 0) / scored.length) : 0,
+    pct:rows.length ? Math.round(done.length / rows.length * 100) : 0};
+};
+
+function vDepts(){
+  return `<div class="qpage">
+    <div class="phead"><h1>My Charts</h1><p>Pick a department to see the charts allocated to you.</p></div>
+    <div class="dgrid">${DEPTS.map(d => {
+      const R = d.live ? rowsOf(d.key) : null;
+      const st = d.live ? deptStats(R) : d.stats;
+      const types = d.live ? typesIn(R).map(t => `<span class="pill ${TYPE[t].cls}">${R.filter(r => r.type === t && r.status === 'active').length} ${TYPE_PL[t]}</span>`).join('') : '<span class="pill gray">Sample charts are in E/M and Inpatient</span>';
+      return `<button class="dcard" data-act="dept" data-k="${d.key}">
+        <div class="dn">${esc(d.name)}</div><div class="ds">${esc(d.sets)}</div>
+        <div class="dstats"><div><b>${st.assigned}</b><span>Allocated</span></div><div><b>${st.worked}</b><span>Worked</span></div><div><b>${st.avg}%</b><span>Avg accuracy</span></div></div>
+        <div class="bar"><i style="width:${st.pct}%"></i></div>
+        <div class="dtypes">${types}</div></button>`; }).join('')}</div>
+  </div>`;
+}
+
+function vDeptList(){
+  const d = DEPTS.find(x => x.key === S.dept), f = S.f, ROWS = rowsOf(S.dept), st = deptStats(ROWS);
+  const inTab = ROWS.filter(r => r.status === S.qtab);
+  const list = inTab
+    .filter(r => f.type === 'all' || r.type === f.type)
+    .filter(r => (!f.from || r.dos >= f.from) && (!f.to || r.dos <= f.to))
+    .filter(r => !f.prov || r.prov === f.prov)
+    .filter(r => !f.payer || r.payer === f.payer)
+    .filter(r => !f.rule || (r.rules || []).includes(f.rule))
+    .filter(r => !f.q || JSON.stringify(r).toLowerCase().includes(f.q.toLowerCase()));
+  const uniq = (k) => [...new Set(ROWS.map(r => r[k]).filter(Boolean))].sort();
+  const opt = (arr, v) => arr.map(x => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('');
+  const cnt = (s) => ROWS.filter(r => r.status === s).length;
+  const tcnt = (t) => inTab.filter(r => t === 'all' || r.type === t).length;
+  const notes = (r) => r.type === 'review' || r.type === 'drg'
+      ? `${r.err ? `<span class="pill err">${r.err} error${r.err>1?'s':''}</span> ` : ''}${r.warn ? `<span class="pill warn">${r.warn} warning${r.warn>1?'s':''}</span>` : ''}`
+    : r.type === 'denial'
+      ? `<span class="pill err remit">${r.remit}</span> <span class="pill ${r.days <= 30 ? 'warn' : 'gray'}">${r.days} days to appeal</span>`
+      : `<span class="muted">${TYPE.new.hint}</span>`;
+  const status = (r) => r.status === 'done' ? `<span class="acc ${r.acc >= 90 ? 'hi' : r.acc >= 75 ? 'mid' : 'lo'}">${r.acc}%</span><div class="muted" style="font-size:12.5px;margin-top:3px">${esc(r.doneNote || '')}</div>`
+    : r.status === 'deferred' ? `<span class="pill gray">Deferred</span><div class="muted" style="font-size:12.5px;margin-top:3px">${esc(r.deferReason || '')}</div>`
+    : '<span class="muted">Not started</span>';
+  const body = list.map(r => `<tr>
+      <td><div class="code">${r.mrn}</div><div class="muted" style="font-size:12.5px">${r.id}</div></td>
+      <td><span class="pill ${TYPE[r.type].cls}">${TYPE[r.type].label}</span></td>
+      <td>${fmtDate(r.dos)}</td><td><b>${esc(r.pt)}</b></td><td>${esc(r.prov)}</td><td>${esc(r.payer)}</td>
+      <td>${notes(r)}</td><td>${status(r)}</td>
+      <td><button class="btn sm ${r.status === 'done' ? '' : 'primary'}" data-act="open" data-id="${r.id}">${r.status === 'done' ? 'Redo' : r.status === 'deferred' ? 'Resume' : TYPE[r.type].act}</button></td></tr>`).join('');
+  return `<div class="qpage">
+    <button class="btn sm" data-act="depts">← All departments</button>
+    <div class="phead"><h1>${esc(d.name)}</h1><p>${st.assigned} charts allocated to you · ${esc(d.sets)}</p></div>
+    <div class="srow">
+      <div class="stat"><span>Allocated</span><b>${st.assigned}</b><small>assigned to you</small></div>
+      <div class="stat teal"><span>Worked</span><b>${st.worked}</b><small>in this allocation</small></div>
+      <div class="stat"><span>Avg accuracy</span><b>${st.avg}%</b><small>across worked</small></div>
+      <div class="stat"><span>Progress</span><b>${st.pct}%</b><small>of allocated charts worked</small></div>
+    </div>
+    <div class="card qmain">
+      <div class="qhead"><h2 style="margin:0;font-size:18px">Your chart queue</h2></div>
+      <div class="qtabs">
+        ${['active','deferred','done'].map(s => `<button class="qtab ${S.qtab===s?'on':''}" data-act="qtab" data-t="${s}">${{active:'To do',deferred:'Deferred',done:'Completed'}[s]}<span>${cnt(s)}</span></button>`).join('')}
+      </div>
+      <div class="typebar">${['all', ...typesIn(ROWS)].map(t => `<button class="chipf ${f.type===t?'on':''}" data-act="ftype" data-v="${t}">${t==='all'?'All types':TYPE[t].label + 's'} ${tcnt(t)}</button>`).join('')}</div>
+      <div class="filters">
+        <div class="field"><label>Service date from</label><input class="inp" type="date" data-f="from" value="${f.from}"></div>
+        <div class="field"><label>To</label><input class="inp" type="date" data-f="to" value="${f.to}"></div>
+        <div class="field"><label>Provider</label><select class="inp" data-f="prov"><option value="">All providers</option>${opt(uniq('prov'), f.prov)}</select></div>
+        <div class="field"><label>Payer</label><select class="inp" data-f="payer"><option value="">All payers</option>${opt(uniq('payer'), f.payer)}</select></div>
+        <div class="field"><label>Rule (charge review)</label><select class="inp" data-f="rule"><option value="">Any rule</option>${opt([...new Set(ROWS.flatMap(r => r.rules || []))].sort(), f.rule)}</select></div>
+        <div class="field"><label>Search</label><input class="inp" data-f="q" placeholder="MRN, patient, ID…" value="${esc(f.q)}"></div>
+        <button class="btn" data-act="clearf">Clear</button>
+      </div>
+      <table class="grid"><thead><tr>${['MRN · Chart','Type','Date of service','Patient','Provider','Payer','Work notes','Status',''].map(h => `<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${body || `<tr><td colspan="9"><div class="empty">No charts here with these filters.</div></td></tr>`}</tbody></table>
+    </div>
+  </div>`;
+}
+
+function vBanner(P, E, extra){
+  return `<div class="banner">
+    <div class="who"><div class="nm">${esc(P.name)}</div><div class="sub">${P.sex} · ${P.age} y · DOB ${P.dob}</div>
+      <div class="tags">${extra || ''}<span class="btag ${P.allergy !== 'NKDA' ? 'alert' : ''}">Allergy: ${esc(P.allergy)}</span></div></div>
+    <div class="bf"><span>MRN</span><b class="m">${P.mrn}</b></div>
+    <div class="bf"><span>Account</span><b class="m">${P.acct}</b></div>
+    <div class="bf"><span>Encounter</span><b class="m">${E.id}</b></div>
+    <div class="bf"><span>Date of service</span><b>${E.dos}</b></div>
+    <div class="bf"><span>Provider</span><b>${esc(E.prov)}</b><span style="text-transform:none;letter-spacing:0;margin-top:1px">${esc(E.spec)}</span></div>
+    <div class="bf"><span>Visit type · POS</span><b>${esc(E.type)}</b><span style="text-transform:none;letter-spacing:0;margin-top:1px">POS ${esc(E.pos)}</span></div>
+    <div class="bf"><span>Payer</span><b>${esc(E.payer)}</b><span style="text-transform:none;letter-spacing:0;margin-top:1px">${esc(E.plan)}</span></div>
+  </div>`;
+}
+
+function vNote(sections, E){
+  return `<div class="note"><div class="meta"><b>${esc(E.prov)}</b> · ${esc(E.spec)} · ${esc(E.type)} · ${E.dos} · Signed</div>
+    ${sections.map(s => `<h4>${esc(s[0])}</h4><p>${esc(s[1])}</p>`).join('')}</div>`;
+}
+
+function vChartPanel(){
+  const tabs = [['note','Progress note'],['visits','Visits'],['problems','Problem list'],['meds','Meds & MAR'],['vitals','Vitals'],['coverage','Coverage']];
+  let body = '';
+  if (S.chartTab === 'note') body = vNote(CASE.note, CASE.enc);
+  if (S.chartTab === 'visits'){
+    const v = CASE.visits[S.visit];
+    body = `<div class="vlist">${CASE.visits.map((x,i) => `<div class="v ${S.visit===i?'on':''}" data-act="visit" data-i="${i}">
+        <b>${x.d}</b><div><b>${esc(x.type)}</b> · ${esc(x.with)}<div class="muted" style="font-size:13px">${esc(x.desc)}</div></div>
+        ${x.current ? '<span class="pill brand">Coding this visit</span>' : ''}</div>`).join('')}</div>
+      <div class="note">${v.current ? '<p class="muted">This is the visit you are coding. Open the <b>Progress note</b> tab to read it.</p>'
+        : `<div class="meta"><b>${esc(v.type)}</b> · ${v.d} · ${esc(v.with)}</div><p>${esc(v.note)}</p>`}</div>`;
+  }
+  if (S.chartTab === 'problems') body = `<table class="simple"><thead><tr><th>Problem</th><th>Code</th><th>Status</th><th>Noted</th></tr></thead><tbody>
+      ${CASE.problems.map(p => `<tr><td><b>${esc(p[0])}</b></td><td class="code">${p[1]}</td><td>${p[2]}</td><td>${p[3]}</td></tr>`).join('')}</tbody></table>
+      <p class="muted" style="padding:0 16px;font-size:13px">The problem list is a guide only. Code from the note for this date of service.</p>`;
+  if (S.chartTab === 'meds') body = `<table class="simple"><thead><tr><th>Medication</th><th>Instructions</th><th>Status</th></tr></thead><tbody>
+      ${CASE.meds.map(m => `<tr><td><b>${esc(m[0])}</b></td><td>${esc(m[1])}</td><td>${m[2] === 'Administered' ? '<span class="pill navy">Administered</span>' : esc(m[2])}</td></tr>`).join('')}</tbody></table>
+      <div class="payer" style="margin:14px 16px"><b>MAR — 09/23/2026 10:40</b>Ceftriaxone 1,000 mg IM, left gluteal. Single-dose vial, 0 mg wasted. Given by RN.</div>`;
+  if (S.chartTab === 'vitals') body = `<table class="simple"><thead><tr><th>Vital</th><th>09/23/2026</th></tr></thead><tbody>${CASE.vitals.map(v => `<tr><td>${v[0]}</td><td><b>${v[1]}</b></td></tr>`).join('')}</tbody></table>`;
+  if (S.chartTab === 'coverage') body = `<div class="kv">
+      <div>Payer</div><div><b>${CASE.enc.payer}</b></div><div>Plan</div><div>${CASE.enc.plan}</div><div>Member ID</div><div class="code">${CASE.enc.member}</div>
+      <div>Patient status</div><div>Established — last seen ${CASE.pt.lastSeen}</div><div>Department</div><div>${CASE.enc.dept}</div></div>
+      <div class="payer"><b>Payer billing notes (Aetna PPO)</b>• E/M billed with a minor procedure on the same day needs modifier 25.<br>• Drug codes are billed in the units of the HCPCS description (e.g. J0696 per 250 mg).<br>• Up to 4 diagnosis pointers per line; the first pointer is the main reason for that service.</div>`;
+  return `<div class="card panel">
+    <div class="ph"><h2>Chart review</h2><div class="r"><span class="pill gray">Read-only</span></div></div>
+    <div class="tabs">${tabs.map(t => `<button class="tab ${S.chartTab===t[0]?'on':''}" data-act="ctab" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>
+    <div class="pb">${body}</div></div>`;
+}
+
+function vDx(w, opts){
+  return `<div class="sec">
+    <div class="sh"><h3>Diagnoses</h3><span class="hint">Drag ⣿ to set the order. <b>A</b> is the primary diagnosis.</span><span class="r">${w.dx.length} of 12</span></div>
+    <div id="dxList">${w.dx.length ? w.dx.map((d,i) => `<div class="dx" draggable="true" data-dx="${d.id}">
+      <span class="grip" title="Drag to reorder">⣿</span><span class="letter">${L(i)}</span>
+      <span class="code">${d.c}</span><span class="desc">${esc(d.d)}</span>
+      ${i === 0 ? '<span class="pill brand">Primary</span>' : ''}
+      <button class="ibtn" data-act="dxup" data-id="${d.id}" ${i===0?'disabled':''} title="Move up">▲</button>
+      <button class="ibtn" data-act="dxdown" data-id="${d.id}" ${i===w.dx.length-1?'disabled':''} title="Move down">▼</button>
+      ${opts && opts.noRemove ? '' : `<button class="ibtn x" data-act="dxrm" data-id="${d.id}" title="Remove">✕</button>`}
+    </div>`).join('') : '<div class="empty">No diagnoses yet</div>'}</div>
+    ${opts && opts.noAdd ? '' : `<div class="search" style="margin-top:8px"><input class="inp" data-search="dx" placeholder="Add a diagnosis — type a code or condition (e.g. sinusitis)" autocomplete="off"><div class="drop" hidden></div></div>`}
+  </div>`;
+}
+
+function vLos(w){
+  const em = w.lines.find(l => isEM(l.c));
+  const grid = w.ptGrid === 'new'
+    ? [['99202','Straightforward','15+ min'],['99203','Low','30+ min'],['99204','Moderate','45+ min'],['99205','High','60+ min']]
+    : [['99211','Minimal','—'],['99212','Straightforward','10+ min'],['99213','Low','20+ min'],['99214','Moderate','30+ min'],['99215','High','40+ min']];
+  const t = parseInt(w.time, 10); let hint = '';
+  if (t > 0){ const fit = grid.filter(g => g[2] !== '—' && t >= parseInt(g[2], 10)).pop(); hint = fit ? `Time alone supports <b>${fit[0]}</b>` : 'Below the time thresholds'; }
+  return `<div class="sec">
+    <div class="sh"><h3>Level of service (E/M)</h3><span class="hint">Choosing a level puts it on charge line 1.</span></div>
+    <div class="los">
+      <span class="lbl">Patient</span>
+      <div><div class="seg"><button data-act="ptgrid" data-v="new" class="${w.ptGrid==='new'?'on':''}">New</button><button data-act="ptgrid" data-v="est" class="${w.ptGrid==='est'?'on':''}">Established</button></div>
+        <span class="muted" style="margin-left:10px;font-size:13px">Chart: established, last seen ${CASE.pt.lastSeen}</span></div>
+      <span class="lbl">Level (MDM · time)</span>
+      <div class="lvls" style="grid-template-columns:repeat(${grid.length},1fr)">${grid.map(g => `<button class="lv ${em && em.c===g[0]?'on':''}" data-act="level" data-c="${g[0]}"><span class="code">${g[0]}</span><small>${g[1]} · ${g[2]}</small></button>`).join('')}</div>
+      <span class="lbl">Total time</span>
+      <div style="display:flex;align-items:center;gap:10px"><input class="inp time" data-input="time" value="${esc(w.time)}" placeholder="min" inputmode="numeric"><span class="muted" id="timeHint">${hint}</span>
+        <button class="btn sm" data-act="g2211" style="margin-left:auto">${w.lines.some(l=>l.c==='G2211') ? '✓ G2211 added' : '+ Add-on G2211'}</button></div>
+    </div></div>`;
+}
+
+function vLines(w, edits, opts){
+  opts = opts || {};
+  const errLines = new Set(edits.filter(e => e.sev==='err' && e.line).map(e => e.line));
+  const warnLines = new Set(edits.filter(e => e.sev==='warn' && e.line).map(e => e.line));
+  const mode = opts.mode || 'current';
+  const src = opts.original;
+  let table;
+  if (mode === 'original' || mode === 'compare'){
+    const o = cloneSession(src);
+    const codeOf = (s, id) => (s.dx.findIndex(d => d.id === id));
+    const ptrTxt = (s, l) => l.ptrs.map(id => L(codeOf(s, id))).join(',') || '—';
+    const ptrCodes = (s, l) => l.ptrs.map(id => (s.dx.find(d=>d.id===id)||{}).c).join(',');
+    const rows = [];
+    if (mode === 'original'){
+      o.lines.forEach((l,i) => rows.push(`<tr><td class="ln">${i+1}</td><td><span class="code">${l.c}</span><div class="ds">${esc(l.d)}</div></td><td class="code">${l.mods.filter(Boolean).join(' ') || '—'}</td><td>${l.units}</td><td class="code">${ptrTxt(o,l)}</td><td class="amt">${money(l.fee*l.units)}</td></tr>`));
+      table = `<div class="muted" style="margin-bottom:8px;font-size:13px">As entered by ${esc(CASE.enc.prov)} · Dx: ${o.dx.map((d,i)=>`<b>${L(i)}</b> ${d.c}`).join(' · ')}</div>
+        <table class="lines"><thead><tr><th>#</th><th>Code</th><th>Modifiers</th><th>Units</th><th>Dx ptr</th><th style="text-align:right">Amount</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    } else {
+      const all = [...new Set([...o.lines.map(l=>l.c), ...w.lines.map(l=>l.c)])];
+      all.forEach(c => {
+        const a = o.lines.find(l=>l.c===c), b = w.lines.find(l=>l.c===c);
+        const cell = (x, y) => x === y ? esc(y || '—') : `${x ? `<span class="del">${esc(x)}</span> ` : ''}<span class="chg add">${esc(y || '—')}</span>`;
+        if (a && !b) rows.push(`<tr><td><span class="code del">${c}</span></td><td colspan="3" class="del">Removed</td></tr>`);
+        else if (!a && b) rows.push(`<tr><td><span class="code add">${c}</span></td><td colspan="3" class="add">Added · mods ${b.mods.filter(Boolean).join(' ')||'—'} · units ${b.units} · dx ${ptrCodes(w,b)||'—'}</td></tr>`);
+        else rows.push(`<tr><td><span class="code">${c}</span></td><td class="code">${cell(a.mods.filter(Boolean).join(' '), b.mods.filter(Boolean).join(' '))}</td><td>${cell(String(a.units), String(b.units))}</td><td class="code">${cell(ptrCodes(o,a), ptrCodes(w,b))}</td></tr>`);
+      });
+      const dxo = o.dx.map(d=>d.c).join(' · '), dxn = w.dx.map(d=>d.c).join(' · ');
+      table = `<div style="margin-bottom:10px;font-size:13.5px"><b>Diagnoses</b><br>${dxo === dxn ? esc(dxn) : `<span class="del">${esc(dxo)}</span><br><span class="chg add">${esc(dxn || '—')}</span>`}</div>
+        <table class="lines"><thead><tr><th>Code</th><th>Modifiers</th><th>Units</th><th>Dx pointers</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    }
+  } else {
+    let total = 0;
+    const rows = w.lines.map((l,i) => { const amt = l.fee * l.units; total += amt;
+      return `<tr class="${errLines.has(i+1)?'flag':warnLines.has(i+1)?'wflag':''}" data-line="${l.id}">
+        <td class="ln">${i+1}</td>
+        <td><span class="code">${l.c}</span><div class="ds" title="${esc(l.d)}">${esc(l.d)}</div></td>
+        <td><div class="mods">${l.mods.map((m,k) => `<input class="mod ${m?'f':''}" maxlength="2" list="modlist" value="${esc(m)}" data-mod="${k}" aria-label="Modifier ${k+1}">`).join('')}</div></td>
+        <td><input class="units" type="number" min="1" value="${l.units}" data-units aria-label="Units"></td>
+        <td><div class="ptrs">${w.dx.length ? w.dx.map((d,k) => `<button class="pc ${l.ptrs.includes(d.id)?'on':''}" data-act="ptr" data-dx="${d.id}" title="${d.c} — ${esc(d.d)}">${L(k)}</button>`).join('') : '<span class="muted">add dx</span>'}</div>
+          ${l.ptrs.length ? `<div class="muted" style="font-size:12px;margin-top:3px">Order: ${l.ptrs.map(id => L(w.dx.findIndex(d=>d.id===id))).join(' → ')}</div>` : ''}</td>
+        ${opts.remit ? `<td>${l.remit ? `<span class="pill ${l.remit==='CO-97'?'gray':'err'} remit" title="${esc(CARC[l.remit]||'')}">${l.remit}</span>` : '<span class="muted">—</span>'}</td>` : ''}
+        <td class="amt">${money(amt)}</td>
+        <td>${opts.noRemove ? '' : `<button class="ibtn x" data-act="lnrm" title="Remove line">✕</button>`}</td></tr>`; }).join('');
+    table = w.lines.length ? `<table class="lines"><thead><tr><th>#</th><th>Code</th><th>Modifiers</th><th>Units</th><th>Dx pointers</th>${opts.remit?'<th>Remit</th>':''}<th style="text-align:right">Amount</th><th></th></tr></thead>
+      <tbody>${rows}<tr class="tot"><td></td><td colspan="${opts.remit?5:4}" style="text-align:right">Total charges</td><td class="amt">${money(total)}</td><td></td></tr></tbody></table>`
+      : '<div class="empty">No charge lines yet. Pick an E/M level above or add a procedure below.</div>';
+  }
+  return `<div class="sec">
+    <div class="sh"><h3>Charge lines</h3><span class="hint">${mode==='current' ? 'Click letters to link diagnoses — first = main reason' : ''}</span>
+      ${src ? `<span class="r"><div class="seg"><button data-act="lmode" data-v="current" class="${mode==='current'?'on':''}">Current</button><button data-act="lmode" data-v="original" class="${mode==='original'?'on':''}">Original</button><button data-act="lmode" data-v="compare" class="${mode==='compare'?'on':''}">Compare</button></div></span>` : ''}</div>
+    ${table}
+    ${mode === 'current' && !opts.noAdd ? `<div class="search" style="margin-top:10px"><input class="inp" data-search="cpt" placeholder="Add a charge line — type a CPT/HCPCS code or description" autocomplete="off"><div class="drop" hidden></div></div>` : ''}
+  </div>`;
+}
+
+function vEdits(w, edits){
+  if (!S.sidebar) return `<div class="rail"><button data-act="sidebar">Open sidebar · ${edits.filter(e=>e.sev==='err').length} errors</button></div>`;
+  const errs = edits.filter(e => e.sev === 'err'), warns = edits.filter(e => e.sev === 'warn');
+  const shown = edits.filter(e => S.efilter === 'all' || e.sev === S.efilter);
+  return `<div class="card panel">
+    <div class="ph"><h2>Edits</h2><div class="r"><button class="ibtn" data-act="sidebar" title="Close sidebar">⇥</button></div></div>
+    <div class="efilters">
+      <button class="chipf ${S.efilter==='all'?'on':''}" data-act="ef" data-v="all">All ${edits.length}</button>
+      <button class="chipf ${S.efilter==='err'?'on':''}" data-act="ef" data-v="err">Errors ${errs.length}</button>
+      <button class="chipf ${S.efilter==='warn'?'on':''}" data-act="ef" data-v="warn">Warnings ${warns.length}</button>
+    </div>
+    <div class="pb">
+      ${shown.length ? shown.map(e => { const acked = e.sev === 'warn' && w.acks.has(e.key);
+        return `<div class="edit ${e.sev} ${acked?'acked':''}">
+          <div class="eh">${e.sev==='err' ? '⛔ Error' : '⚠ Warning'}${e.line ? `<span style="margin-left:auto" class="pill gray">Line ${e.line}</span>` : ''}</div>
+          <div class="eb"><div class="rule">Rule ${e.rule}</div><b>${esc(e.title)}</b><div>${esc(e.msg)}</div></div>
+          ${e.sev==='warn' ? `<div class="ef"><button class="btn sm" data-act="ack" data-k="${esc(e.key)}">${acked ? '✓ Reviewed' : 'Mark reviewed'}</button></div>` : ''}
+        </div>`; }).join('') : `<div class="clean">✓ No ${S.efilter==='warn'?'warnings':S.efilter==='err'?'errors':'edits'}. ${S.efilter==='all'?'Ready to submit.':''}</div>`}
+      <div class="ph" style="border-top:1px solid var(--line)"><h2>Activity</h2></div>
+      ${w.mode === 'new' ? `<div class="act"><div class="t">09/23/2026 11:02</div>Note signed by ${esc(CASE.enc.prov)}</div>
+      <div class="act"><div class="t">Today</div>Chart allocated to you for coding</div>`
+      : `<div class="act"><div class="t">09/23/2026 10:55</div>Charges entered by ${esc(CASE.enc.prov)}</div>
+      <div class="act"><div class="t">09/23/2026 10:56</div>Stopped by coding rules → charge review</div>`}
+      ${w.comments.map(c => `<div class="act"><div class="t">Today ${c.t} · You</div>${esc(c.text)}</div>`).join('')}
+      <div style="padding:10px 14px"><textarea class="inp" id="cmt" placeholder="Add a comment for the next person…" style="min-height:64px"></textarea>
+        <button class="btn sm" data-act="comment" style="margin-top:8px">Add comment</button></div>
+    </div></div>`;
+}
+
+function vCoding(){
+  const w = S.work, edits = runEdits(w);
+  const errs = edits.filter(e => e.sev === 'err').length;
+  const openWarns = edits.filter(e => e.sev === 'warn' && !w.acks.has(e.key)).length;
+  const ready = !errs && !openWarns;
+  const status = errs ? `<span style="color:var(--err)">⛔ ${errs} error${errs>1?'s':''} must be fixed</span>`
+    : openWarns ? `<span style="color:var(--warn)">⚠ ${openWarns} warning${openWarns>1?'s':''} to review</span>`
+    : `<span style="color:var(--ok)">✓ All edits cleared</span>`;
+  const isNew = w.mode === 'new', row = ROWS.find(r => r.id === S.openRow) || {}, same = ROWS.filter(r => r.type === w.mode && r.status === 'active');
+  return `
+    <div class="wbar"><button class="btn sm" data-act="back">← Back to chart list</button>
+      <span class="q">Evaluation &amp; Management<small>${S.openRow}</small></span>
+      <span class="pill ${TYPE[w.mode].cls}">${TYPE[w.mode].label}</span><span class="pill gray">Chart ${Math.max(1, same.indexOf(row) + 1)} of ${Math.max(1, same.length)}</span>
+      <div class="sp"></div>
+      <button class="btn sm" data-act="lookup">⌕ CODIVIA Code Search</button>
+    </div>
+    ${vBanner(CASE.pt, CASE.enc, `<span class="btag">ESTABLISHED</span>`)}
+    <div class="ws ${S.sidebar?'':'closed'}">
+      ${vChartPanel()}
+      <div class="card panel">
+        <div class="ph"><h2>${isNew ? 'Coding' : 'Charge review'}</h2><div class="r"><span class="pill ${isNew ? 'navy' : 'brand'}">${isNew ? 'Code from the documentation' : 'Stopped by rules'}</span></div></div>
+        <div class="pb">${vDx(w)}${vLos(w)}${vLines(w, edits, {mode:isNew ? 'current' : S.linesMode, original:isNew ? null : CASE.original})}</div>
+        <div class="abar"><span class="status">${status}</span><div class="sp"></div>
+          <button class="btn" data-act="defer">Defer</button><button class="btn" data-act="transfer">Transfer</button>
+          <button class="btn primary" data-act="submit" ${ready?'':'disabled'} title="${ready?'':'Fix errors and review warnings first'}">${isNew ? 'Submit for scoring ▸' : 'Resubmit charges ▸'}</button></div>
+      </div>
+      ${vEdits(w, edits)}
+    </div>`;
+}
+
+function vDenial(){
+  const w = S.work, D = DENIAL, I = D.invoice;
+  const tabs = [['eob','EOB'],['claim','Claim as billed'],['note','Progress note'],['history','Account activity']];
+  let body = '';
+  if (S.chartTab === 'eob'){
+    const o = D.billed;
+    body = `<div class="eob">
+      <div class="eh"><div><span>Payer</span><b>${D.enc.payer}</b></div><div><span>Claim number</span><b class="code">${I.num}</b></div><div><span>ICN</span><b class="code">${I.icn}</b></div>
+        <div><span>Patient</span><b>${D.pt.name}</b></div><div><span>Member ID</span><b class="code">${D.enc.member}</b></div><div><span>Received</span><b>${I.received}</b></div></div>
+      <table class="simple"><thead><tr><th>Code</th><th>DOS</th><th>Mod</th><th>Units</th><th style="text-align:right">Billed</th><th style="text-align:right">Allowed</th><th style="text-align:right">Paid</th><th>Reason</th></tr></thead><tbody>
+      ${o.lines.map(l => { const fee = cptInfo(l.c)[2]; return `<tr><td class="code">${l.c}</td><td>${D.enc.dos}</td><td class="code">${l.mods.join(' ')||'—'}</td><td>${l.units}</td><td class="amt">${money(fee)}</td><td class="amt">${money(0)}</td><td class="amt">${money(0)}</td><td>${l.remit ? `<span class="pill ${l.remit==='CO-97'?'gray':'err'} remit">${l.remit}</span>` : ''}</td></tr>`; }).join('')}
+      <tr class="tot"><td colspan="4"><b>Total</b></td><td class="amt"><b>${money(I.billed)}</b></td><td class="amt">${money(0)}</td><td class="amt">${money(0)}</td><td></td></tr></tbody></table>
+      <h4 style="margin:18px 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">Reason code descriptions</h4>
+      ${['CO-4','CO-97'].map(c => `<div style="padding:8px 0;border-bottom:1px solid var(--line2)"><span class="remit">${c}</span> — ${CARC[c]}</div>`).join('')}
+      <p class="muted" style="font-size:13px">CO = contractual obligation (provider's responsibility, cannot bill the patient). PI = payer-initiated reduction.</p></div>`;
+  }
+  if (S.chartTab === 'claim') body = `<div class="note"><div class="meta">Diagnoses as billed: ${D.billed.dx.map((c,i)=>`<b>${L(i)}</b> ${c}`).join(' · ')}</div>
+      <table class="simple"><thead><tr><th>Code</th><th>Mods</th><th>Units</th><th>Dx pointers</th></tr></thead><tbody>${D.billed.lines.map(l=>`<tr><td class="code">${l.c}</td><td class="code">${l.mods.join(' ')||'—'}</td><td>${l.units}</td><td class="code">${l.ptrs.map(p=>L(D.billed.dx.indexOf(p))).join(',')}</td></tr>`).join('')}</tbody></table></div>`;
+  if (S.chartTab === 'note') body = vNote(D.note, D.enc);
+  if (S.chartTab === 'history') body = `<table class="simple"><thead><tr><th>Date</th><th>Event</th><th>Detail</th><th style="text-align:right">Amount</th></tr></thead><tbody>
+      ${D.history.map(h => `<tr><td>${h[0]}</td><td><b>${h[1]}</b></td><td>${esc(h[2])}</td><td class="amt">${h[3]}</td></tr>`).join('')}
+      ${w.session ? `<tr><td>Today</td><td><b>Charge correction</b></td><td>Session ${w.session} · pending · "${esc(w.comment)}"</td><td></td></tr>` : ''}</tbody></table>`;
+
+  const step = (n, t) => `<span class="${w.step===n?'on':w.step>n?'done':''}"><i>${w.step>n?'✓':n}</i>${t}</span>`;
+  let right = '';
+  if (w.step === 1){
+    right = `<div class="sec"><div class="sh"><h3>What will you do with this denial?</h3></div>
+      <div class="decide">
+        <button class="opt ${w.decision==='correct'?'on':''}" data-act="decide" data-v="correct"><b>Correct & resubmit</b><span>Our billing error — fix the charge and send a corrected claim.</span></button>
+        <button class="opt ${w.decision==='appeal'?'on':''}" data-act="decide" data-v="appeal"><b>Appeal</b><span>The claim was right; ask the payer to reconsider with records.</span></button>
+        <button class="opt ${w.decision==='writeoff'?'on':''}" data-act="decide" data-v="writeoff"><b>Write off</b><span>Not collectable — adjust the balance off.</span></button>
+      </div>
+      <p class="muted" style="font-size:13px">Tip: read the reason codes on the EOB (left) before deciding. ${I.daysToAppeal} days are left to appeal.</p></div>
+      <div class="abar"><div class="sp"></div><button class="btn primary" data-act="dstep" data-v="2" ${w.decision?'':'disabled'}>${w.decision==='correct'?'Open charge correction ▸':'Continue ▸'}</button></div>`;
+  }
+  if (w.step === 2){
+    if (w.decision !== 'correct'){
+      right = `<div class="sec"><div class="sh"><h3>${w.decision==='appeal'?'Start appeal':'Write off balance'}</h3></div>
+        <div class="field"><label>Comment (required)</label><textarea class="inp" data-input="comment" placeholder="Why are you taking this action?">${esc(w.comment)}</textarea></div></div>
+        <div class="abar"><button class="btn" data-act="dstep" data-v="1">◂ Back</button><div class="sp"></div><button class="btn primary" data-act="dfinish">Submit ▸</button></div>`;
+    } else {
+      right = `<div class="pb">${vDx(w, {noRemove:false})}${vLines(w, [], {remit:true, noRemove:true, noAdd:true})}
+        <div class="sec"><div class="field"><label>Correction comment (goes on the voided transaction — required)</label>
+          <textarea class="inp" data-input="comment" placeholder="e.g. removed 25 from FQHC encounter, re-sequenced diagnoses">${esc(w.comment)}</textarea></div></div></div>
+        <div class="abar"><button class="btn" data-act="dstep" data-v="1">◂ Back</button><div class="sp"></div><button class="btn primary" data-act="daccept">Accept correction ▸</button></div>`;
+    }
+  }
+  if (w.step === 3){
+    right = `<div class="sec">
+      <div class="clean" style="text-align:left;margin:0 0 14px">✓ Correction accepted. Session <span class="code">${w.session}</span> is now <b>pending</b>.</div>
+      <table class="simple"><thead><tr><th>Tx</th><th>Code</th><th>Status</th></tr></thead><tbody>${w.lines.map((l,i)=>`<tr><td>${52+i}</td><td class="code">${l.c}${l.mods.filter(Boolean).length?'-'+l.mods.filter(Boolean).join('-'):''}</td><td><span class="pill ok">Corrected</span></td></tr>`).join('')}</tbody></table>
+      <p style="font-size:14px;margin:16px 0 8px">Last step: note the pending session number and let the charge review team know it is waiting to be processed.</p>
+      <label style="display:flex;gap:10px;align-items:center;font-weight:700"><input type="checkbox" data-act="notify" ${w.notified?'checked':''} style="width:18px;height:18px"> I noted session ${w.session} and notified the charge review team</label></div>
+      <div class="abar"><div class="sp"></div><button class="btn primary" data-act="dfinish" ${w.notified?'':'disabled'}>Finish ▸</button></div>`;
+  }
+  return `
+    <div class="wbar"><button class="btn sm" data-act="back">← Back to chart list</button>
+      <span class="q">Evaluation &amp; Management<small>${I.num}</small></span><span class="pill err">Denial</span>
+      <div class="sp"></div><button class="btn sm" data-act="lookup">⌕ CODIVIA Code Search</button></div>
+    ${vBanner(D.pt, D.enc, `<span class="btag">FQHC</span>`)}
+    <div class="ws closed" style="grid-template-columns:minmax(420px,1fr) minmax(600px,1.2fr)">
+      <div class="card panel">
+        <div class="denied"><span class="big">⛔</span><div><b>Claim denied · ${I.daysToAppeal} days left to appeal</b><span class="muted" style="font-size:13px">Billed ${money(I.billed)} · Allowed ${money(I.allowed)} · Payment expected from payer</span></div></div>
+        <div class="tabs" style="margin-top:12px">${tabs.map(t => `<button class="tab ${S.chartTab===t[0]?'on':''}" data-act="ctab" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>
+        <div class="pb">${body}</div>
+      </div>
+      <div class="card panel">
+        <div class="ph"><h2>Work this denial</h2></div>
+        <div class="steps">${step(1,'Decide')}<span class="sep">—</span>${step(2,'Correct')}<span class="sep">—</span>${step(3,'Pending & notify')}</div>
+        ${right}
+      </div>
+    </div>`;
+}
+
+/* ---------- inpatient views ---------- */
+const IP_TABS = [['dx','Diagnoses'],['pcs','Procedures (PCS)'],['abs','Abstract'],['drg','MS-DRG']];
+const flags = (x) => x ? `${x.cc ? `<span class="badge ${x.cc.toLowerCase()}">${x.cc}</span>` : ''}${x.unspec ? ' <span class="badge un">unspec.</span>' : ''}` : '';
+function evChips(w, r){
+  return r.ev.length ? r.ev.map(id => { const ev = w.evidence.find(e => e.id === id); if (!ev) return ''; const doc = w.docs.find(d => d.id === ev.doc);
+    return `<button class="evchip" data-act="evgo" data-ev="${id}" title="“${esc(ev.text)}”">📎 ${esc(doc.title.split(' ')[0])}</button>`; }).join('')
+    : '<span class="evchip none" title="Select text in a document to link evidence">no evidence linked</span>';
+}
+function vIpBanner(P, E){
+  const f = (l, v, sub, mono) => `<div class="bf"><span>${l}</span><b class="${mono ? 'm' : ''}">${esc(v)}</b>${sub ? `<span style="text-transform:none;letter-spacing:0;margin-top:1px">${esc(sub)}</span>` : ''}</div>`;
+  return `<div class="banner">
+    <div class="who"><div class="nm">${esc(P.name)}</div><div class="sub">${P.sex} · ${P.age} y · DOB ${P.dob}</div>
+      <div class="tags"><span class="btag">INPATIENT</span><span class="btag alert">Allergy: ${esc(P.allergy)}</span></div></div>
+    ${f('MRN', P.mrn, '', 1)}${f('Account', P.acct, '', 1)}${f('Admit → Discharge', `${E.admit} → ${E.disch}`)}${f('LOS', E.los + ' days')}
+    ${f('Attending', E.att, E.spec)}${f('Payer', E.payer, E.facility)}
+  </div>`;
+}
+function vIpDocs(w){
+  const d = w.docs.find(x => x.id === w.doc);
+  return `<div class="card panel">
+    <div class="ph"><h2>Documents</h2><div class="r"><input class="inp" data-find style="height:32px;width:200px" placeholder="Find in document  (Ctrl+F)" value="${esc(w.find)}"></div></div>
+    <div class="ipchart">
+      <div class="doclist">${w.docs.map(x => { const n = w.evidence.filter(e => e.doc === x.id).length;
+        return `<button class="d ${x.id === w.doc ? 'on' : ''} ${x.isNew ? 'new' : ''}" data-act="ipdoc" data-d="${x.id}">${n ? `<span class="evn" title="Evidence links">${n}</span>` : ''}<b>${esc(x.title)}</b><small>${esc(x.sub)}</small></button>`; }).join('')}</div>
+      <div class="pb"><article class="doc" id="ipdoc">${w.docHtml[w.doc] || d.html}</article></div>
+    </div>
+    <div class="act muted" style="border-top:1px solid var(--line)">Tip: select text in a document to link it as evidence for a code</div>
+  </div>`;
+}
+function vIpDx(w){
+  return `<div class="sec">
+    <div class="sh"><h3>Diagnoses</h3><span class="hint">Drag ⣿ to re-sequence. Row 1 is the principal diagnosis (PDx).</span><span class="r">${w.dx.length} of 25</span></div>
+    ${w.dx.length ? w.dx.map((d, i) => { const x = ipInfo(d.c) || {d:d.d};
+      return `<div class="dx" draggable="true" data-dx="${d.id}" style="align-items:flex-start">
+        <span class="grip" title="Drag to re-sequence" style="padding-top:5px">⣿</span>
+        <span class="seqb ${i === 0 ? 'p' : ''}" style="margin-top:4px">${i === 0 ? 'PDx' : i + 1}</span>
+        <span class="code" style="padding-top:4px">${d.c}</span>
+        <span class="desc">${esc(x.d)} ${flags(x)}<div style="margin-top:5px">${evChips(w, d)}</div></span>
+        <select class="poa ${d.poa ? '' : 'missing'}" data-poa="${d.id}" title="Present on admission">${POA.map(p => `<option value="${p}" ${p === d.poa ? 'selected' : ''}>${POA_LABEL[p]}</option>`).join('')}</select>
+        <button class="ibtn" data-act="ipinfo" data-c="${d.c}" title="Tabular & instructional notes">ⓘ</button>
+        <button class="ibtn" data-act="dxup" data-id="${d.id}" ${i === 0 ? 'disabled' : ''} title="Move up">▲</button>
+        <button class="ibtn" data-act="dxdown" data-id="${d.id}" ${i === w.dx.length - 1 ? 'disabled' : ''} title="Move down">▼</button>
+        <button class="ibtn x" data-act="dxrm" data-id="${d.id}" title="Remove">✕</button>
+      </div>`; }).join('') : '<div class="empty">No diagnoses yet. Search the encoder above (Ctrl+K), or select text in a document and search it.</div>'}
+  </div>`;
+}
+function vIpPcs(w){
+  const code = w.pcsSel.join(''), done = w.pcsSel.every(Boolean);
+  return `<div class="sec">
+    <div class="sh"><h3>ICD-10-PCS table builder</h3><span class="hint">Table 5A0 — Extracorporeal assistance (sample)</span></div>
+    <div class="pcs">${PCS_AXES.map((ax, i) => `<div><h6>${i + 1}. ${ax.h}</h6>${ax.o.map(([v, l]) => `<button data-act="pcsax" data-i="${i}" data-v="${v}" class="${w.pcsSel[i] === v ? 'on' : ''}"><b>${v}</b> ${esc(l)}</button>`).join('')}</div>`).join('')}</div>
+    <div class="pcsout"><span class="code">${w.pcsSel.map(v => v || '_').join('')}</span>
+      <span class="muted" style="flex:1">${done ? esc(PCS_DESC[code] || 'Valid code in table 5A0') : 'Choose a value for every character'}</span>
+      <button class="btn primary sm" data-act="pcsadd" ${done ? '' : 'disabled'}>Add procedure</button></div>
+  </div>
+  <div class="sec"><div class="sh"><h3>Procedures</h3><span class="hint">Row 1 is the principal procedure.</span></div>
+    ${w.pcs.length ? `<table class="simple"><thead><tr><th>#</th><th>Code</th><th>Description</th><th>Date</th><th>Evidence</th><th></th></tr></thead><tbody>
+      ${w.pcs.map((p, i) => `<tr><td>${i === 0 ? '<span class="pill brand">Princ.</span>' : i + 1}</td><td class="code">${p.c}</td><td style="font-size:13px">${esc(PCS_DESC[p.c] || '')}</td>
+        <td><input class="inp" style="height:32px;width:110px" value="${esc(p.date)}" data-pdate="${p.id}"></td><td>${evChips(w, p)}</td>
+        <td><button class="ibtn x" data-act="pcsrm" data-id="${p.id}" title="Remove">✕</button></td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty">No procedures coded.</div>'}
+  </div>`;
+}
+function vIpAbs(w){
+  const f = (k, l, opts) => `<div class="field"><label>${l}</label>${opts
+    ? `<select class="inp" data-abs="${k}">${['', ...opts].map(o => `<option value="${o}" ${o === w.abs[k] ? 'selected' : ''}>${o || '— choose —'}</option>`).join('')}</select>`
+    : `<input class="inp" data-abs="${k}" value="${esc(w.abs[k] || '')}">`}</div>`;
+  const E = IP_CASE.enc;
+  return `<div class="sec"><div class="sh"><h3>Abstract (UB-04)</h3></div>
+    <div class="form2">
+      <div class="field"><label>Admission date</label><div class="inp" style="background:var(--line2);display:flex;align-items:center">${E.admit}</div></div>
+      <div class="field"><label>Discharge date</label><div class="inp" style="background:var(--line2);display:flex;align-items:center">${E.disch}</div></div>
+      ${f('admitType', 'Admission type (FL 14)', ['1 · Emergency', '2 · Urgent', '3 · Elective'])}
+      ${f('admitSrc', 'Point of origin (FL 15)', ['1 · Non-health care facility', '7 · Emergency room', '4 · Transfer from hospital'])}
+      ${f('disp', 'Discharge disposition (FL 17)', ['01 · Home / self-care', '06 · Home health', '03 · SNF', '62 · Inpatient rehab', '20 · Expired'])}
+      ${f('attending', 'Attending physician')}
+    </div>
+    <p class="muted" style="font-size:13px;margin:12px 0 0">Disposition changes the MS-DRG payment for post-acute transfer DRGs and is a common audit finding. Read the discharge summary.</p></div>`;
+}
+function vIpDrg(w){
+  const g = grouper(w.dx); if (!g) return '<div class="sec"><div class="empty">Add a principal diagnosis to group the case.</div></div>';
+  const rate = 6900; // sample base rate
+  let alt = null;
+  if (w.dx.length > 1){ const sw = w.dx.slice(); [sw[0], sw[1]] = [sw[1], sw[0]]; alt = grouper(sw); }
+  return `<div class="sec">
+    <div class="drgt"><div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.4px">MS-DRG · MDC ${g.mdc} (sample grouper)</div><div class="n">${g.drg}</div><div>${esc(g.t)}</div></div>
+    <div class="kpis"><div><span>Relative weight</span><b>${g.rw.toFixed(4)}</b></div><div><span>GMLOS</span><b>${g.gmlos} d</b></div>
+      <div><span>Actual LOS</span><b>${IP_CASE.enc.los} d</b></div><div><span>Est. payment</span><b>$${Math.round(g.rw * rate).toLocaleString()}</b></div></div>
+    <table class="simple"><tbody>
+      <tr><td style="width:140px" class="muted">MCCs captured</td><td>${g.mcc.map(c => `<span class="badge mcc">${c}</span>`).join(' ') || '—'}</td></tr>
+      <tr><td class="muted">CCs captured</td><td>${g.cc.map(c => `<span class="badge cc">${c}</span>`).join(' ') || '—'}</td></tr>
+      <tr><td class="muted">What-if</td><td>${alt ? `Sequencing <b>${w.dx[1].c}</b> as principal → MS-DRG <b>${alt.drg}</b> (RW ${alt.rw.toFixed(4)}). Sequencing must follow the documentation and guidelines, not the weight.` : '—'}</td></tr>
+    </tbody></table></div>`;
+}
+function vIpSide(w, edits){
+  if (!S.sidebar) return `<div class="rail"><button data-act="sidebar">Open sidebar · ${edits.filter(e => e.sev === 'err').length} errors</button></div>`;
+  const n = (s) => edits.filter(e => e.sev === s).length;
+  const shown = edits.filter(e => S.efilter === 'all' || e.sev === S.efilter);
+  const tabName = (t) => (IP_TABS.find(x => x[0] === t) || [, ''])[1];
+  return `<div class="card panel">
+    <div class="ph"><h2>Edits &amp; scrubber</h2><div class="r"><button class="ibtn" data-act="sidebar" title="Close sidebar">⇥</button></div></div>
+    <div class="efilters">
+      <button class="chipf ${S.efilter === 'all' ? 'on' : ''}" data-act="ef" data-v="all">All ${edits.length}</button>
+      <button class="chipf ${S.efilter === 'err' ? 'on' : ''}" data-act="ef" data-v="err">Errors ${n('err')}</button>
+      <button class="chipf ${S.efilter === 'warn' ? 'on' : ''}" data-act="ef" data-v="warn">Warnings ${n('warn')}</button>
+      <button class="chipf ${S.efilter === 'info' ? 'on' : ''}" data-act="ef" data-v="info">Prompts ${n('info')}</button>
+    </div>
+    <div class="pb">
+      ${shown.length ? shown.map(e => { const acked = e.sev === 'warn' && w.acks.has(e.key);
+        return `<div class="edit ${e.sev} ${acked ? 'acked' : ''}">
+          <div class="eh">${e.sev === 'err' ? '⛔ Error' : e.sev === 'warn' ? '⚠ Warning' : 'ⓘ Prompt'}<span style="margin-left:auto" class="pill gray">${tabName(e.tab)}</span></div>
+          <div class="eb"><div class="rule">${esc(e.src)}</div><b>${esc(e.title)}</b><div>${esc(e.msg)}</div></div>
+          <div class="ef">${w.tab !== e.tab ? `<button class="btn sm" data-act="iptab" data-t="${e.tab}">Go to ${tabName(e.tab)}</button>` : ''}
+            ${e.sev === 'warn' ? `<button class="btn sm" data-act="ack" data-k="${esc(e.key)}">${acked ? '✓ Reviewed' : 'Mark reviewed'}</button>` : ''}</div>
+        </div>`; }).join('') : `<div class="clean">✓ Nothing here. ${S.efilter === 'all' ? 'Ready to submit.' : ''}</div>`}
+      <div class="ph" style="border-top:1px solid var(--line)"><h2>Physician queries</h2></div>
+      ${w.queries.length ? w.queries.map(q => `<div class="qitem ${q.answer ? 'ans' : ''}"><b>${q.answer ? '✓ Answered' : '⏳ Pending'}</b> · ${esc(q.to)} · ${q.t}<div style="margin-top:4px">${esc(q.q)}</div>${q.answer ? `<div style="margin-top:6px"><b>Answer:</b> ${esc(q.answer)}</div>` : ''}</div>`).join('')
+        : '<div class="act muted">No queries sent.</div>'}
+      <div class="ph" style="border-top:1px solid var(--line)"><h2>Coder notes</h2></div>
+      <div style="padding:10px 14px"><textarea class="inp" data-notes placeholder="Private notes for this chart…" style="min-height:70px">${esc(w.notes)}</textarea></div>
+      <div class="ph" style="border-top:1px solid var(--line)"><h2>Activity</h2></div>
+      <div class="act"><div class="t">03/18/2026 11:05</div>Discharge summary signed by ${esc(IP_CASE.enc.att)}</div>
+      ${w.mode === 'drg' ? '<div class="act"><div class="t">03/19/2026 08:40</div>Pre-coded abstract sent for DRG validation</div>' : ''}
+      <div class="act"><div class="t">Today</div>Chart allocated to you for coding</div>
+      ${w.comments.map(c => `<div class="act"><div class="t">Today ${c.t}</div>${esc(c.text)}</div>`).join('')}
+    </div></div>`;
+}
+function vIP(){
+  const w = S.work, edits = ipEdits(w);
+  const errs = edits.filter(e => e.sev === 'err').length;
+  const openWarns = edits.filter(e => e.sev === 'warn' && !w.acks.has(e.key)).length;
+  const ready = !errs && !openWarns && !w.hold;
+  const status = errs ? `<span style="color:var(--err)">⛔ ${errs} error${errs > 1 ? 's' : ''} must be fixed</span>`
+    : openWarns ? `<span style="color:var(--warn)">⚠ ${openWarns} warning${openWarns > 1 ? 's' : ''} to review</span>`
+    : w.hold ? `<span style="color:var(--warn)">⏸ On hold — waiting for the query response</span>`
+    : `<span style="color:var(--ok)">✓ All edits cleared</span>`;
+  const row = IP_ROWS.find(r => r.id === S.openRow) || {}, same = IP_ROWS.filter(r => r.type === w.mode && r.status === 'active');
+  const errTab = (t) => edits.some(e => e.sev === 'err' && e.tab === t);
+  const cnt = {dx:w.dx.length, pcs:w.pcs.length};
+  const body = w.tab === 'dx' ? vIpDx(w) : w.tab === 'pcs' ? vIpPcs(w) : w.tab === 'abs' ? vIpAbs(w) : vIpDrg(w);
+  return `
+    <div class="wbar"><button class="btn sm" data-act="back">← Back to chart list</button>
+      <span class="q">Inpatient Facility<small>${S.openRow}</small></span>
+      <span class="pill ${TYPE[w.mode].cls}">${TYPE[w.mode].label}</span><span class="pill gray">Chart ${Math.max(1, same.indexOf(row) + 1)} of ${Math.max(1, same.length)}</span>
+      ${w.hold ? '<span class="pill warn">⏸ On hold — query pending</span>' : ''}
+      <div class="sp"></div><span class="muted" style="font-size:13px">Target 25:00 · Ctrl+K encoder · Ctrl+F find · Alt+1–4 tabs</span>
+    </div>
+    ${vIpBanner(IP_CASE.pt, IP_CASE.enc)}
+    <div class="ws ip ${S.sidebar ? '' : 'closed'}">
+      ${vIpDocs(w)}
+      <div class="card panel">
+        <div class="ph"><h2>${w.mode === 'drg' ? 'DRG validation' : 'Inpatient coding'}</h2><div class="r"><span class="pill ${w.mode === 'drg' ? 'brand' : 'navy'}">${w.mode === 'drg' ? 'Pre-coded — verify every code' : 'Code from the record'}</span></div></div>
+        <div class="enc"><div class="row">
+          <select class="inp" data-encsys style="width:170px"><option value="CM">ICD-10-CM index</option><option value="PCS">ICD-10-PCS tables</option></select>
+          <div class="search" style="flex:1"><input class="inp" id="encq" data-enc placeholder="Search the Index by main term, e.g. “failure respiratory”  (Ctrl+K)" value="${esc(w.enc.q)}" autocomplete="off"></div>
+        </div><div id="encout"></div></div>
+        <div class="tabs">${IP_TABS.map(([k, l], i) => `<button class="tab ${w.tab === k ? 'on' : ''}" data-act="iptab" data-t="${k}" title="Alt+${i + 1}">${l}${cnt[k] != null ? ` <span class="pill ${errTab(k) ? 'err' : 'gray'}" style="padding:0 7px">${cnt[k]}</span>` : errTab(k) ? ' <span class="pill err" style="padding:0 7px">!</span>' : ''}</button>`).join('')}</div>
+        <div class="pb">${body}</div>
+        <div class="abar"><span class="status">${status}</span><div class="sp"></div>
+          <button class="btn" data-act="ipquery">Physician query</button><button class="btn" data-act="defer">Defer</button><button class="btn" data-act="transfer">Transfer</button>
+          <button class="btn primary" data-act="submit" ${ready ? '' : 'disabled'} title="${ready ? '' : 'Fix errors, review warnings and wait for open queries first'}">Submit for audit ▸</button></div>
+      </div>
+      ${vIpSide(w, edits)}
+    </div>`;
+}
+/* encoder results + tabular detail (updated in place so typing keeps focus) */
+function encOut(){
+  const w = S.work, box = $('#encout'); if (!box || !w || w.kind !== 'ip') return;
+  const q = w.enc.q.trim().toLowerCase(); let html = '';
+  if (q.length >= 2){
+    const words = q.split(/\s+/);
+    const hits = IP_CODES.filter(x => words.every(t => (x.path + ' ' + x.d + ' ' + x.c + ' ' + (x.syn || '')).toLowerCase().includes(t)));
+    html += `<div class="encres">${hits.length ? hits.map(x => `<div class="er" data-act="encpick" data-c="${x.c}"><span class="code">${x.c}</span><span>${esc(x.d)}<div class="path">${esc(x.path)}</div></span><span>${flags(x)}</span></div>`).join('')
+      : '<div class="empty" style="border:none">No index entries. Try the main term (the condition), not the body part.</div>'}</div>`;
+  }
+  const x = w.enc.sel && ipInfo(w.enc.sel);
+  if (x){
+    const inList = w.dx.some(d => d.c === x.c);
+    html += `<div class="tabular"><div class="hier">Tabular › ${esc(x.path)}</div>
+      <div><span class="code" style="font-size:16px">${x.c}</span> ${esc(x.d)} ${flags(x)}${x.poaExempt ? ' <span class="badge un">POA exempt</span>' : ''}</div>
+      ${(x.notes || []).map(([k, h, t]) => `<div class="tnote ${k}"><b>${h}</b>${esc(t)}</div>`).join('') || '<div class="tnote">No instructional notes at this code.</div>'}
+      ${x.unspec ? '<div class="tnote ex2"><b>Specificity</b>Unspecified code — check the record for a more specific diagnosis.</div>' : ''}
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn primary sm" data-act="encadd" data-v="pdx">${inList ? 'Make principal dx' : 'Add as principal dx'}</button>
+        ${inList ? '' : '<button class="btn sm" data-act="encadd" data-v="dx">Add as secondary dx</button>'}
+        <button class="btn sm ghost" data-act="encclose">Close</button></div></div>`;
+  }
+  box.innerHTML = html;
+}
+function applyFind(){
+  const doc = $('#ipdoc'); if (!doc) return;
+  doc.querySelectorAll('mark.find').forEach(m => m.replaceWith(document.createTextNode(m.textContent)));
+  doc.normalize();
+  const q = (S.work.find || '').trim().toLowerCase(); if (q.length < 2) return;
+  const walker = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT), hits = []; let n;
+  while ((n = walker.nextNode())){ const i = n.nodeValue.toLowerCase().indexOf(q); if (i >= 0) hits.push([n, i]); }
+  hits.forEach(([node, i]) => { const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + q.length); const m = document.createElement('mark'); m.className = 'find'; r.surroundContents(m); });
+  const first = doc.querySelector('mark.find'); if (first) first.scrollIntoView({block:'center'});
+}
+function saveDoc(){
+  const doc = $('#ipdoc'); if (!doc) return;
+  const c = doc.cloneNode(true); c.querySelectorAll('mark.find').forEach(m => m.replaceWith(document.createTextNode(m.textContent)));
+  S.work.docHtml[S.work.doc] = c.innerHTML;
+}
+function unmarkEv(w, ids){
+  if (!ids || !ids.length) return;
+  Object.keys(w.docHtml).forEach(k => { const div = document.createElement('div'); div.innerHTML = w.docHtml[k];
+    div.querySelectorAll('mark.ev').forEach(m => { if (ids.includes(m.dataset.ev)) m.replaceWith(document.createTextNode(m.textContent)); });
+    w.docHtml[k] = div.innerHTML; });
+  w.evidence = w.evidence.filter(e => !ids.includes(e.id));
+}
+function afterIP(){
+  encOut(); applyFind();
+  if (S.flash){ const m = document.querySelector(`#ipdoc mark[data-ev="${S.flash}"]`); S.flash = null;
+    if (m){ m.scrollIntoView({block:'center', behavior:'smooth'}); m.classList.add('flash'); setTimeout(() => m.classList.remove('flash'), 1600); } }
+}
+const selPop = () => { let p = $('#selpop'); if (!p){ p = document.createElement('div'); p.id = 'selpop'; p.className = 'selpop'; p.hidden = true; document.body.appendChild(p);
+  p.addEventListener('click', onSelPop); } return p; };
+function onSelPop(e){
+  const pop = selPop(), b = e.target.closest('button'), w = S.work; if (!b) return;
+  if (b.dataset.esearch){ w.enc.q = pop._text; w.enc.sel = null; const q = $('#encq'); if (q){ q.value = w.enc.q; q.focus(); } encOut(); }
+  if (b.dataset.link){
+    const code = b.dataset.link, id = 'ev' + (++uid);
+    try { const m = document.createElement('mark'); m.className = 'ev'; m.dataset.ev = id; m.title = 'Evidence for ' + code; pop._range.surroundContents(m); }
+    catch (err) { /* selection crossed paragraphs: keep the link without a highlight */ }
+    w.evidence.push({id, doc:w.doc, text:pop._text, code});
+    const row = w.dx.find(r => r.c === code) || w.pcs.find(r => r.c === code); if (row) row.ev.push(id);
+    saveDoc(); window.getSelection().removeAllRanges(); pop.hidden = true; render(); return;
+  }
+  pop.hidden = true; window.getSelection().removeAllRanges();
+}
+document.addEventListener('mouseup', (e) => {
+  const pop = selPop(); if (pop.contains(e.target)) return;
+  const doc = $('#ipdoc'), sel = window.getSelection(), text = sel.toString().trim();
+  if (S.view !== 'ip' || !doc || !text || text.length < 3 || !doc.contains(sel.anchorNode)){ pop.hidden = true; return; }
+  const rect = sel.getRangeAt(0).getBoundingClientRect(), w = S.work;
+  const codes = [...w.dx.map(d => [d.c, (ipInfo(d.c) || {}).d]), ...w.pcs.map(p => [p.c, PCS_DESC[p.c]])];
+  pop.innerHTML = `<div class="h">Link “${esc(text.slice(0, 40))}${text.length > 40 ? '…' : ''}” as evidence for</div>` +
+    (codes.length ? codes.map(([c, d]) => `<button data-link="${c}"><span class="code">${c}</span> ${esc((d || '').slice(0, 38))}</button>`).join('') : '<div class="h">Add a code first.</div>') +
+    `<button data-esearch="1">⌕ Search the encoder for this text</button>`;
+  pop.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 330)) + 'px';
+  pop.style.top = Math.min(rect.bottom + 6, window.innerHeight - 200) + 'px';
+  pop.hidden = false; pop._range = sel.getRangeAt(0).cloneRange(); pop._text = text;
+});
+
+function vResult(){
+  const r = S.result, cls = r.pct >= 90 ? 'hi' : r.pct >= 70 ? 'mid' : 'lo';
+  return `<div class="res"><div class="card">
+    <div class="rhead"><div class="ring ${cls}">${r.pct}%</div>
+      <div><h1 style="margin:0 0 4px;font-size:22px">${esc(r.title)}</h1><div class="muted">${r.checks.filter(c=>c.ok).length} of ${r.checks.length} checks correct · Time on chart ${r.time}</div></div></div>
+    ${r.checks.map(c => `<div class="chk"><span class="i ${c.ok?'y':'n'}">${c.ok?'✓':'✕'}</span><div><b>${esc(c.title)}</b><p>${esc(c.why || '')}</p></div></div>`).join('')}
+    <div class="mf"><button class="btn" data-act="redo">Review my work</button><button class="btn primary" data-act="back">Back to queue</button></div>
+  </div></div>`;
+}
+
+function vModal(){
+  const m = S.modal; if (!m) return '';
+  if (m.type === 'defer'){
+    const reasons = [['Following up with provider',98002],['Waiting for information',98000],['Pending review',1000],['Research needed',1002],['Pending credentialing',98012],['Waiting for supervisor response',98001],['Other',1003]];
+    return `<div class="ov"><div class="modal"><div class="mh"><h2>Defer this item</h2><button class="ibtn x" data-act="close">✕</button></div>
+      <div class="mb"><div class="field"><label>Reason</label><div class="reasons">${reasons.map(r => `<label><input type="radio" name="dr" value="${r[0]}" ${m.reason===r[0]?'checked':''}> ${r[0]}<span class="num">${r[1]}</span></label>`).join('')}</div></div>
+        <div class="field"><label>Comment</label><textarea class="inp" id="mcomment" placeholder="What are you waiting for?"></textarea></div></div>
+      <div class="mf"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="dodefer">Defer</button></div></div></div>`;
+  }
+  if (m.type === 'transfer'){
+    return `<div class="ov"><div class="modal"><div class="mh"><h2>Transfer to another work queue</h2><button class="ibtn x" data-act="close">✕</button></div>
+      <div class="mb">
+        <div class="field"><label>Work queue</label><select class="inp" id="mwq"><option>PB Back End Billing</option><option>Provider Query (clarification)</option><option>Front End Registration</option><option>Charge Entry Corrections</option></select></div>
+        <div class="field"><label>Reason</label><select class="inp" id="mreason"><option>Incorrect review assignment</option><option>Not a billable encounter</option><option>Documentation unclear — needs provider</option><option>Registration / coverage issue</option></select></div>
+        <div class="field"><label>Comment (required)</label><textarea class="inp" id="mcomment" maxlength="500" placeholder="e.g. Lab order only — not a claim encounter"></textarea><span class="muted" style="font-size:12px">Max 500 characters</span></div></div>
+      <div class="mf"><button class="btn" data-act="close">Don't transfer</button><button class="btn primary" data-act="dotransfer">Transfer</button></div></div></div>`;
+  }
+  if (m.type === 'submit' && S.work.kind === 'ip'){
+    const w = S.work, g = grouper(w.dx);
+    return `<div class="ov"><div class="modal"><div class="mh"><h2>Submit chart for audit?</h2><button class="ibtn x" data-act="close">✕</button></div>
+      <div class="mb"><div><b>Principal dx:</b> ${w.dx[0] ? `${w.dx[0].c} (POA ${w.dx[0].poa})` : '—'}</div>
+        <div><b>Secondary dx:</b> ${w.dx.slice(1).map(d => `${d.c} (${d.poa === 'EXEMPT' ? '1' : d.poa})`).join(' · ') || '—'}</div>
+        <div><b>Procedures:</b> ${w.pcs.map(p => p.c).join(' · ') || '—'}</div>
+        <div><b>Disposition:</b> ${esc(w.abs.disp)} · <b>MS-DRG:</b> ${g ? g.drg + ' — ' + esc(g.t) : '—'}</div>
+        <div class="muted">After this the abstract is locked and compared with the audited coding.</div></div>
+      <div class="mf"><button class="btn" data-act="close">Go back</button><button class="btn primary" data-act="dosubmit">Submit</button></div></div></div>`;
+  }
+  if (m.type === 'query'){
+    const opts = ['Type 2 diabetes with hyperglycemia', 'Drug (steroid)-induced hyperglycemia in a patient with type 2 diabetes', 'Other (please specify)', 'Unable to determine'];
+    return `<div class="ov"><div class="modal" style="width:min(680px,100%)"><div class="mh"><h2>Physician query (CDI)</h2><button class="ibtn x" data-act="close">✕</button></div>
+      <div class="mb">
+        <div class="payer" style="margin:0"><b>Queries must be non-leading</b>Give the clinical indicators and reasonable options, including “other” and “unable to determine”. Never mention payment or the DRG.</div>
+        <div class="field"><label>To</label><select class="inp" id="qto"><option>R. Patel, MD (attending)</option><option>K. Ruiz, DO (ED)</option></select></div>
+        <div class="field"><label>Clinical indicators</label><textarea class="inp" id="qind">Glucose 248–286 on IV methylprednisolone; HbA1c 8.1%; metformin held; sliding-scale insulin started.</textarea></div>
+        <div class="field"><label>Question</label><textarea class="inp" id="qtext" style="min-height:60px">Based on the clinical indicators, please clarify the type of hyperglycemia being treated:</textarea></div>
+        <div class="field"><label>Options offered to the physician</label>${opts.map(o => `<label class="qopt"><input type="checkbox" checked> ${o}</label>`).join('')}</div>
+      </div>
+      <div class="mf"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="sendq">Send query &amp; hold chart</button></div></div></div>`;
+  }
+  if (m.type === 'submit'){
+    const w = S.work;
+    return `<div class="ov"><div class="modal"><div class="mh"><h2>${S.work.mode === 'new' ? 'Submit charges for scoring?' : 'Resubmit charges?'}</h2><button class="ibtn x" data-act="close">✕</button></div>
+      <div class="mb"><div><b>Diagnoses:</b> ${w.dx.map((d,i)=>`${L(i)} ${d.c}`).join(' · ')}</div>
+        <div><b>Charges:</b> ${w.lines.map(l=>`${l.c}${l.mods.filter(Boolean).length?'-'+l.mods.filter(Boolean).join('-'):''} ×${l.units}`).join(' · ')}</div>
+        <div class="muted">After this the charge session leaves the queue and is scored.</div></div>
+      <div class="mf"><button class="btn" data-act="close">Go back</button><button class="btn primary" data-act="dosubmit">Resubmit</button></div></div></div>`;
+  }
+  if (m.type === 'daccept'){
+    return `<div class="ov"><div class="modal"><div class="mh"><h2>Professional charge correction</h2><button class="ibtn x" data-act="close">✕</button></div>
+      <div class="mb"><div>Do you want to accept this session?</div><div class="field"><label>Comment on the voided transaction</label><div class="inp" style="height:auto;padding:10px 12px;background:var(--line2)">${esc(S.work.comment)}</div></div></div>
+      <div class="mf"><button class="btn" data-act="close">◂ Go back</button><button class="btn primary" data-act="doaccept">Accept</button></div></div></div>`;
+  }
+  if (m.type === 'lookup'){
+    return `<div class="ov"><div class="modal"><div class="mh"><h2>CODIVIA Code Search</h2><button class="ibtn x" data-act="close">✕</button></div>
+      <div class="mb"><p class="muted" style="margin:0">In the real app this opens the full Code Search module (index, tabular, guidelines) and brings you back to this chart with your work kept.</p></div>
+      <div class="mf"><button class="btn primary" data-act="close">OK</button></div></div></div>`;
+  }
+  return '';
+}
+
+/* =====================================================================
+   RENDER + EVENTS
+   ===================================================================== */
+function render(){
+  let main = '';
+  if (S.view === 'depts') main = '<div class="scroll">' + vDepts() + '</div>';
+  if (S.view === 'dept') main = '<div class="scroll">' + vDeptList() + '</div>';
+  if (S.view === 'coding') main = vCoding();
+  if (S.view === 'denial') main = vDenial();
+  if (S.view === 'ip') main = vIP();
+  if (S.view === 'result') main = '<div class="scroll">' + vResult() + '</div>';
+  $('#app').innerHTML = vTop() + main + vModal() +
+    `<datalist id="modlist">${MODS.map(m => `<option value="${m[0]}">${esc(m[1])}</option>`).join('')}</datalist>`;
+  selPop().hidden = true;
+  if (S.view === 'ip') afterIP();
+  tick();
+}
+function toast(msg){
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+const elapsed = () => { const s = Math.floor((Date.now() - S.startedAt) / 1000); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); };
+function tick(){ const t = $('#timer'); if (t) t.textContent = elapsed(); }
+setInterval(tick, 1000);
+
+function finishRow(status, note){
+  const r = allRows().find(x => x.id === S.openRow); if (!r) return;
+  r.status = status; if (S.result) r.acc = S.result.pct; if (status === 'deferred') r.deferReason = note; else r.doneNote = note;
+}
+const moveDx = (id, to) => { const w = S.work; const from = w.dx.findIndex(d => d.id === id); if (to < 0 || to >= w.dx.length) return; const [x] = w.dx.splice(from, 1); w.dx.splice(to, 0, x); render(); };
+const lineEl = (el) => S.work.lines.find(l => l.id === +el.closest('tr').dataset.line);
+
+const ACT = {
+  depts: () => { S.view = 'depts'; render(); },
+  dept: (el) => { const d = DEPTS.find(x => x.key === el.dataset.k); if (!d.live) return toast('Prototype: sample charts are in E/M and Inpatient Facility'); S.dept = d.key; S.view = 'dept'; S.qtab = 'active'; S.f.type = 'all'; S.f.rule = ''; render(); },
+  ftype: (el) => { S.f.type = el.dataset.v; render(); },
+  qtab: (el) => { S.qtab = el.dataset.t; render(); },
+  clearf: () => { S.f = {from:'',to:'',prov:'',payer:'',rule:'',q:'',type:'all'}; render(); },
+  open: (el) => { const r = allRows().find(x => x.id === el.dataset.id); r.type === 'denial' ? openDenial(r.id) : S.dept === 'IP' ? openIP(r.id, r.type) : openCoding(r.id, r.type); },
+  back: () => { S.view = 'dept'; S.modal = null; render(); },
+  ctab: (el) => { S.chartTab = el.dataset.t; render(); },
+  visit: (el) => { S.visit = +el.dataset.i; render(); },
+  dxup: (el) => moveDx(+el.dataset.id, S.work.dx.findIndex(d => d.id === +el.dataset.id) - 1),
+  dxdown: (el) => moveDx(+el.dataset.id, S.work.dx.findIndex(d => d.id === +el.dataset.id) + 1),
+  dxrm: (el) => { const id = +el.dataset.id, gone = S.work.dx.find(d => d.id === id); S.work.dx = S.work.dx.filter(d => d.id !== id); S.work.lines.forEach(l => l.ptrs = l.ptrs.filter(p => p !== id));
+    if (S.work.kind === 'ip' && gone) unmarkEv(S.work, gone.ev); render(); },
+  ptr: (el) => { const l = lineEl(el), id = +el.dataset.dx;
+    if (l.ptrs.includes(id)) l.ptrs = l.ptrs.filter(p => p !== id);
+    else if (l.ptrs.length >= 4) return toast('A charge line can point to at most 4 diagnoses');
+    else l.ptrs.push(id);
+    render(); },
+  lnrm: (el) => { const l = lineEl(el); S.work.lines = S.work.lines.filter(x => x !== l); render(); },
+  ptgrid: (el) => { S.work.ptGrid = el.dataset.v; render(); },
+  level: (el) => { const w = S.work, c = el.dataset.c, info = cptInfo(c); const em = w.lines.find(l => isEM(l.c));
+    if (em){ if (em.c === c){ w.lines = w.lines.filter(l => l !== em); } else { em.c = c; em.d = info[1]; em.fee = info[2]; } }
+    else w.lines.unshift({id:++uid, c, d:info[1], fee:info[2], mods:['','','',''], units:1, ptrs:w.dx.slice(0,4).map(d => d.id)});
+    render(); },
+  g2211: () => { const w = S.work; if (w.lines.some(l => l.c === 'G2211')) w.lines = w.lines.filter(l => l.c !== 'G2211');
+    else { const i = cptInfo('G2211'); const at = w.lines.findIndex(l => isEM(l.c)) + 1; w.lines.splice(at, 0, {id:++uid, c:'G2211', d:i[1], fee:i[2], mods:['','','',''], units:1, ptrs:w.dx[0] ? [w.dx[0].id] : []}); }
+    render(); },
+  lmode: (el) => { S.linesMode = el.dataset.v; render(); },
+  sidebar: () => { S.sidebar = !S.sidebar; render(); },
+  ef: (el) => { S.efilter = el.dataset.v; render(); },
+  ack: (el) => { const k = el.dataset.k, a = S.work.acks; a.has(k) ? a.delete(k) : a.add(k); render(); },
+  comment: () => { const t = $('#cmt').value.trim(); if (!t) return; S.work.comments.push({t:now(), text:t}); render(); },
+  lookup: () => { S.modal = {type:'lookup'}; render(); },
+  defer: () => { S.modal = {type:'defer'}; render(); },
+  transfer: () => { S.modal = {type:'transfer'}; render(); },
+  submit: () => { S.modal = {type:'submit'}; render(); },
+  close: () => { S.modal = null; render(); },
+  dodefer: () => { const r = document.querySelector('input[name=dr]:checked'); if (!r) return toast('Pick a reason');
+    S.result = {...scoreAny('defer'), title:'Deferred — ' + r.value, time:elapsed()}; finishRow('deferred', r.value); S.modal = null; S.view = 'result'; render(); },
+  dotransfer: () => { const c = $('#mcomment').value.trim(); if (!c) return toast('A comment is required to transfer');
+    const wq = $('#mwq').value; S.result = {...scoreAny('transfer'), title:'Transferred to ' + wq, time:elapsed()}; finishRow('done', 'Transferred to ' + wq); S.modal = null; S.view = 'result'; render(); },
+  dosubmit: () => { const ip = S.work.kind === 'ip', sc = scoreAny('submit');
+    S.result = {...sc, title:ip ? 'Audit result — ' + S.openRow : S.work.mode === 'new' ? 'Chart submitted' : 'Charges resubmitted', time:elapsed()};
+    finishRow('done', ip ? (S.work.mode === 'drg' ? 'Validated' : 'Coded') : S.work.mode === 'new' ? 'Coded' : 'Resubmitted'); S.modal = null; S.view = 'result'; render(); },
+  redo: () => { S.view = S.work.kind === 'denial' ? 'denial' : S.work.kind === 'ip' ? 'ip' : 'coding'; render(); },
+  /* ---- inpatient ---- */
+  ipdoc: (el) => { S.work.doc = el.dataset.d; const d = S.work.docs.find(x => x.id === el.dataset.d); if (d) d.isNew = false; render(); },
+  iptab: (el) => { S.work.tab = el.dataset.t; render(); },
+  ipinfo: (el) => { S.work.enc.sel = el.dataset.c; encOut(); const b = $('#encout'); if (b) b.scrollIntoView({block:'nearest'}); },
+  encpick: (el) => { S.work.enc.sel = el.dataset.c; encOut(); },
+  encclose: () => { S.work.enc.sel = null; encOut(); },
+  encadd: (el) => { const w = S.work, c = w.enc.sel, x = ipInfo(c); if (!x) return;
+    let row = w.dx.find(d => d.c === c);
+    if (!row){ if (w.dx.length >= 25) return toast('An inpatient claim holds at most 25 diagnoses');
+      row = {id:++uid, c, d:x.d, poa:x.poaExempt ? 'EXEMPT' : '', ev:[]}; el.dataset.v === 'pdx' ? w.dx.unshift(row) : w.dx.push(row); }
+    else if (el.dataset.v === 'pdx'){ w.dx = [row, ...w.dx.filter(d => d !== row)]; }
+    w.enc = {q:'', sel:null}; w.tab = 'dx'; render(); },
+  pcsax: (el) => { const w = S.work, i = +el.dataset.i; w.pcsSel[i] = w.pcsSel[i] === el.dataset.v ? '' : el.dataset.v; render(); },
+  pcsadd: () => { const w = S.work, c = w.pcsSel.join(''); if (w.pcs.some(p => p.c === c)) return toast(c + ' is already coded');
+    w.pcs.push({id:++uid, c, date:'03/14/2026', ev:[]}); render(); },
+  pcsrm: (el) => { const w = S.work, p = w.pcs.find(x => x.id === +el.dataset.id); w.pcs = w.pcs.filter(x => x !== p); if (p) unmarkEv(w, p.ev); render(); },
+  evgo: (el) => { const w = S.work, ev = w.evidence.find(x => x.id === el.dataset.ev); if (!ev) return; w.doc = ev.doc; S.flash = ev.id; render(); },
+  ipquery: () => { S.modal = {type:'query'}; render(); },
+  sendq: () => { const w = S.work, text = $('#qtext').value.trim(); if (!text) return toast('Write the query question');
+    const q = {to:$('#qto').value.replace(/ \(.*/, ''), q:text, t:now(), answer:''}; w.queries.push(q); w.hold = true;
+    w.comments.push({t:now(), text:'Physician query sent to ' + q.to + ' — chart on hold'}); S.modal = null; render();
+    toast('Query sent. The chart is on hold until the physician answers.');
+    setTimeout(() => { if (S.work !== w) return;
+      q.answer = 'Type 2 diabetes with hyperglycemia, worsened by steroids.'; w.hold = false;
+      w.docs.push({id:'qr', isNew:true, title:'Query Response', sub:'Today · ' + q.to, html:`<h3>Physician Query Response</h3><div class="meta">Today ${now()} · ${esc(q.to)} · Signed</div>
+        <h5>Query</h5><p>${esc(q.q)}</p><h5>Response</h5><p><b>Type 2 diabetes mellitus with hyperglycemia</b>, worsened by systemic steroids. Hyperglycemia was monitored and treated with sliding-scale insulin.</p>`});
+      w.comments.push({t:now(), text:q.to + ' answered the query — hold released'});
+      if (S.view === 'ip' && !S.modal) render(); toast(q.to + ' answered your query — see “Query Response”'); }, 6000); },
+  decide: (el) => { S.work.decision = el.dataset.v; render(); },
+  dstep: (el) => { S.work.step = +el.dataset.v; render(); },
+  daccept: () => { if (S.work.comment.trim().length < 10) return toast('Enter a correction comment (at least 10 characters)'); S.modal = {type:'daccept'}; render(); },
+  doaccept: () => { S.work.session = String(2360416000 + Math.floor(Math.random()*999)); S.work.step = 3; S.modal = null; render(); },
+  notify: (el) => { S.work.notified = el.checked; render(); },
+  dfinish: () => { if (S.work.decision !== 'correct' && !S.work.comment.trim()) return toast('A comment is required');
+    const sc = scoreDenial(S.work); S.result = {...sc, title:'Denial worked', time:elapsed()}; finishRow('done', ({correct:'Corrected',appeal:'Appealed',writeoff:'Written off'})[S.work.decision]); S.view = 'result'; render(); },
+};
+
+document.addEventListener('click', (e) => {
+  const mk = e.target.closest('#ipdoc mark.ev');
+  if (mk){ const ev = S.work.evidence.find(x => x.id === mk.dataset.ev); if (ev) toast('Evidence for ' + ev.code + ': “' + ev.text.slice(0, 60) + '”'); return; }
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  if (el.dataset.act === 'notify') return; // handled on change
+  const fn = ACT[el.dataset.act]; if (fn) fn(el);
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset.f !== undefined && t.tagName !== 'INPUT' || (t.dataset.f !== undefined && t.type === 'date')){ S.f[t.dataset.f] = t.value; render(); return; }
+  if (t.dataset.mod !== undefined){ const l = lineEl(t); l.mods[+t.dataset.mod] = t.value.toUpperCase().trim().slice(0,2); render(); return; }
+  if (t.hasAttribute('data-units')){ const l = lineEl(t); l.units = Math.max(1, parseInt(t.value,10) || 1); render(); return; }
+  if (t.dataset.act === 'notify'){ ACT.notify(t); }
+  if (t.dataset.poa !== undefined){ const d = S.work.dx.find(x => x.id === +t.dataset.poa); if (d) d.poa = t.value; render(); return; }
+  if (t.dataset.abs !== undefined){ S.work.abs[t.dataset.abs] = t.value; render(); return; }
+  if (t.dataset.pdate !== undefined){ const p = S.work.pcs.find(x => x.id === +t.dataset.pdate); if (p) p.date = t.value; return; }
+  if (t.hasAttribute('data-encsys')){ if (t.value === 'PCS'){ S.work.tab = 'pcs'; render(); toast('ICD-10-PCS codes are built from tables — opened the Procedures tab'); } return; }
+});
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.dataset.f === 'q'){ S.f.q = t.value; const pos = t.selectionStart; render(); const n = $('input[data-f=q]'); n.focus(); n.setSelectionRange(pos, pos); return; }
+  if (t.dataset.input === 'time'){ S.work.time = t.value.replace(/\D/g,''); t.value = S.work.time;
+    const grid = S.work.ptGrid === 'new' ? [['99202',15],['99203',30],['99204',45],['99205',60]] : [['99212',10],['99213',20],['99214',30],['99215',40]];
+    const m = parseInt(S.work.time,10), fit = m > 0 ? grid.filter(g => m >= g[1]).pop() : null;
+    $('#timeHint').innerHTML = !m ? '' : fit ? `Time alone supports <b>${fit[0]}</b>` : 'Below the time thresholds'; return; }
+  if (t.dataset.input === 'comment'){ S.work.comment = t.value; return; }
+  if (t.hasAttribute('data-enc')){ S.work.enc.q = t.value; S.work.enc.sel = null; encOut(); return; }
+  if (t.hasAttribute('data-find')){ S.work.find = t.value; applyFind(); return; }
+  if (t.hasAttribute('data-notes')){ S.work.notes = t.value; return; }
+  if (t.dataset.search){ showDrop(t); }
+});
+function showDrop(inp){
+  const kind = inp.dataset.search, q = inp.value.trim().toLowerCase(), w = S.work;
+  const src = kind === 'dx' ? ICD.filter(x => !w.dx.some(d => d.c === x[0])) : CPT;
+  const hits = src.filter(x => !q || x[0].toLowerCase().includes(q) || x[1].toLowerCase().includes(q)).slice(0, 12);
+  const drop = inp.nextElementSibling;
+  drop.innerHTML = hits.map(x => `<div class="it" data-pick="${x[0]}"><span class="code">${x[0]}</span><span class="sys">${kind==='dx'?'ICD-10':/^[A-Z]/.test(x[0])?'HCPCS':'CPT'}</span><span>${esc(x[1])}</span></div>`).join('') || '<div class="it"><span></span><span></span><span class="muted">No match</span></div>';
+  drop.hidden = false;
+}
+document.addEventListener('focusin', (e) => { if (e.target.dataset && e.target.dataset.search) showDrop(e.target); });
+document.addEventListener('focusout', (e) => { if (e.target.dataset && e.target.dataset.search){ const d = e.target.nextElementSibling; setTimeout(() => d && (d.hidden = true), 160); } });
+document.addEventListener('mousedown', (e) => {
+  const it = e.target.closest('[data-pick]'); if (!it) return;
+  e.preventDefault();
+  const kind = it.closest('.search').querySelector('input').dataset.search, c = it.dataset.pick, w = S.work;
+  if (kind === 'dx'){ if (w.dx.length >= 12) return toast('A claim holds at most 12 diagnoses'); w.dx.push({id:++uid, c, d:icdInfo(c)[1]}); }
+  else { const i = cptInfo(c); w.lines.push({id:++uid, c, d:i[1], fee:i[2], mods:['','','',''], units:1, ptrs:w.dx[0] ? [w.dx[0].id] : []}); }
+  render();
+});
+/* drag & drop diagnoses */
+let dragId = null;
+document.addEventListener('dragstart', (e) => { const r = e.target.closest && e.target.closest('[data-dx]'); if (!r || !r.classList.contains('dx')) return; dragId = +r.dataset.dx; r.classList.add('dragging'); });
+document.addEventListener('dragend', () => { dragId = null; document.querySelectorAll('.dx.dragging,.dx.over').forEach(x => x.classList.remove('dragging','over')); });
+document.addEventListener('dragover', (e) => { if (dragId == null) return; const r = e.target.closest('.dx'); if (!r) return; e.preventDefault(); document.querySelectorAll('.dx.over').forEach(x => x.classList.remove('over')); r.classList.add('over'); });
+document.addEventListener('drop', (e) => { if (dragId == null) return; const r = e.target.closest('.dx'); if (!r) return; e.preventDefault(); const id = dragId; dragId = null; moveDx(id, S.work.dx.findIndex(d => d.id === +r.dataset.dx)); });
+
+/* inpatient keyboard shortcuts */
+document.addEventListener('keydown', (e) => {
+  if (S.view !== 'ip' || S.modal) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'k'){ e.preventDefault(); const q = $('#encq'); if (q){ q.focus(); q.select(); } }
+  else if (mod && e.key.toLowerCase() === 'f'){ e.preventDefault(); const f = $('input[data-find]'); if (f){ f.focus(); f.select(); } }
+  else if (e.altKey && /^[1-4]$/.test(e.key)){ e.preventDefault(); S.work.tab = IP_TABS[+e.key - 1][0]; render(); }
+  else if (e.key === 'Escape'){ selPop().hidden = true; S.work.enc.sel = null; encOut(); }
+});
+
+// Deep links for review: #coding opens the sample chart, #denial the sample denial, #inpatient / #drg the inpatient chart
+if (location.hash === '#inpatient' || location.hash === '#drg'){ S.dept = 'IP'; openIP(location.hash === '#drg' ? 'IP-0398' : 'IP-0412', location.hash === '#drg' ? 'drg' : 'new'); }
+else if (location.hash === '#coding') openCoding(NEW_ROWS[0].id, 'new');
+else if (location.hash === '#review') openCoding(REVIEW_ROWS[0].id, 'review');
+else if (location.hash === '#denial') openDenial(DENIAL_ROWS[0].id);
+else if (location.hash === '#dept'){ S.view = 'dept'; render(); }
+else render();
+</script>
+</body>
+</html>
