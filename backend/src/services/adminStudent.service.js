@@ -4,6 +4,8 @@ const ApiError = require('../utils/ApiError');
 const httpStatus = require('../utils/httpStatus');
 const { escapeRegex } = require('../utils/codeText');
 const { LIVE_STUDENT, countCharts, rangeCount } = require('./allocation.service');
+const userService = require('./user.service');
+const { ROLES } = require('../config/roles');
 
 // ---------- Admin Students page ----------
 
@@ -243,7 +245,32 @@ const applyBulkAllocation = async () => {
   return { allocated: plan.length };
 };
 
+// Add a student by hand (Students page → Add student). Same account as a self sign-up: the server
+// issues the next Student ID (STU-00001…) and stores the password hashed.
+const createStudent = async ({ name, email, password }, actor) => {
+  const user = await userService.createUser({ name, email, password, role: ROLES.STUDENT }, actor);
+  return { student: studentView(user.toObject ? user.toObject() : user) };
+};
+
+// Edit a student's name, email or password (Students page → Edit). A new password signs the
+// student out everywhere (userService.updateUser revokes their sessions).
+const updateStudent = async (userId, updates, actor) => {
+  await findLiveStudent(userId);
+  const user = await userService.updateUser(userId, updates, actor);
+  return { student: studentView(user.toObject ? user.toObject() : user) };
+};
+
+// Delete a student (soft delete: they can no longer sign in and leave the Students list; their
+// scores, allocations and certificates stay in the database for the records).
+const deleteStudent = async (userId, actor) => {
+  await findLiveStudent(userId);
+  await userService.deleteUser(userId, actor);
+};
+
 module.exports = {
+  createStudent,
+  updateStudent,
+  deleteStudent,
   queryStudents,
   getStudent,
   getStudentAllocations,

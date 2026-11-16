@@ -2,7 +2,8 @@
  * completed / allocated / accuracy / departments, allocated department ranges, and the
  * "View performance" and "Manage access" actions. Same look as AdminDeptCard (.dc-* styles).
  * Props: student (a GET /admin/students card: { uid, id, name, email, status, progress: { worked, allocated, avg },
- *        departments: [{ key, name, start, end, assigned, worked, complete }] }), onPerf(student), onAllocate(student)
+ *        departments: [{ key, name, start, end, assigned, worked, complete }] }), onPerf(student), onAllocate(student),
+ *        onEdit(student) / onDelete(student) — optional, show the pencil / bin buttons
  * Styles: .dc-* and .sc-* in styles/refinements.css
  */
 import { accTone } from '../../utils/progress.js';
@@ -35,7 +36,7 @@ function deptChips(student) {
   }));
 }
 
-export function StudentCard({ student, onPerf, onAllocate }) {
+export function StudentCard({ student, onPerf, onAllocate, onEdit, onDelete }) {
   const { progress, status } = student;
   const badge = STUDENT_STATUS[status] || STUDENT_STATUS.idle;
   const chips = deptChips(student);
@@ -56,6 +57,20 @@ export function StudentCard({ student, onPerf, onAllocate }) {
           </span>
         </div>
         <span className={'dc-badge ' + badge.tone}>{badge.label}</span>
+        {(onEdit || onDelete) && (
+          <span className="sc-tools">
+            {onEdit && (
+              <button type="button" className="sc-icon" onClick={() => onEdit(student)} title="Edit student" aria-label={'Edit ' + student.name}>
+                <i className="bi bi-pencil" aria-hidden="true" />
+              </button>
+            )}
+            {onDelete && (
+              <button type="button" className="sc-icon danger" onClick={() => onDelete(student)} title="Delete student" aria-label={'Delete ' + student.name}>
+                <i className="bi bi-trash" aria-hidden="true" />
+              </button>
+            )}
+          </span>
+        )}
       </div>
 
       {status === 'error' ? (

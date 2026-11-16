@@ -1,6 +1,19 @@
 const { adminStudentService: s } = require('../services');
 const httpStatus = require('../utils/httpStatus');
 
+const createStudent = async (req, res) => {
+  res.status(httpStatus.CREATED).json(await s.createStudent(req.body, req.user));
+};
+
+const updateStudent = async (req, res) => {
+  res.status(httpStatus.OK).json(await s.updateStudent(req.params.userId, req.body, req.user));
+};
+
+const deleteStudent = async (req, res) => {
+  await s.deleteStudent(req.params.userId, req.user);
+  res.status(httpStatus.NO_CONTENT).send();
+};
+
 const getStudents = async (req, res) => {
   res.status(httpStatus.OK).json(await s.queryStudents(req.query));
 };
@@ -25,4 +38,4 @@ const applyBulk = async (req, res) => {
   res.status(httpStatus.OK).json(await s.applyBulkAllocation());
 };
 
-module.exports = { getStudents, getStudent, getAllocations, setAllocations, previewBulk, applyBulk };
+module.exports = { createStudent, updateStudent, deleteStudent, getStudents, getStudent, getAllocations, setAllocations, previewBulk, applyBulk };

@@ -1,7 +1,8 @@
 const Joi = require('joi');
 const { DEPARTMENT_KEY_PATTERN } = require('../config/departments');
 const { STUDENT_STATUS_KEYS, ADMIN_STUDENT_LIMITS: L } = require('../config/adminStudents');
-const { objectId } = require('./custom.validation');
+const { objectId, strongPassword } = require('./custom.validation');
+const { USER_LIMITS } = require('../config/users');
 
 const userIdParam = Joi.object({ userId: Joi.string().custom(objectId).required() });
 const chart = Joi.number().integer().min(1);
@@ -19,6 +20,26 @@ const getStudents = {
   }),
 };
 
+// Add a student by hand: the admin sets the student's password.
+const createStudent = {
+  body: Joi.object({
+    name: Joi.string().trim().min(1).max(USER_LIMITS.name).required(),
+    email: Joi.string().trim().lowercase().email().max(USER_LIMITS.email).required(),
+    password: Joi.string().custom(strongPassword).required(),
+  }),
+};
+
+// Edit a student: any of name / email / new password (blank password = keep the current one).
+const updateStudent = {
+  params: userIdParam,
+  body: Joi.object({
+    name: Joi.string().trim().min(1).max(USER_LIMITS.name),
+    email: Joi.string().trim().lowercase().email().max(USER_LIMITS.email),
+    password: Joi.string().custom(strongPassword),
+  }).min(1),
+};
+const deleteStudent = { params: userIdParam };
+
 const getStudent = { params: userIdParam };
 const getAllocations = { params: userIdParam };
 
@@ -30,4 +51,4 @@ const setAllocations = {
   }),
 };
 
-module.exports = { getStudents, getStudent, getAllocations, setAllocations };
+module.exports = { createStudent, updateStudent, deleteStudent, getStudents, getStudent, getAllocations, setAllocations };

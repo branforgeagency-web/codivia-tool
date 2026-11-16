@@ -11,13 +11,20 @@ const router = express.Router();
 router.use(auth(ROLES.ADMIN));
 
 // Students page: cards with progress, status tabs, statistics. Paged (10 by default), searchable.
-router.get('/', validate(v.getStudents), c.getStudents);
+router
+  .route('/')
+  .get(validate(v.getStudents), c.getStudents)
+  .post(validate(v.createStudent), c.createStudent); // add a student by hand
 
 // Bulk allocate starter charts: preview, then apply. Declared before /:userId.
 router.route('/bulk-allocate').get(c.previewBulk).post(c.applyBulk);
 
 // Performance panel: one student with every saved score.
-router.get('/:userId', validate(v.getStudent), c.getStudent);
+router
+  .route('/:userId')
+  .get(validate(v.getStudent), c.getStudent)
+  .patch(validate(v.updateStudent), c.updateStudent) // edit name / email / password
+  .delete(validate(v.deleteStudent), c.deleteStudent); // soft delete
 
 // Manage Access: the form's departments (with other students' ranges), and save the whole map.
 router

@@ -4862,3 +4862,27 @@ tbody tr:hover {
 /* Admin: floating notice for failed saves (AdminContext.notice) */
 .admin-notice{position:fixed;right:20px;bottom:20px;z-index:1200;display:flex;align-items:flex-start;gap:10px;max-width:420px;margin:0;box-shadow:0 8px 24px rgba(15,23,42,.18)}
 .admin-notice button{background:none;border:0;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+
+/* ---- Admin: Add student form (pages/admin/components/AddStudentForm.jsx) ---- */
+.as-form{display:flex;flex-direction:column;gap:14px}
+.as-field{display:flex;flex-direction:column;gap:6px;border:0;padding:0;margin:0;min-width:0}
+.as-field>span,.as-field>legend{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.02em;padding:0;margin-bottom:6px}
+.as-field input[type=text],.as-field input:not([type]),.as-field input[type=email],.as-field input[type=password]{width:100%;min-height:40px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px}
+.as-field input[aria-invalid=true]{border-color:var(--tone-fca5a5);background:var(--tone-fef2f2)}
+.as-field em{font-style:normal;font-size:12.5px;font-weight:700;color:var(--tone-b4232a)}
+.as-field small{font-size:12px;color:var(--muted)}
+.as-done{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:#E4F5EE;color:#0B5A40;font-size:14px;line-height:1.55;margin-bottom:12px}
+.as-done>i{font-size:22px;color:#0B7A55}
+.as-pw{display:flex;gap:8px}
+.as-pw input{flex:1}
+.as-mono{font-family:var(--font-mono,ui-monospace,Menlo,monospace)}
+
+/* student card: edit / delete buttons */
+.sc-tools{display:flex;gap:4px;margin-left:6px}
+.sc-icon{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--color-white);color:var(--muted);display:grid;place-items:center;cursor:pointer;font-size:13px}
+.sc-icon:hover{color:var(--ink);border-color:#cfcac3}
+.sc-icon.danger:hover{color:var(--tone-b4232a);border-color:var(--tone-fca5a5);background:var(--tone-fef2f2)}
+.as-warn{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:var(--tone-fef2f2);color:var(--tone-b4232a);font-size:13.5px;line-height:1.55;margin-bottom:14px}
+.as-warn>i{font-size:20px}
+.dc-action.as-danger{background:var(--tone-b4232a);border-color:var(--tone-b4232a)}
+.dc-action.as-danger:disabled{opacity:.45}

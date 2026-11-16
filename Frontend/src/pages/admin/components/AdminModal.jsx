@@ -2,16 +2,33 @@ import { useAdmin } from '../../../context/AdminContext.jsx';
 import { AddStudentForm } from './AddStudentForm.jsx';
 import { AllocateForm } from './AllocateForm.jsx';
 import { BulkAllocateForm } from './BulkAllocateForm.jsx';
+import { DeleteStudentForm } from './DeleteStudentForm.jsx';
+import { EditStudentForm } from './EditStudentForm.jsx';
 import { DeptAllocateForm } from './DeptAllocateForm.jsx';
 
 // ---- Admin modals: manage access, department allocation, bulk allocate, add student ----
 // Each form loads its own data from the API; saves go through AdminContext.
 export function AdminModal({ modal, onClose }) {
-  const { saveStudentAllocations, allocateDept, bulkAllocate, refreshAll } = useAdmin();
+  const { saveStudentAllocations, allocateDept, bulkAllocate, refreshAll, setModal } = useAdmin();
 
-  // Manage access draws its own (wider) modal.
+  // Manage access and Add student draw their own modal (components/ui/Modal).
   if (modal.type === 'allocate') {
     return <AllocateForm student={modal.student} onSave={saveStudentAllocations} onClose={onClose} />;
+  }
+  if (modal.type === 'editStudent') {
+    return <EditStudentForm student={modal.student} onClose={onClose} onSaved={refreshAll} />;
+  }
+  if (modal.type === 'deleteStudent') {
+    return <DeleteStudentForm student={modal.student} onClose={onClose} onDeleted={refreshAll} />;
+  }
+  if (modal.type === 'addStudent') {
+    return (
+      <AddStudentForm
+        onClose={onClose}
+        onCreated={refreshAll} // the new card and the statistics appear at once
+        onAllocate={(student) => setModal({ type: 'allocate', student })} // straight on to Manage access
+      />
+    );
   }
   return (
     <div
@@ -22,15 +39,6 @@ export function AdminModal({ modal, onClose }) {
     >
       <div className="result-card" style={{ maxWidth: 560 }}>
         {modal.type === 'deptAllocate' && <DeptAllocateForm deptKey={modal.dept} onSave={allocateDept} onClose={onClose} />}
-        {modal.type === 'addStudent' && (
-          <AddStudentForm
-            addStudent={() => {
-              refreshAll();
-              onClose();
-            }}
-            onClose={onClose}
-          />
-        )}
         {modal.type === 'bulkAllocate' && <BulkAllocateForm onApply={bulkAllocate} onClose={onClose} />}
       </div>
     </div>

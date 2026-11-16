@@ -20,6 +20,7 @@ const ICON = {
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z',
   refresh: 'M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6',
   layers: 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+  userPlus: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6',
 };
 
 const Svg = ({ d, size = 18 }) => (
@@ -28,7 +29,7 @@ const Svg = ({ d, size = 18 }) => (
   </svg>
 );
 
-export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk }) {
+export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk, onAdd, onEdit, onDelete }) {
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim());
@@ -42,14 +43,17 @@ export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk
       <div className="page-head sc-head">
         <div>
           <h1>Students</h1>
-          <p>Students who have registered. Allocate department charts and follow their progress.</p>
+          <p>Students who registered or were added by an admin. Allocate department charts and follow their progress.</p>
         </div>
         <div className="sc-head-acts">
           <button type="button" className="sc-ghost" onClick={onBulk}>
             <Svg d={ICON.layers} size={16} /> Bulk allocate
           </button>
-          <button type="button" className="dc-action" onClick={onRefresh} disabled={loading}>
+          <button type="button" className="sc-ghost" onClick={onRefresh} disabled={loading}>
             <Svg d={ICON.refresh} size={16} /> {loading ? 'Refreshing…' : 'Refresh'}
+          </button>
+          <button type="button" className="dc-action" onClick={onAdd}>
+            <Svg d={ICON.userPlus} size={16} /> Add student
           </button>
         </div>
       </div>
@@ -92,7 +96,7 @@ export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk
         <>
           <div className="ad-grid">
             {list.results.map((s) => (
-              <StudentCard key={s.uid} student={s} onPerf={onPerf} onAllocate={onAllocate} />
+              <StudentCard key={s.uid} student={s} onPerf={onPerf} onAllocate={onAllocate} onEdit={onEdit} onDelete={onDelete} />
             ))}
           </div>
           <Pagination {...list.pagerProps} itemLabel="students" />
@@ -105,7 +109,10 @@ export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk
           {stats.students === 0 ? (
             <>
               <h3>No students yet</h3>
-              <p>Once a student creates an account, press Refresh to see them here.</p>
+              <p>Add a student with “Add student”, or ask students to sign up — then they appear here.</p>
+              <button type="button" className="dc-action" onClick={onAdd} style={{ marginTop: 12 }}>
+                <Svg d={ICON.userPlus} size={16} /> Add student
+              </button>
             </>
           ) : (
             <>
@@ -129,6 +136,9 @@ export default function StudentsPage() {
       onRefresh={refreshAll}
       onPerf={setPerfStudent}
       onBulk={() => setModal({ type: 'bulkAllocate' })}
+      onAdd={() => setModal({ type: 'addStudent' })}
+      onEdit={(student) => setModal({ type: 'editStudent', student })}
+      onDelete={(student) => setModal({ type: 'deleteStudent', student })}
     />
   );
 }
