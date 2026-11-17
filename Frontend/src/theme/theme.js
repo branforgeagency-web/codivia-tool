@@ -62,7 +62,6 @@ export const tiles = {
   myCertificates: { accent: '#0EA5A0', accent2: '#0B4A47' },
   resume: { accent: '#EC4899', accent2: '#9D174D' },
   upload: { accent: '#F26722', accent2: '#7A2E14' },
-  refresh: { accent: '#10B981', accent2: '#065F46' },
 };
 
 // CSS variable names used by app.css (names kept from the original stylesheet)

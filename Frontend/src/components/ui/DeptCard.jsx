@@ -6,22 +6,24 @@
  *   …body…
  * </DeptCard>
  *
+ * icon: the department's saved icon (used when the key has no built-in icon). tools: buttons after the badge.
  * badge tones: ok | warn | danger | brand | muted. Styles: .dc-* in styles/refinements.css
  */
 import { DeptIcon } from './DeptIcon.jsx';
 
-export function DeptCard({ deptKey, name, meta, badge, footer, className = '', children }) {
+export function DeptCard({ deptKey, icon, name, meta, badge, tools, footer, className = '', children }) {
   return (
     <article className={'dc-card ' + className}>
       <div className="dc-top">
         <span className="dc-ico" aria-hidden="true">
-          <DeptIcon dept={deptKey} />
+          <DeptIcon dept={deptKey} icon={icon} />
         </span>
         <div className="dc-title">
           <h3>{name}</h3>
           {meta && <span className="dc-meta">{meta}</span>}
         </div>
         {badge && <span className={'dc-badge ' + (badge.tone || 'muted')}>{badge.label}</span>}
+        {tools}
       </div>
       {children}
       {footer && <div className="dc-foot">{footer}</div>}

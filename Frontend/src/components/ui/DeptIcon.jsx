@@ -34,7 +34,10 @@ const DEPT_ICONS = {
   DME: 'person-wheelchair',
 };
 
-export function DeptIcon({ dept }) {
+// Built-in departments use the icon set above; a department an admin created shows its own
+// icon (the emoji saved with it), else a generic clipboard.
+export function DeptIcon({ dept, icon }) {
+  if (!DEPT_ICONS[dept] && icon) return <span className="dept-emoji" aria-hidden="true">{icon}</span>;
   const name = DEPT_ICONS[dept] || 'clipboard2-pulse';
   return <i className={'bi bi-' + name} aria-hidden="true" />;
 }

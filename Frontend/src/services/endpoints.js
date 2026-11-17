@@ -19,6 +19,8 @@ export const RESUME_TEMPLATE_CATALOG = `${RESUMES}/templates`;
 // Department records (name, icon, group, code sets, chartCount). Not paged: a few dozen rows.
 export const DEPARTMENTS = '/departments';
 export const DEPARTMENT = (key) => `${DEPARTMENTS}/${encodeURIComponent(key)}`;
+// Department form options: groups and code sets ({ groups: [{key,label}], elements: [{key,label}] })
+export const DEPARTMENTS_META = `${DEPARTMENTS}/meta`;
 // Student My Charts: the signed-in student's allocated departments + stat tiles (student only)
 export const MY_CHARTS = '/my-charts';
 export const MY_PROGRESS = '/my-progress';

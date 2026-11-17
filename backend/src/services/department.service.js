@@ -1,4 +1,4 @@
-const { Department, Chart } = require('../models');
+const { Allocation, Chart, ChartUpload, Department } = require('../models');
 const { MANAGER_ROLES } = require('../config/roles');
 const { CODE_ELEMENTS, DEPARTMENT_GROUP_LABELS } = require('../config/departments');
 const ApiError = require('../utils/ApiError');
@@ -91,6 +91,11 @@ const deleteDepartment = async (key) => {
       `${dept.name} still has ${charts} charts. Set it inactive instead of deleting it.`
     );
   }
+  const drafts = await ChartUpload.countDocuments({ dept: dept._id });
+  if (drafts > 0) {
+    throw new ApiError(httpStatus.CONFLICT, `${dept.name} has ${drafts} uploaded chart(s) on the Upload page. Delete them first, or set the department inactive.`);
+  }
+  await Allocation.deleteMany({ dept: dept._id }); // no charts left, so these ranges point at nothing
   await dept.deleteOne();
 };
 

@@ -18,6 +18,7 @@ const ICON = {
   users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z',
+  plus: 'M12 5v14M5 12h14',
 };
 
 // Group notes shown under the tabs (tab labels and counts come from the API).
@@ -32,7 +33,7 @@ const Svg = ({ d, size = 18 }) => (
   </svg>
 );
 
-export function AdminDepartments({ reloadKey, onManage }) {
+export function AdminDepartments({ reloadKey, onManage, onAdd, onEdit, onDelete }) {
   const [group, setGroup] = useState('all');
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim());
@@ -51,12 +52,21 @@ export function AdminDepartments({ reloadKey, onManage }) {
 
   return (
     <div className="ad">
-      <div className="page-head">
-        <h1>Departments</h1>
-        <p>
-          {stats.departments +
-            ' active coding departments across two groups — specialty tracks and RCM setting domains. Chart pools vary by department.'}
-        </p>
+      <div className="page-head sc-head">
+        <div>
+          <h1>Departments</h1>
+          <p>
+            {stats.departments +
+              ' coding departments across two groups — specialty tracks and RCM setting domains. Chart pools vary by department.'}
+          </p>
+        </div>
+        {onAdd && (
+          <div className="sc-head-acts">
+            <button type="button" className="dc-action" onClick={onAdd}>
+              <Svg d={ICON.plus} size={16} /> Add department
+            </button>
+          </div>
+        )}
       </div>
 
       <StatTiles>
@@ -87,7 +97,7 @@ export function AdminDepartments({ reloadKey, onManage }) {
         <>
           <div className="ad-grid">
             {list.results.map((d) => (
-              <AdminDeptCard key={d.key} deptKey={d.key} dept={d} pool={d.pool} allocated={d.allocated} students={d.students} onManage={onManage} />
+              <AdminDeptCard key={d.key} deptKey={d.key} dept={d} pool={d.pool} allocated={d.allocated} students={d.students} onManage={onManage} onEdit={onEdit} onDelete={onDelete} />
             ))}
           </div>
           <Pagination {...list.pagerProps} itemLabel="departments" />
@@ -108,5 +118,13 @@ export function AdminDepartments({ reloadKey, onManage }) {
 // route: /admin/departments
 export default function DepartmentsPage() {
   const { setModal, version } = useAdmin();
-  return <AdminDepartments reloadKey={version} onManage={(dk) => setModal({ type: 'deptAllocate', dept: dk })} />;
+  return (
+    <AdminDepartments
+      reloadKey={version}
+      onManage={(dk) => setModal({ type: 'deptAllocate', dept: dk })}
+      onAdd={() => setModal({ type: 'addDepartment' })}
+      onEdit={(dept) => setModal({ type: 'editDepartment', dept })}
+      onDelete={(dept) => setModal({ type: 'deleteDepartment', dept })}
+    />
+  );
 }

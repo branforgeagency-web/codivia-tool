@@ -1,18 +1,16 @@
 /* CODIVIA platform — admin dashboard layout: header + sidebar menu + routed page + modals */
 import { useEffect } from 'react';
 import { DashboardLayout } from '../components/layout/DashboardLayout.jsx';
-import { SidebarTile } from '../components/layout/Sidebar.jsx';
 import { ADMIN_NAV } from '../config/navigation.js';
 import { AdminProvider, useAdmin } from '../context/AdminContext.jsx';
 import { useSession } from '../context/SessionContext.jsx';
 import { AdminModal } from '../pages/admin/components/AdminModal.jsx';
 import { AdminChartView } from '../pages/admin/components/ChartViewModal.jsx';
 import { AdminPerformance } from '../pages/admin/components/PerformanceModal.jsx';
-import { theme } from '../theme/theme.js';
 
 function AdminShell() {
   const { session, logout } = useSession();
-  const { totals, refreshAll, modal, setModal, perfStudent, setPerfStudent, browseChart, setBrowseChart, notice, setNotice } =
+  const { totals, modal, setModal, perfStudent, setPerfStudent, browseChart, setBrowseChart, notice, setNotice } =
     useAdmin();
 
   // Success messages fade on their own; errors stay until dismissed.
@@ -34,7 +32,6 @@ function AdminShell() {
   const sidebarFooter = (
     <>
       <div className="side-sep" />
-      <SidebarTile item={{ id: 'refresh', ic: '🔄', lbl: 'Refresh data', ...theme.tiles.refresh }} active={false} onClick={refreshAll} />
       <div className="side-foot">Admin / TL</div>
     </>
   );

@@ -3,31 +3,30 @@ const { DEPARTMENT_GROUPS } = require('../config/departments');
 const { DEPARTMENT_FILTERS } = require('../config/adminDepartments');
 const { countCharts, summarize } = require('./allocation.service');
 
-// Admin Departments page: every department that has charts, as cards, with the page statistics
+// Admin Departments page: every department (also new ones with no charts yet, and inactive ones), as cards, with the page statistics
 // and filter tab counts. Statistics and counts always cover every department; the group filter,
 // search, sort and page only change `results`. Everything is read live from the database.
 const queryDepartments = async ({ group = 'all', search, sortBy = 'order', order = 'asc', page = 1, limit = 10 }) => {
   const [departments, pools] = await Promise.all([Department.find().select('name icon group elements order isActive').lean(), countCharts()]);
   const { byDept, assignedStudents, students } = await summarize(pools);
 
-  const all = departments
-    .filter((d) => pools[d._id] > 0)
-    .map((d) => {
-      const { allocated = 0, students: deptStudents = 0 } = byDept[d._id] || {};
-      return {
-        key: d._id,
-        name: d.name,
-        icon: d.icon,
-        group: d.group,
-        elements: d.elements,
-        isActive: d.isActive,
-        pool: pools[d._id],
-        allocated,
-        available: pools[d._id] - allocated,
-        students: deptStudents,
-        order: d.order,
-      };
-    });
+  const all = departments.map((d) => {
+    const pool = pools[d._id] || 0;
+    const { allocated = 0, students: deptStudents = 0 } = byDept[d._id] || {};
+    return {
+      key: d._id,
+      name: d.name,
+      icon: d.icon,
+      group: d.group,
+      elements: d.elements,
+      isActive: d.isActive,
+      pool,
+      allocated,
+      available: pool - allocated,
+      students: deptStudents,
+      order: d.order,
+    };
+  });
 
   const inGroup = (g) => (g === 'all' ? all : all.filter((d) => d.group === g));
   const term = (search || '').toLowerCase();

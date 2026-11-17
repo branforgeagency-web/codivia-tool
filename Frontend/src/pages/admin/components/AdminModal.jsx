@@ -1,19 +1,35 @@
 import { useAdmin } from '../../../context/AdminContext.jsx';
+import { useSession } from '../../../context/SessionContext.jsx';
 import { AddStudentForm } from './AddStudentForm.jsx';
 import { AllocateForm } from './AllocateForm.jsx';
 import { BulkAllocateForm } from './BulkAllocateForm.jsx';
+import { DeleteDepartmentForm } from './DeleteDepartmentForm.jsx';
 import { DeleteStudentForm } from './DeleteStudentForm.jsx';
+import { DepartmentForm } from './DepartmentForm.jsx';
 import { EditStudentForm } from './EditStudentForm.jsx';
 import { DeptAllocateForm } from './DeptAllocateForm.jsx';
 
-// ---- Admin modals: manage access, department allocation, bulk allocate, add student ----
+// ---- Admin modals: manage access, department allocation, bulk allocate,
+// add / edit / delete student, add / edit / delete department ----
 // Each form loads its own data from the API; saves go through AdminContext.
 export function AdminModal({ modal, onClose }) {
   const { saveStudentAllocations, allocateDept, bulkAllocate, refreshAll, setModal } = useAdmin();
+  const { reloadSession } = useSession();
+  // A department changed: refresh the lists and the department names/labels used across the app.
+  const departmentsChanged = () => {
+    refreshAll();
+    reloadSession().catch((e) => console.error('reload departments', e));
+  };
 
   // Manage access and Add student draw their own modal (components/ui/Modal).
   if (modal.type === 'allocate') {
     return <AllocateForm student={modal.student} onSave={saveStudentAllocations} onClose={onClose} />;
+  }
+  if (modal.type === 'addDepartment' || modal.type === 'editDepartment') {
+    return <DepartmentForm dept={modal.type === 'editDepartment' ? modal.dept : null} onClose={onClose} onSaved={departmentsChanged} />;
+  }
+  if (modal.type === 'deleteDepartment') {
+    return <DeleteDepartmentForm dept={modal.dept} onClose={onClose} onDone={departmentsChanged} />;
   }
   if (modal.type === 'editStudent') {
     return <EditStudentForm student={modal.student} onClose={onClose} onSaved={refreshAll} />;
