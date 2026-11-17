@@ -10,7 +10,7 @@ import { AdminPerformance } from '../pages/admin/components/PerformanceModal.jsx
 
 function AdminShell() {
   const { session, logout } = useSession();
-  const { totals, pendingQueries, modal, setModal, perfStudent, setPerfStudent, browseChart, setBrowseChart, notice, setNotice } =
+  const { totals, pendingQueries, workAttention, modal, setModal, perfStudent, setPerfStudent, browseChart, setBrowseChart, notice, setNotice } =
     useAdmin();
 
   // Success messages fade on their own; errors stay until dismissed.
@@ -22,7 +22,7 @@ function AdminShell() {
 
   const students = totals ? totals.students : 0;
   const navItems = ADMIN_NAV.map((item) =>
-    item.id === 'students' ? { ...item, count: students } : item.id === 'queries' ? { ...item, count: pendingQueries } : item,
+    item.id === 'students' ? { ...item, count: students } : item.id === 'queries' ? { ...item, count: pendingQueries } : item.id === 'activity' ? { ...item, count: workAttention } : item,
   );
 
   const headerExtra = (

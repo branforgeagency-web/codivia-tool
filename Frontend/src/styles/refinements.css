@@ -4988,3 +4988,33 @@ tbody tr:hover {
 .bc-acts{display:inline-flex;gap:6px}
 .bc-acts .bi{margin-right:2px}
 @media (max-width:600px){.ue-banner{flex-direction:column}}
+
+/* Admin: Chart Activity (pages/admin/Activity.jsx) — reuses the .pq-* card styles */
+.wa-card.deferred{border-left:4px solid #e0a526}
+.wa-card.transferred{border-left:4px solid #f26722}
+.wa-card.in_progress{border-left:4px solid #94a3b8}
+.wa-card.done{border-left:4px solid #10b981}
+.wa-filters{gap:12px;flex-wrap:wrap;align-items:flex-end}
+.wa-select{display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.wa-select select{min-width:200px;min-height:38px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;font:inherit;font-size:13.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink)}
+.wa-type{padding:2px 9px;border-radius:999px;background:#f1efeb;color:#6e6a63;font-size:12px;font-weight:700}
+.wa-meta a{color:#c94a10;font-weight:700}
+.wa-why.deferred{background:#fff8e6;border:1px solid #f3dca0}
+.wa-why.transferred{background:#fff3ea;border:1px solid #f6c89f}
+.wa-comments{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.wa-comments li{font-size:13.5px;line-height:1.5}
+.wa-comments li span{display:inline-block;min-width:78px;margin-right:8px;font-size:12px;color:var(--muted)}
+.wa-timeline h4{margin:0 0 6px;font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.wa-timeline ol{list-style:none;margin:0;padding:0 0 0 4px;border-left:2px solid var(--line);display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto}
+.wa-timeline li{display:grid;grid-template-columns:22px 84px 1fr;gap:6px;align-items:baseline;margin-left:-11px;font-size:13px;line-height:1.45}
+.wa-timeline li>i{width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:#fff;border:1px solid var(--line);font-size:11px;color:var(--muted)}
+.wa-timeline li.k-admin>i{border-color:#f26722;color:#c94a10}
+.wa-timeline li.k-admin .wa-x{font-weight:700;color:#c94a10}
+.wa-timeline li.k-defer>i{color:#9a6b12}
+.wa-timeline li.k-transfer>i{color:#c94a10}
+.wa-timeline li.k-submit>i{color:#0e7a5b}
+.wa-t{font-size:12px;color:var(--muted)}
+.wa-x{color:var(--ink);word-break:break-word}
+.wa-none{margin:0;font-size:13px;color:var(--muted)}
+.wa-btns{display:inline-flex;gap:8px;flex-wrap:wrap}
+@media (max-width:600px){.wa-select select{min-width:0;width:100%}.wa-select{flex:1 1 100%}.wa-timeline li{grid-template-columns:22px 1fr}.wa-timeline li .wa-t{grid-column:2}.wa-timeline li .wa-x{grid-column:2}}

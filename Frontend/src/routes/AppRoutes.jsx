@@ -30,6 +30,7 @@ const AdminCharts = lazy(() => import('../pages/admin/Charts.jsx'));
 const AdminStudents = lazy(() => import('../pages/admin/Students.jsx'));
 const AdminUpload = lazy(() => import('../pages/admin/Upload.jsx'));
 const AdminQueries = lazy(() => import('../pages/admin/Queries.jsx'));
+const AdminActivity = lazy(() => import('../pages/admin/Activity.jsx'));
 
 // Where a student lands on "/" (or an old /app.html link). Old query links still work:
 //   ?view=findcode -> Code Search,  ?dept=CARDIO -> that department's chart queue
@@ -80,6 +81,7 @@ function AdminRoutes() {
         <Route path="students" element={<AdminStudents />} />
         <Route path="upload" element={<AdminUpload />} />
         <Route path="queries" element={<AdminQueries />} />
+        <Route path="activity" element={<AdminActivity />} />
       </Route>
       <Route path="*" element={<Navigate to={PATHS.adminOverview} replace />} />
     </Routes>

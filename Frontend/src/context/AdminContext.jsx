@@ -6,12 +6,14 @@
      PUT /admin/students/:id/allocations         one student's whole allocation map (Manage Access)
      PUT /admin/departments/:dept/allocations    many students in one department
      POST /admin/students/bulk-allocate          starter charts for every unallocated student
-     GET /admin/queries/pending-count            Physician Queries badge (re-checked every 30 s) */
+     GET /admin/queries/pending-count            Physician Queries badge (re-checked every 30 s)
+     GET /admin/work/summary                     Chart Activity badge: deferred + transferred charts */
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { get, post, put } from '../services/apiHelper.js';
 import {
   ADMIN_STUDENT_ALLOCATIONS,
   ADMIN_QUERIES_PENDING,
+  ADMIN_WORK_SUMMARY,
   ADMIN_STUDENTS_BULK,
   DEPARTMENT_ALLOCATIONS,
   DEPARTMENT_POOLS,
@@ -34,6 +36,7 @@ export function AdminProvider({ children }) {
   const [totals, setTotals] = useState(null); // department-pools analytics: departments, totalPool, allocated, students
   const [version, setVersion] = useState(0);
   const [pendingQueries, setPendingQueries] = useState(0); // students' physician queries waiting for an answer
+  const [workAttention, setWorkAttention] = useState(0); // charts students deferred or transferred
 
   const fail = useCallback((what, e) => {
     console.error(what, e);
@@ -54,9 +57,14 @@ export function AdminProvider({ children }) {
   // Physician Queries badge: on load, after every change, and every 30 s while the tab is visible.
   const loadPendingQueries = useCallback(
     () =>
-      get(ADMIN_QUERIES_PENDING)
-        .then((r) => setPendingQueries(r.pending || 0))
-        .catch((e) => console.error('pending queries', e)),
+      Promise.all([
+        get(ADMIN_QUERIES_PENDING)
+          .then((r) => setPendingQueries(r.pending || 0))
+          .catch((e) => console.error('pending queries', e)),
+        get(ADMIN_WORK_SUMMARY)
+          .then((r) => setWorkAttention(r.attention || 0))
+          .catch((e) => console.error('chart activity summary', e)),
+      ]),
     [],
   );
   useEffect(() => {
@@ -112,6 +120,7 @@ export function AdminProvider({ children }) {
   const value = {
     totals,
     pendingQueries,
+    workAttention,
     version,
     refreshAll,
     saveStudentAllocations,

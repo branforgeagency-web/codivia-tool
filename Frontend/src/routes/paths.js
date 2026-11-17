@@ -18,6 +18,7 @@ export const PATHS = {
   adminStudents: '/admin/students',
   adminUpload: '/admin/upload',
   adminQueries: '/admin/queries',
+  adminActivity: '/admin/activity',
 };
 
 export const deptQueuePath = (deptKey) => `${PATHS.charts}/${deptKey}`;

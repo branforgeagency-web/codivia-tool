@@ -21,3 +21,4 @@ module.exports.myProgressService = require('./myProgress.service');
 module.exports.adminStudentService = require('./adminStudent.service');
 module.exports.chartUploadService = require('./chartUpload.service');
 module.exports.adminQueryService = require('./adminQuery.service');
+module.exports.adminWorkService = require('./adminWork.service');

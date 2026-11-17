@@ -21,6 +21,7 @@ export const ADMIN_NAV = [
   { id: 'departments', path: PATHS.adminDepartments, ic: '🗂️', lbl: 'Departments', ...tiles.charts },
   { id: 'charts', path: PATHS.adminCharts, ic: '📄', lbl: 'Browse Charts', ...tiles.myCertificates },
   { id: 'students', path: PATHS.adminStudents, ic: '👥', lbl: 'Students', ...tiles.progress },
+  { id: 'activity', path: PATHS.adminActivity, ic: '🧾', lbl: 'Chart Activity', ...tiles.resume },
   { id: 'upload', path: PATHS.adminUpload, ic: '📤', lbl: 'Upload Charts', ...tiles.upload },
   { id: 'queries', path: PATHS.adminQueries, ic: '💬', lbl: 'Physician Queries', ...tiles.guidelines },
 ];

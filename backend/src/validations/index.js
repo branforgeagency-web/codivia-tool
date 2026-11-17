@@ -14,3 +14,4 @@ module.exports.chartUploadValidation = require('./chartUpload.validation');
 module.exports.myChartValidation = require('./myChart.validation');
 module.exports.myProgressValidation = require('./myProgress.validation');
 module.exports.adminQueryValidation = require('./adminQuery.validation');
+module.exports.adminWorkValidation = require('./adminWork.validation');

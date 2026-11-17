@@ -34,6 +34,10 @@ const CHARGE_SESSION = Object.freeze({ counter: 'chargeSessions', prefix: 'CS-',
 const QUERY_STATUS = Object.freeze({ PENDING: 'pending', ANSWERED: 'answered' });
 const ADMIN_QUERY_LIMITS = Object.freeze({ answer: 2000, search: 100, defaultLimit: 10, maxLimit: 50 });
 
+// Admin Chart Activity page: tabs, page size, how much of each timeline is sent, note length.
+const ADMIN_WORK_TAB_KEYS = Object.freeze(['attention', 'deferred', 'transferred', 'in_progress', 'done', 'all']);
+const ADMIN_WORK_LIMITS = Object.freeze({ note: 1000, search: 100, defaultLimit: 10, maxLimit: 50, activity: 30, comments: 10 });
+
 // Size limits for an autosaved draft (the workspace state).
 const WORK_LIMITS = Object.freeze({
   dx: 25,
@@ -63,5 +67,7 @@ module.exports = {
   CHARGE_SESSION,
   QUERY_STATUS,
   ADMIN_QUERY_LIMITS,
+  ADMIN_WORK_TAB_KEYS,
+  ADMIN_WORK_LIMITS,
   WORK_LIMITS,
 };
