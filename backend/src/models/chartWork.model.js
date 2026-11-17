@@ -4,8 +4,9 @@ const { toJSON } = require('./plugins');
 
 const { ObjectId, Mixed } = mongoose.Schema.Types;
 
-// A physician (CDI) query the student sent from the workspace. The answer becomes visible once
-// `answerAt` has passed (simulated provider turnaround).
+// A physician (CDI) query the student sent from the workspace. It stays pending (the chart is on
+// hold) until an admin answers it from the Physician Queries page.
+// Older rows were auto-answered: they have `answerAt` + `answer` and no `answeredAt`.
 const querySchema = new mongoose.Schema(
   {
     to: { type: String, required: true },
@@ -13,8 +14,10 @@ const querySchema = new mongoose.Schema(
     question: { type: String, required: true },
     options: { type: [String], default: [] },
     sentAt: { type: Date, required: true },
-    answerAt: { type: Date, required: true },
-    answer: { type: String, required: true },
+    answer: { type: String, default: '' },
+    answeredAt: { type: Date, default: null },
+    answeredBy: { type: ObjectId, ref: 'User', default: null },
+    answerAt: { type: Date, default: undefined }, // legacy: auto-answer time
   },
   { _id: true }
 );

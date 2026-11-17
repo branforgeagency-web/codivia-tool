@@ -4919,3 +4919,62 @@ tbody tr:hover {
 .df-switch input{width:18px;height:18px;min-height:0;margin:2px 0 0;accent-color:var(--teal)}
 .dept-emoji{font-size:1.1em;line-height:1}
 @media (max-width:640px){.df-row{grid-template-columns:1fr}}
+
+/* Admin: Physician Queries (pages/admin/Queries.jsx) */
+.pq-list{display:flex;flex-direction:column;gap:14px;margin-bottom:16px}
+.pq-card{display:flex;flex-direction:column;gap:12px;padding:18px;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 1px 2px rgba(20,18,16,.04)}
+.pq-card.pending{border-left:4px solid #e0a526}
+.pq-card.answered{border-left:4px solid #10b981}
+.pq-head{display:flex;align-items:center;gap:12px}
+.pq-who{display:flex;flex-direction:column;min-width:0;flex:1}
+.pq-who b{font-size:15px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pq-who span{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pq-off{color:#c2412d;font-style:normal;font-weight:700}
+.pq-chart{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px}
+.pq-chart b{font-family:var(--font-mono,ui-monospace,Menlo,monospace);font-size:13px}
+.pq-dept{padding:2px 9px;border-radius:999px;background:#ffeadb;color:#c94a10;font-size:12px;font-weight:700}
+.pq-title{color:var(--muted)}
+.pq-meta{display:flex;gap:24px;margin:0}
+.pq-meta div{display:flex;gap:6px;align-items:baseline}
+.pq-meta dt{font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.pq-meta dd{margin:0;font-size:13.5px;font-weight:600;color:var(--ink)}
+.pq-block{padding:10px 12px;border-radius:10px;background:#f8f7f5}
+.pq-block h4,.pq-opts h4{margin:0 0 4px;font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.pq-block h4 span{text-transform:none;letter-spacing:0;font-weight:600}
+.pq-block p{margin:0;font-size:13.5px;line-height:1.55;white-space:pre-wrap;color:var(--ink)}
+.pq-answer{background:#effaf5;border:1px solid #c6ecda}
+.pq-reply{display:flex;flex-direction:column;gap:10px;padding-top:4px;border-top:1px dashed var(--line)}
+.pq-opts>div{display:flex;flex-wrap:wrap;gap:8px}
+.pq-opt{padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:13px;cursor:pointer;color:var(--ink)}
+.pq-opt:hover{border-color:#e0a526;background:#fff8e6}
+.pq-opt.on{border-color:#c94a10;background:#ffeadb;color:#c94a10;font-weight:700}
+.pq-suggest{align-self:flex-start;display:inline-flex;gap:6px;align-items:center;padding:6px 12px;border:1px dashed #9fd9bf;border-radius:9px;background:#f0fbf6;color:#0e7a5b;font-size:13px;font-weight:600;cursor:pointer}
+.pq-suggest:hover{background:#dff4ea}
+.pq-text{width:100%;min-height:84px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;line-height:1.5;resize:vertical}
+.pq-text:focus{outline:2px solid rgba(242,103,34,.35);border-color:#f26722}
+.pq-acts{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap}
+.pq-hint{font-size:12px;color:var(--muted)}
+@media (max-width:600px){.pq-card{padding:14px}.pq-meta{flex-direction:column;gap:4px}.pq-acts .dc-action{width:100%}}
+.pq-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pq-pager .pager{margin-left:auto}
+.pq-pageof{font-size:13px;color:var(--muted)}
+.pq-pageof b{color:var(--ink)}
+/* Physician Queries: open / close cards */
+.pq-listbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:-2px 0 10px;font-size:12.5px;color:var(--muted)}
+.pq-listbar .sc-ghost{display:inline-flex;gap:6px;align-items:center}
+.pq-list{gap:10px}
+.pq-card{padding:0;gap:0;overflow:hidden;transition:box-shadow .15s ease,border-color .15s ease}
+.pq-card.open{box-shadow:0 12px 28px -18px rgba(20,18,16,.35)}
+.pq-head{width:100%;padding:14px 18px;border:0;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.pq-head:hover{background:#faf9f7}
+.pq-head:focus-visible{outline:2px solid rgba(242,103,34,.5);outline-offset:-2px}
+.pq-card.open .pq-head{border-bottom:1px solid var(--line);background:#fcfbfa}
+.pq-preview{display:block;margin-top:4px;font-size:13px;color:var(--ink);opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pq-chev{flex:none;font-size:15px;color:var(--muted);transition:transform .2s ease}
+.pq-card.open .pq-chev{transform:rotate(180deg)}
+.pq-head .dc-badge{flex:none}
+.pq-body{display:flex;flex-direction:column;gap:12px;padding:14px 18px 18px;animation:pq-in .18s ease}
+.pq-meta{flex-wrap:wrap;row-gap:6px}
+@keyframes pq-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.pq-body{animation:none}.pq-chev{transition:none}}
+@media (max-width:600px){.pq-card{padding:0}.pq-head{padding:12px 14px;flex-wrap:wrap}.pq-body{padding:12px 14px 14px}}

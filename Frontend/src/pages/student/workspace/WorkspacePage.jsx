@@ -201,7 +201,7 @@ export default function WorkspacePage() {
     });
   }, []);
 
-  // ---- queries: poll until the physician answers ----
+  // ---- queries: poll until the physician (an admin, from Physician Queries) answers ----
   const pending = ((work && work.queries) || []).some((q) => !q.answered);
   useEffect(() => {
     if (!pending) return undefined;
@@ -216,7 +216,7 @@ export default function WorkspacePage() {
       } catch (e) {
         /* keep polling */
       }
-    }, 5000);
+    }, 10000);
     return () => clearInterval(t);
   }, [pending, dept, chartId, toast]);
 

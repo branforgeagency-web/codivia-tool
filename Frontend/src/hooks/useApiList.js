@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { get } from '../services/apiHelper.js';
 
 /**
@@ -8,12 +8,14 @@ import { get } from '../services/apiHelper.js';
  *   list.results / list.data (whole response: filters, statistics…) / list.loading / list.error
  *   <Pagination {...list.pagerProps} itemLabel="students" />
  *
- * - 10 rows per page unless `limit` is given.
+ * - Sends ?page=&limit= with the params; 10 rows per page unless `limit` is given.
+ * - The pager uses the API's own `limit`, `totalPages` and `totalResults`.
+ * - Starts on `initialPage` (e.g. from the address bar), else page 1.
  * - Goes back to page 1 when `params` change; empty / undefined params are left out of the URL.
  * - Re-fetches when `reloadKey` changes, or on list.reload().
  */
-export function useApiList(endpoint, { params = {}, limit = 10, reloadKey, enabled = true } = {}) {
-  const [page, setPage] = useState(1);
+export function useApiList(endpoint, { params = {}, limit = 10, initialPage = 1, reloadKey, enabled = true } = {}) {
+  const [page, setPage] = useState(Math.max(1, Number(initialPage) || 1));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,9 +27,14 @@ export function useApiList(endpoint, { params = {}, limit = 10, reloadKey, enabl
     [JSON.stringify(params)],
   );
   const paramsKey = JSON.stringify(clean);
+  const lastParams = useRef(paramsKey);
 
-  // New filter / search: back to page 1.
-  useEffect(() => setPage(1), [paramsKey]);
+  // New filter / search: back to page 1 (not on mount, so `initialPage` is kept).
+  useEffect(() => {
+    if (lastParams.current === paramsKey) return;
+    lastParams.current = paramsKey;
+    setPage(1);
+  }, [paramsKey]);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -60,6 +67,13 @@ export function useApiList(endpoint, { params = {}, limit = 10, reloadKey, enabl
     page,
     setPage,
     reload,
-    pagerProps: { page, pageSize: limit, total: (data && data.totalResults) || 0, onPageChange: setPage },
+    totalPages: (data && data.totalPages) || 1,
+    pagerProps: {
+      page,
+      pageSize: (data && data.limit) || limit,
+      total: (data && data.totalResults) || 0,
+      totalPages: data && data.totalPages,
+      onPageChange: setPage,
+    },
   };
 }

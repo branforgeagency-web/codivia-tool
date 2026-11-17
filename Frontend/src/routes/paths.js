@@ -17,6 +17,7 @@ export const PATHS = {
   adminCharts: '/admin/charts',
   adminStudents: '/admin/students',
   adminUpload: '/admin/upload',
+  adminQueries: '/admin/queries',
   // auditor
   auditor: '/auditor',
 };

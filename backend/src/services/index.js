@@ -20,3 +20,4 @@ module.exports.myChartService = require('./myChart.service');
 module.exports.myProgressService = require('./myProgress.service');
 module.exports.adminStudentService = require('./adminStudent.service');
 module.exports.chartUploadService = require('./chartUpload.service');
+module.exports.adminQueryService = require('./adminQuery.service');

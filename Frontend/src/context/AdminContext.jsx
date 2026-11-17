@@ -5,11 +5,13 @@
      GET /department-pools?limit=1               header totals (analytics)
      PUT /admin/students/:id/allocations         one student's whole allocation map (Manage Access)
      PUT /admin/departments/:dept/allocations    many students in one department
-     POST /admin/students/bulk-allocate          starter charts for every unallocated student */
+     POST /admin/students/bulk-allocate          starter charts for every unallocated student
+     GET /admin/queries/pending-count            Physician Queries badge (re-checked every 30 s) */
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { get, post, put } from '../services/apiHelper.js';
 import {
   ADMIN_STUDENT_ALLOCATIONS,
+  ADMIN_QUERIES_PENDING,
   ADMIN_STUDENTS_BULK,
   DEPARTMENT_ALLOCATIONS,
   DEPARTMENT_POOLS,
@@ -21,7 +23,8 @@ export function useAdmin() {
   return useContext(AdminContext);
 }
 
-const BULK_CHUNK = 500; // the API's per-request maximum for department allocations
+const BULK_CHUNK = 500;
+const QUERY_POLL_MS = 30 * 1000; // new physician queries show up in the sidebar badge without a reload // the API's per-request maximum for department allocations
 
 export function AdminProvider({ children }) {
   const [browseChart, setBrowseChart] = useState(null); // chart being previewed (full record)
@@ -30,6 +33,7 @@ export function AdminProvider({ children }) {
   const [notice, setNotice] = useState(null); // { tone: 'err'|'ok', text }
   const [totals, setTotals] = useState(null); // department-pools analytics: departments, totalPool, allocated, students
   const [version, setVersion] = useState(0);
+  const [pendingQueries, setPendingQueries] = useState(0); // students' physician queries waiting for an answer
 
   const fail = useCallback((what, e) => {
     console.error(what, e);
@@ -46,6 +50,20 @@ export function AdminProvider({ children }) {
   useEffect(() => {
     loadTotals();
   }, [loadTotals, version]);
+
+  // Physician Queries badge: on load, after every change, and every 30 s while the tab is visible.
+  const loadPendingQueries = useCallback(
+    () =>
+      get(ADMIN_QUERIES_PENDING)
+        .then((r) => setPendingQueries(r.pending || 0))
+        .catch((e) => console.error('pending queries', e)),
+    [],
+  );
+  useEffect(() => {
+    loadPendingQueries();
+    const t = setInterval(() => document.visibilityState === 'visible' && loadPendingQueries(), QUERY_POLL_MS);
+    return () => clearInterval(t);
+  }, [loadPendingQueries, version]);
 
   // Every page re-reads its data.
   const refreshAll = useCallback(() => setVersion((v) => v + 1), []);
@@ -93,6 +111,7 @@ export function AdminProvider({ children }) {
 
   const value = {
     totals,
+    pendingQueries,
     version,
     refreshAll,
     saveStudentAllocations,

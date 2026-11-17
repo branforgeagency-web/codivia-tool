@@ -29,9 +29,10 @@ const POA_VALUES = Object.freeze(['Y', 'N', 'U', 'W', '1']);
 // Denial charge corrections get a session number from this counter, e.g. CS-000042.
 const CHARGE_SESSION = Object.freeze({ counter: 'chargeSessions', prefix: 'CS-', digits: 6 });
 
-// A physician answers a query after this long (simulated provider turnaround).
-const QUERY_ANSWER_DELAY_MS = 20 * 1000;
-const DEFAULT_QUERY_ANSWER = 'The documentation in the record is complete as written. Please code from the existing documentation.';
+// Physician (CDI) queries are answered by an admin from the Physician Queries page; there is no
+// automatic reply. A chart's cdiResponse is only offered to the admin as a suggested answer.
+const QUERY_STATUS = Object.freeze({ PENDING: 'pending', ANSWERED: 'answered' });
+const ADMIN_QUERY_LIMITS = Object.freeze({ answer: 2000, search: 100, defaultLimit: 10, maxLimit: 50 });
 
 // Size limits for an autosaved draft (the workspace state).
 const WORK_LIMITS = Object.freeze({
@@ -60,7 +61,7 @@ module.exports = {
   DENIAL_DECISIONS,
   POA_VALUES,
   CHARGE_SESSION,
-  QUERY_ANSWER_DELAY_MS,
-  DEFAULT_QUERY_ANSWER,
+  QUERY_STATUS,
+  ADMIN_QUERY_LIMITS,
   WORK_LIMITS,
 };

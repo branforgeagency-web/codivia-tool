@@ -43,13 +43,14 @@ export function Pagination({
   page,
   pageSize,
   total,
+  totalPages, // optional: the API's page count; otherwise worked out from total / pageSize
   onPageChange,
   itemLabel = 'items',
   showFirstLast = true,
   className = '',
 }) {
   if (!total) return null;
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const pageCount = Math.max(1, totalPages || Math.ceil(total / pageSize));
   const start = (page - 1) * pageSize + 1;
   const end = Math.min(total, page * pageSize);
   const go = (p) => {

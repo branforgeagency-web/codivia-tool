@@ -1,5 +1,5 @@
 const { Allocation, Chart, ChartResult, ChartWork, Department } = require('../models');
-const { CHARGE_SESSION, DEFAULT_QUERY_ANSWER, QUERY_ANSWER_DELAY_MS, WORK_LIMITS, WORK_STATUS, WORK_TYPES } = require('../config/workQueue');
+const { CHARGE_SESSION, WORK_LIMITS, WORK_STATUS, WORK_TYPES } = require('../config/workQueue');
 const referenceService = require('./reference.service');
 const counterService = require('./counter.service');
 const ApiError = require('../utils/ApiError');
@@ -44,9 +44,17 @@ const upsertWork = async (student, chart, update) => {
     return run();
   }
 };
+// When a query was answered, or null while it is pending. Older auto-answered rows count from `answerAt`.
+const answeredAtOf = (q, now = Date.now()) => {
+  if (q.answeredAt) return q.answeredAt;
+  if (q.answerAt && q.answer && new Date(q.answerAt).getTime() <= now) return q.answerAt;
+  return null;
+};
+const hasPendingQuery = (work) => Boolean(work && (work.queries || []).some((q) => !answeredAtOf(q)));
+
 const pushActivity = (entry) => ({ $push: { activity: { $each: [entry], $slice: -WORK_LIMITS.activity } } });
 
-// The work row as the workspace sees it. Query answers stay hidden until they are "returned".
+// The work row as the workspace sees it. A query's answer appears once an admin has answered it.
 const toClientWork = (work) => {
   if (!work) return { status: null, draft: null, timeSpent: 0, queries: [], activity: [], defer: null, transfer: null, submittedAt: null, session: null };
   const now = Date.now();
@@ -59,7 +67,8 @@ const toClientWork = (work) => {
     submittedAt: work.submittedAt || null,
     session: work.session || null,
     queries: (work.queries || []).map((q) => {
-      const answered = new Date(q.answerAt).getTime() <= now;
+      const answeredAt = answeredAtOf(q, now);
+      const answered = Boolean(answeredAt);
       return {
         id: String(q._id),
         to: q.to,
@@ -68,9 +77,8 @@ const toClientWork = (work) => {
         options: q.options,
         sentAt: q.sentAt,
         answered,
-        answeredAt: answered ? q.answerAt : null,
+        answeredAt,
         answer: answered ? q.answer : '',
-        answerIn: answered ? 0 : Math.ceil((new Date(q.answerAt).getTime() - now) / 1000),
       };
     }),
     activity: (work.activity || []).slice(-50),
@@ -119,13 +127,12 @@ const transferChart = async (student, deptKey, chartId, { queue, reason, comment
   return toClientWork(work);
 };
 
-// A physician query: the chart is effectively on hold until the (simulated) answer comes back.
+// A physician query: the chart is on hold until an admin answers it (Physician Queries page).
 const sendQuery = async (student, deptKey, chartId, { to, indicators = '', question, options = [] }) => {
-  const chart = await findChart(student, deptKey, chartId, '_id dept deptName position cdiResponse');
+  const chart = await findChart(student, deptKey, chartId, '_id dept deptName position');
   const existing = await ChartWork.findOne({ student: student._id, chart: chartId }).select('queries').lean();
   if (existing && existing.queries.length >= WORK_LIMITS.queries) throw new ApiError(httpStatus.BAD_REQUEST, 'Too many queries on this chart');
-  const now = Date.now();
-  const query = { to, indicators, question, options, sentAt: new Date(now), answerAt: new Date(now + QUERY_ANSWER_DELAY_MS), answer: chart.cdiResponse || DEFAULT_QUERY_ANSWER };
+  const query = { to, indicators, question, options, sentAt: new Date(), answer: '', answeredAt: null };
   const work = await upsertWork(student, chart, { $push: { queries: query, activity: { $each: [activity('query', `Physician query sent to ${to}`)], $slice: -WORK_LIMITS.activity } } });
   return toClientWork(work);
 };
@@ -155,8 +162,7 @@ const submitWork = async (student, chartId, submission) => {
   if (!chart) throw new ApiError(httpStatus.NOT_FOUND, 'Chart not found');
   await findChart(student, chart.dept, chartId);
   const work = await ChartWork.findOne({ student: student._id, chart: chartId }).select('queries').lean();
-  const pending = work && work.queries.some((q) => new Date(q.answerAt).getTime() > Date.now());
-  if (pending) throw new ApiError(httpStatus.CONFLICT, 'A physician query is still pending on this chart');
+  if (hasPendingQuery(work)) throw new ApiError(httpStatus.CONFLICT, 'A physician query is still pending on this chart');
 
   const department = await Department.findById(chart.dept).select('elements').lean();
   const isInpatient = ((department && department.elements) || []).some((e) => e === 'ICD10PCS' || e === 'DRG');
@@ -180,4 +186,4 @@ const submitWork = async (student, chartId, submission) => {
   return { result, saved, certificate };
 };
 
-module.exports = { toClientWork, getWork, saveDraft, deferChart, transferChart, sendQuery, openSession, addComment, submitWork, findChart };
+module.exports = { answeredAtOf, hasPendingQuery, toClientWork, getWork, saveDraft, deferChart, transferChart, sendQuery, openSession, addComment, submitWork, findChart };

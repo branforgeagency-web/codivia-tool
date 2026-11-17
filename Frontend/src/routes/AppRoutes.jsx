@@ -29,6 +29,7 @@ const AdminDepartments = lazy(() => import('../pages/admin/Departments.jsx'));
 const AdminCharts = lazy(() => import('../pages/admin/Charts.jsx'));
 const AdminStudents = lazy(() => import('../pages/admin/Students.jsx'));
 const AdminUpload = lazy(() => import('../pages/admin/Upload.jsx'));
+const AdminQueries = lazy(() => import('../pages/admin/Queries.jsx'));
 // auditor
 const AuditStation = lazy(() => import('../pages/auditor/AuditStation.jsx'));
 
@@ -80,6 +81,7 @@ function AdminRoutes() {
         <Route path="charts" element={<AdminCharts />} />
         <Route path="students" element={<AdminStudents />} />
         <Route path="upload" element={<AdminUpload />} />
+        <Route path="queries" element={<AdminQueries />} />
       </Route>
       <Route path="*" element={<Navigate to={PATHS.adminOverview} replace />} />
     </Routes>

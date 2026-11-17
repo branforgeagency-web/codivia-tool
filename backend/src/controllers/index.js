@@ -15,3 +15,4 @@ module.exports.myChartController = require('./myChart.controller');
 module.exports.myProgressController = require('./myProgress.controller');
 module.exports.adminStudentController = require('./adminStudent.controller');
 module.exports.chartUploadController = require('./chartUpload.controller');
+module.exports.adminQueryController = require('./adminQuery.controller');

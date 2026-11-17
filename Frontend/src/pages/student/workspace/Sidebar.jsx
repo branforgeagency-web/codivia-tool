@@ -94,7 +94,7 @@ export function Sidebar({ open, setOpen, edits, acks, toggleAck, tabName, curren
                 </div>
               ) : (
                 <div className="muted" style={{ marginTop: 4, fontSize: 12 }}>
-                  The chart is on hold until the physician answers{q.answerIn ? ` (about ${q.answerIn}s)` : ''}.
+                  The chart is on hold until the physician answers. The answer appears here as soon as it is sent.
                 </div>
               )}
             </div>

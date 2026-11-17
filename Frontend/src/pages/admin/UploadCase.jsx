@@ -427,8 +427,8 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError }) {
           <Field label="Why codes should NOT be reported (one per line: CODE: reason)" span={2}>
             <textarea value={c.keyMeta.extraWhy} onChange={(e) => set((n) => (n.keyMeta.extraWhy = e.target.value))} style={{ ...inp, minHeight: 60 }} placeholder={'R50.9: Fever is integral to the sinusitis (OCG I.B.5)\nJ01.90: Unspecified — site and recurrence are documented'} />
           </Field>
-          <Field label="Physician's answer to a CDI query (sent when a student queries)" span={2}>
-            <textarea value={c.cdiResponse} onChange={(e) => set((n) => (n.cdiResponse = e.target.value))} style={{ ...inp, minHeight: 50 }} placeholder="Leave blank for: “The documentation is complete as written.”" />
+          <Field label="Suggested answer to a CDI query (shown to you on Physician Queries; never sent automatically)" span={2}>
+            <textarea value={c.cdiResponse} onChange={(e) => set((n) => (n.cdiResponse = e.target.value))} style={{ ...inp, minHeight: 50 }} placeholder="Optional. e.g. Confirmed: acute recurrent maxillary sinusitis…" />
           </Field>
         </div>
       </div>
