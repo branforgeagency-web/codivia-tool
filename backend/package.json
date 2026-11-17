@@ -15,7 +15,6 @@
     "seed:codes": "node src/scripts/seedCodes.js",
     "seed:guidelines": "node src/scripts/seedCodingGuidelines.js",
     "seed:resume-templates": "node src/scripts/seedResumeTemplates.js",
-    "seed:work-cases": "node src/scripts/seedWorkCases.js",
     "seed:reference": "node src/scripts/seedReference.js"
   },
   "private": true,

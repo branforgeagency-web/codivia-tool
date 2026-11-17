@@ -10,7 +10,7 @@ export function DenialLeft({ chart, docs, lists }) {
   const [tab, setTab] = useState('eob');
   const D = chart.denial || {};
   const I = D.invoice || {};
-  const o = chart.original || { dx: [], lines: [] };
+  const o = { dx: [], lines: [], ...(chart.original || {}) }; // either list may be left out of a chart
   const e = chart.encounter || {};
   const used = new Set(chart.remits || []);
   const carc = ((lists && lists.remitCodes) || []).filter((r) => used.has(r.value));

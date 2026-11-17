@@ -30,6 +30,30 @@ const createUpload = {
   }),
 };
 
+// Edit form (an upload or a chart in the pool): the whole chart as the form holds it.
+const chartEditFields = {
+  title: Joi.string().trim().min(1).max(L.title),
+  record: Joi.string().trim().min(1).max(L.record),
+  answerKey: Joi.array().items(answerRow).max(L.rows),
+  ...caseFields,
+  difficulty: Joi.string().valid(...DIFFICULTIES),
+  patient: Joi.object({
+    name: Joi.string().trim().min(1).max(L.patientName),
+    sex: Joi.string().valid('M', 'F'),
+    age: Joi.number().integer().min(0).max(130),
+  }),
+};
+
+const getUpload = { params: uploadId };
+const updateUpload = {
+  params: uploadId,
+  body: Joi.object({
+    dept: Joi.string().trim().uppercase().pattern(DEPARTMENT_KEY_PATTERN),
+    sourceName: Joi.string().trim().max(L.sourceName).allow(null, ''),
+    ...chartEditFields,
+  }).min(1),
+};
+
 const getUploads = {
   query: Joi.object({
     status: Joi.string().valid('all', ...Object.values(UPLOAD_STATUS)).default('all'),
@@ -41,4 +65,4 @@ const getUploads = {
 const setStatus = { params: uploadId, body: Joi.object({ status: status.required() }) };
 const deleteUpload = { params: uploadId };
 
-module.exports = { getUploads, createUpload, setStatus, deleteUpload };
+module.exports = { getUploads, createUpload, getUpload, updateUpload, setStatus, deleteUpload, chartEditFields };

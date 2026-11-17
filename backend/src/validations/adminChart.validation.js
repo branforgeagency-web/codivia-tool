@@ -3,6 +3,7 @@ const { DEPARTMENT_KEY_PATTERN } = require('../config/departments');
 const { DEPARTMENT_FILTER_KEYS } = require('../config/adminDepartments');
 const { CHART_STATUS_KEYS, CHART_SORT_FIELDS, CHART_LIMITS: C, CHART_DEPARTMENT_LIMITS: D } = require('../config/adminCharts');
 const { CHART_ID_PATTERN } = require('../config/certificates');
+const { chartEditFields } = require('./chartUpload.validation');
 
 const page = Joi.number().integer().min(1).default(1);
 
@@ -33,4 +34,10 @@ const getChart = {
   }),
 };
 
-module.exports = { getDepartments, getCharts, getChart };
+// Edit a chart in the pool: the whole chart as the Edit form holds it (department stays).
+const updateChart = {
+  params: getChart.params,
+  body: Joi.object(chartEditFields).min(1),
+};
+
+module.exports = { getDepartments, getCharts, getChart, updateChart };

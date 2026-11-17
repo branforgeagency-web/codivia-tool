@@ -165,6 +165,36 @@ const toChartKey = (rows) =>
     return row;
   });
 
+// The fields a Chart gets from an upload (or from the Edit form): everything except its ID,
+// department, position and source. Optional work-queue fields left out are cleared.
+const chartFields = (u) => {
+  const type = u.workType || WORK_TYPES.CODE;
+  return {
+    difficulty: u.difficulty,
+    title: u.title,
+    patient: u.patient,
+    record: u.record,
+    answerKey: toChartKey(u.answerKey || []),
+    workType: type,
+    documents: u.documents && u.documents.length ? u.documents : undefined,
+    encounter: u.encounter || undefined,
+    original: type !== WORK_TYPES.CODE ? u.original || undefined : undefined,
+    denial: type === WORK_TYPES.DENIAL ? u.denial || undefined : undefined,
+    keyMeta: u.keyMeta || undefined,
+    cdiResponse: u.cdiResponse || undefined,
+  };
+};
+
+// Edit form -> upload record. The form always sends the whole chart, so optional work-queue fields
+// that are missing were cleared by the admin. Patient fields are merged (blank = keep).
+const REQUIRED_EDITS = ['title', 'record', 'answerKey', 'difficulty', 'workType'];
+const OPTIONAL_EDITS = ['documents', 'encounter', 'original', 'denial', 'keyMeta', 'cdiResponse'];
+const applyUploadEdits = (upload, body) => {
+  REQUIRED_EDITS.forEach((k) => body[k] !== undefined && upload.set(k, body[k]));
+  OPTIONAL_EDITS.forEach((k) => upload.set(k, body[k] === undefined || body[k] === '' ? undefined : body[k]));
+  if (body.patient) upload.set('patient', { ...(upload.toObject().patient || {}), ...body.patient });
+};
+
 // Adds the upload to the department's chart pool, after the last chart (allocations are by position).
 const publish = async (upload, deptName) => {
   checkPublishable(upload);
@@ -178,19 +208,8 @@ const publish = async (upload, deptName) => {
         dept: upload.dept,
         deptName,
         position: (last?.position || 0) + 1,
-        difficulty: u.difficulty,
-        title: u.title,
-        patient: u.patient,
-        record: u.record,
-        answerKey: toChartKey(u.answerKey),
+        ...chartFields(u),
         source: 'upload',
-        workType: u.workType || WORK_TYPES.CODE,
-        documents: u.documents && u.documents.length ? u.documents : undefined,
-        encounter: u.encounter || undefined,
-        original: u.workType && u.workType !== WORK_TYPES.CODE ? u.original || undefined : undefined,
-        denial: u.workType === WORK_TYPES.DENIAL ? u.denial || undefined : undefined,
-        keyMeta: u.keyMeta || undefined,
-        cdiResponse: u.cdiResponse || undefined,
       });
       upload.chart = id;
       upload.status = UPLOAD_STATUS.PUBLISHED;
@@ -270,10 +289,45 @@ const setStatus = async (id, status) => {
   return toView(upload.toObject(), dept.name);
 };
 
+const getUpload = async (id) => {
+  const upload = await findUpload(id);
+  const dept = await Department.findById(upload.dept).select('name').lean();
+  return toView(upload.toObject(), dept && dept.name);
+};
+
+// Edit an upload (Upload page -> Edit). A draft can move to another department. A published upload
+// must pass the publish checks, and its chart in the pool is updated too (same ID and position, so
+// allocations and earlier scores are untouched; later submissions are graded against the new key).
+const updateUpload = async (id, { dept: newDept, sourceName, ...body }) => {
+  const upload = await findUpload(id);
+  if (newDept && newDept !== upload.dept) {
+    if (upload.status === UPLOAD_STATUS.PUBLISHED) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Move the chart back to draft before changing its department', [
+        { field: 'dept', message: 'Published charts keep their department' },
+      ]);
+    }
+    await findDepartment(newDept);
+    upload.dept = newDept;
+  }
+  if (sourceName !== undefined) upload.sourceName = sourceName || undefined;
+  applyUploadEdits(upload, body);
+  const dept = await findDepartment(upload.dept);
+  if (upload.status === UPLOAD_STATUS.PUBLISHED && upload.chart) {
+    checkPublishable(upload);
+    const chart = await Chart.findById(upload.chart);
+    if (chart) {
+      chart.set(chartFields(upload.toObject()));
+      await chart.save();
+    }
+  }
+  await upload.save();
+  return toView(upload.toObject(), dept.name);
+};
+
 const deleteUpload = async (id) => {
   const upload = await findUpload(id);
   await unpublish(upload); // refused if students have submitted it
   await upload.deleteOne();
 };
 
-module.exports = { extractFileText, listUploads, createUpload, setStatus, deleteUpload };
+module.exports = { extractFileText, listUploads, createUpload, getUpload, updateUpload, setStatus, deleteUpload, chartFields, checkPublishable, applyUploadEdits };

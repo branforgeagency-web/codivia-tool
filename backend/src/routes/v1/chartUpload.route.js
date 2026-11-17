@@ -19,6 +19,12 @@ router
   .post(validate(v.createUpload), c.createUpload); // status 'published' also adds it to the chart pool
 
 router.patch('/:uploadId/status', validate(v.setStatus), c.setStatus); // publish / back to draft
-router.delete('/:uploadId', validate(v.deleteUpload), c.deleteUpload);
+
+// One upload (the Edit form); edit it (a published one updates its chart too); delete it.
+router
+  .route('/:uploadId')
+  .get(validate(v.getUpload), c.getUpload)
+  .patch(validate(v.updateUpload), c.updateUpload)
+  .delete(validate(v.deleteUpload), c.deleteUpload);
 
 module.exports = router;

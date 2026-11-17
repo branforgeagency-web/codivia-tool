@@ -1,3 +1,5 @@
+// DISCONNECTED (2026-11-17): no npm script runs this and the 4 sample charts were removed from the DB.
+// Kept for reference only. Charts now come from admin upload; running it would re-insert the samples.
 // Seeds the sample work-queue charts: a charge review and a denial (E/M), and an inpatient chart
 // to code plus the same stay as a DRG validation (IP). All patients, payers and providers are made up.
 //

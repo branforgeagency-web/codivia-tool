@@ -16,6 +16,14 @@ const createUpload = async (req, res) => {
   res.status(httpStatus.CREATED).json(await chartUploadService.createUpload(req.body, req.user));
 };
 
+const getUpload = async (req, res) => {
+  res.status(httpStatus.OK).json(await chartUploadService.getUpload(req.params.uploadId));
+};
+
+const updateUpload = async (req, res) => {
+  res.status(httpStatus.OK).json(await chartUploadService.updateUpload(req.params.uploadId, req.body));
+};
+
 const setStatus = async (req, res) => {
   res.status(httpStatus.OK).json(await chartUploadService.setStatus(req.params.uploadId, req.body.status));
 };
@@ -25,4 +33,4 @@ const deleteUpload = async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 };
 
-module.exports = { extractText, getUploads, createUpload, setStatus, deleteUpload };
+module.exports = { extractText, getUploads, createUpload, getUpload, updateUpload, setStatus, deleteUpload };

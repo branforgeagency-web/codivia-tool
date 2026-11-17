@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DataTable } from '../../components/ui/DataTable.jsx';
 import { DeptCard } from '../../components/ui/DeptCard.jsx';
 import { DeptIcon } from '../../components/ui/DeptIcon.jsx';
@@ -11,6 +12,7 @@ import { useApiList } from '../../hooks/useApiList.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import { get } from '../../services/apiHelper.js';
 import { ADMIN_CHART, ADMIN_CHARTS, ADMIN_CHART_DEPARTMENTS } from '../../services/endpoints.js';
+import { PATHS } from '../../routes/paths.js';
 
 // ---- Admin: Browse Charts. Department cards (DeptCard), then the department's charts (DataTable).
 // Data: GET /admin/charts/departments (cards + statistics), GET /admin/charts (one department's
@@ -152,7 +154,7 @@ function DepartmentList({ reloadKey, onOpen }) {
 }
 
 // ---------- screen 2: one department's charts ----------
-const CHART_COLUMNS = (onView) => [
+const CHART_COLUMNS = (onView, onEdit) => [
   {
     key: 'title',
     header: 'Chart',
@@ -208,21 +210,36 @@ const CHART_COLUMNS = (onView) => [
     header: '',
     align: 'right',
     render: (c) => (
-      <button
-        type="button"
-        className="sc-ghost bc-view"
-        onClick={(ev) => {
-          ev.stopPropagation();
-          onView(c);
-        }}
-      >
-        View
-      </button>
+      <span className="bc-acts">
+        <button
+          type="button"
+          className="sc-ghost bc-view"
+          onClick={(ev) => {
+            ev.stopPropagation();
+            onView(c);
+          }}
+        >
+          View
+        </button>
+        {onEdit && (
+          <button
+            type="button"
+            className="sc-ghost bc-view"
+            title={'Edit ' + c.id}
+            onClick={(ev) => {
+              ev.stopPropagation();
+              onEdit(c);
+            }}
+          >
+            <i className="bi bi-pencil" aria-hidden="true" /> Edit
+          </button>
+        )}
+      </span>
     ),
   },
 ];
 
-function DepartmentCharts({ dept, onBack, onView }) {
+function DepartmentCharts({ dept, onBack, onView, onEdit }) {
   const dk = dept.key;
   const [level, setLevel] = useState('all');
   const [query, setQuery] = useState('');
@@ -233,7 +250,7 @@ function DepartmentCharts({ dept, onBack, onView }) {
   const [data, setData] = useState(null); // GET /admin/charts response
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const columns = useMemo(() => CHART_COLUMNS(onView), [onView]);
+  const columns = useMemo(() => CHART_COLUMNS(onView, onEdit), [onView, onEdit]);
 
   // New filter or search: back to page 1.
   useEffect(() => setPage(1), [level, search]);
@@ -317,10 +334,10 @@ function DepartmentCharts({ dept, onBack, onView }) {
   );
 }
 
-export function AdminCharts({ onView, version }) {
+export function AdminCharts({ onView, onEdit, version }) {
   const [dept, setDept] = useState(null); // the department card that was opened
   return dept ? (
-    <DepartmentCharts key={dept.key} dept={dept} onBack={() => setDept(null)} onView={onView} />
+    <DepartmentCharts key={dept.key} dept={dept} onBack={() => setDept(null)} onView={onView} onEdit={onEdit} />
   ) : (
     <DepartmentList reloadKey={version} onOpen={setDept} />
   );
@@ -337,5 +354,8 @@ export default function ChartsPage() {
         .catch((e) => setNotice({ tone: 'err', text: 'Could not open ' + c.id + ': ' + e.message })),
     [setBrowseChart, setNotice],
   );
-  return <AdminCharts onView={view} version={version} />;
+  // Edit opens the chart in the Upload form (edit mode): /admin/upload?chart=ID.
+  const navigate = useNavigate();
+  const edit = useCallback((c) => navigate(PATHS.adminUpload + '?chart=' + encodeURIComponent(c.id)), [navigate]);
+  return <AdminCharts onView={view} onEdit={edit} version={version} />;
 }

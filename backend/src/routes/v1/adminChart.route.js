@@ -16,7 +16,10 @@ router.get('/departments', validate(v.getDepartments), c.getDepartments);
 // Screen 2: a department's charts with status tabs (all / beginner / moderate / advanced / handwritten) and search.
 router.get('/', validate(v.getCharts), c.getCharts);
 
-// One chart with its full record, for the View popup.
-router.get('/:chartId', validate(v.getChart), c.getChart);
+// One chart with its full record and answer key (View popup, Edit form); edit it in place.
+router
+  .route('/:chartId')
+  .get(validate(v.getChart), c.getChart)
+  .patch(validate(v.updateChart), c.updateChart);
 
 module.exports = router;

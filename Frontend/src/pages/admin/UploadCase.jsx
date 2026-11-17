@@ -23,6 +23,54 @@ export const emptyCase = () => ({
   cdiResponse: '',
 });
 
+// ---- saved chart / upload → form (the Edit form starts from this) ----
+const str = (v) => (v === undefined || v === null ? '' : String(v));
+export function fromCase(src = {}) {
+  const base = emptyCase();
+  const o = src.original || {};
+  const d = src.denial || {};
+  const km = src.keyMeta || {};
+  return {
+    ...base,
+    workType: src.workType || 'code',
+    difficulty: src.difficulty || 'moderate',
+    patient: { name: str(src.patient && src.patient.name), sex: (src.patient && src.patient.sex) || 'F', age: str(src.patient && src.patient.age) },
+    documents: (src.documents || []).map((x, i) => ({ key: x.key || 'd' + (i + 1), title: str(x.title), sub: str(x.sub), body: str(x.body) })),
+    encounter: Object.fromEntries(Object.keys(base.encounter).map((k) => [k, str((src.encounter || {})[k])])),
+    original: {
+      dx: (o.dx || []).map((x) => ({ code: str(x.code), poa: str(x.poa) })),
+      lines: (o.lines || []).map((l) => ({
+        code: str(l.code),
+        mods: (l.mods || []).join(','),
+        units: str(l.units || 1),
+        ptrs: (l.ptrs || []).join(', '),
+        remit: str(l.remit),
+        billed: str(l.billed),
+      })),
+      pcs: (o.pcs || []).join(', '),
+      disp: str(o.disp),
+      drg: str(o.drg),
+      rules: (o.rules || []).join('\n'),
+      enteredBy: str(o.enteredBy),
+    },
+    denial: {
+      queue: str(d.queue),
+      invoice: Object.fromEntries(Object.keys(base.denial.invoice).map((k) => [k, str((d.invoice || {})[k] ?? base.denial.invoice[k])])),
+      history: (d.history || []).map((h) => [0, 1, 2, 3].map((i) => str(h[i]))),
+    },
+    keyMeta: {
+      disp: str(km.disp),
+      dispWhy: str(km.dispWhy),
+      decision: str(km.decision),
+      decisionWhy: str(km.decisionWhy),
+      extraWhy: Object.entries(km.extraWhy || {})
+        .map(([code, why]) => code + ': ' + why)
+        .join('\n'),
+    },
+    cdiResponse: str(src.cdiResponse),
+  };
+}
+
 // ---- form → API ----
 const list = (s) => String(s || '').split(/[,\s]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
 const num = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? undefined : Number(v));

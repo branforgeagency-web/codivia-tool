@@ -1,4 +1,10 @@
+import { useNavigate } from 'react-router-dom';
+import { PATHS } from '../../../routes/paths.js';
+
+// Admin: one chart with its record and answer key. "Edit chart" opens it in the Upload form
+// (edit mode, /admin/upload?chart=ID).
 export function AdminChartView({ chart, onClose }) {
+  const navigate = useNavigate();
   return (
     <div
       className="result-overlay"
@@ -26,9 +32,20 @@ export function AdminChartView({ chart, onClose }) {
                 'y)'}
             </div>
           </div>
-          <button className="btn btn-ghost" onClick={onClose}>
-            Close
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                onClose();
+                navigate(PATHS.adminUpload + '?chart=' + encodeURIComponent(chart.id));
+              }}
+            >
+              <i className="bi bi-pencil" aria-hidden="true" /> Edit chart
+            </button>
+            <button className="btn btn-ghost" onClick={onClose}>
+              Close
+            </button>
+          </div>
         </div>
         <div style={{ padding: '16px', overflowY: 'auto', maxHeight: '72vh' }}>
           <div

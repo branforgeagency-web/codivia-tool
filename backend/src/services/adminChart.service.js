@@ -1,4 +1,5 @@
-const { Chart, Department } = require('../models');
+const { Chart, ChartUpload, Department } = require('../models');
+const { applyUploadEdits, chartFields, checkPublishable } = require('./chartUpload.service');
 const { DIFFICULTIES } = require('../models/chart.model');
 const { DEPARTMENT_GROUPS } = require('../config/departments');
 const { DEPARTMENT_FILTERS } = require('../config/adminDepartments');
@@ -146,4 +147,37 @@ const getChart = async (chartId) => {
   return toChart(chart);
 };
 
-module.exports = { queryDepartments, queryCharts, getChart };
+// Edit a chart in the pool (Browse Charts -> Edit), whether it was uploaded or built in. It keeps its
+// ID, department and position, so allocations and earlier scores are untouched; submissions after
+// the edit are graded against the new answer key. An uploaded chart's upload record is kept in step.
+const updateChart = async (chartId, body) => {
+  const chart = await Chart.findById(chartId);
+  if (!chart) throw new ApiError(httpStatus.NOT_FOUND, 'Chart not found');
+  const cur = chart.toObject();
+  const next = {
+    title: body.title ?? cur.title,
+    record: body.record ?? cur.record,
+    answerKey: body.answerKey ?? cur.answerKey,
+    difficulty: body.difficulty ?? cur.difficulty,
+    workType: body.workType ?? cur.workType,
+    patient: { ...cur.patient, ...(body.patient || {}) },
+    documents: body.documents,
+    encounter: body.encounter,
+    original: body.original,
+    denial: body.denial,
+    keyMeta: body.keyMeta,
+    cdiResponse: body.cdiResponse,
+  };
+  checkPublishable(next);
+  chart.set(chartFields(next));
+  await chart.save();
+
+  const upload = await ChartUpload.findOne({ chart: chartId });
+  if (upload) {
+    applyUploadEdits(upload, body);
+    await upload.save();
+  }
+  return toChart(chart.toObject());
+};
+
+module.exports = { queryDepartments, queryCharts, getChart, updateChart };

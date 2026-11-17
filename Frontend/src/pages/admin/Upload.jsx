@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import React from 'react';
 import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
@@ -7,6 +8,7 @@ import { validateCode } from '../../utils/codes.js';
 import { scanPHI } from '../../utils/phi.js';
 import { del, get, patch, post } from '../../services/apiHelper.js';
 import {
+  ADMIN_CHART,
   ADMIN_UPLOAD,
   ADMIN_UPLOADS,
   ADMIN_UPLOADS_EXTRACT,
@@ -14,13 +16,17 @@ import {
   DEPARTMENTS,
 } from '../../services/endpoints.js';
 import { useAdmin } from '../../context/AdminContext.jsx';
-import { CaseFields, caseProblems, emptyCase, toCasePayload } from './UploadCase.jsx';
+import { CaseFields, caseProblems, emptyCase, fromCase, toCasePayload } from './UploadCase.jsx';
 import { useReference, workTypeInfo } from '../../hooks/useReference.js';
 
 // Data: /admin/uploads. The record text is extracted on the server (POST /admin/uploads/extract);
 // the text, the chart setup (work type, patient, documents, encounter, original charges, denial,
 // grading extras) and the answer key are sent: the same structure as a published chart.
 // The original file itself is not stored.
+//
+// Edit mode: /admin/upload?chart=EM-0001 (a chart in the pool, from Browse Charts) or ?upload=<id>
+// (an uploaded chart, from the list below). The same form loads the saved chart; Save sends PATCH
+// /admin/charts/:id or PATCH /admin/uploads/:id. A chart keeps its ID, department and position.
 
 const DX_TYPES = ['PDx', 'SDx', 'Dx'];
 const LINE_TYPES = ['CPT', 'HCPCS'];
@@ -32,6 +38,20 @@ const csv = (s) =>
     .map((x) => x.trim().toUpperCase())
     .filter(Boolean);
 const validFor = (code, type) => (NOT_A_CODE.includes(type) ? null : validateCode(code));
+// Saved answer key -> form rows. mods [] means "must carry no modifier" ('-' in the form).
+const rowsFromKey = (key) =>
+  (key || []).map((r) => ({
+    ...blankRow(r.type || 'SDx'),
+    code: r.code || '',
+    type: r.type || 'SDx',
+    desc: r.desc || '',
+    why: r.why || '',
+    poa: r.poa || '',
+    mods: Array.isArray(r.mods) ? (r.mods.length ? r.mods.join(',') : '-') : '',
+    units: r.units ? String(r.units) : '',
+    ptrs: (r.ptrs || []).join(','),
+    valid: validFor(r.code || '', r.type || 'SDx'),
+  }));
 
 export function AdminUpload() {
   const [file, setFile] = useState(null);
@@ -45,7 +65,11 @@ export function AdminUpload() {
   const [cs, setCs] = useState(emptyCase); // chart setup: work type, patient, documents, encounter …
   const { ref: lists } = useReference(); // option lists from the database
   const [statusTab, setStatusTab] = useState('all');
-  const { refreshAll: refreshAdmin, version } = useAdmin();
+  const { refreshAll: refreshAdmin, version, setNotice } = useAdmin();
+  // Edit mode: { kind: 'chart' | 'upload', id, label, status, chartId }; null = a new upload.
+  const [editing, setEditing] = useState(null);
+  const [urlParams, setUrlParams] = useSearchParams();
+  const topRef = useRef(null);
   // Uploaded charts, newest first, 10 per page (GET /admin/uploads).
   const uploads = useApiList(ADMIN_UPLOADS, { params: { status: statusTab }, reloadKey: version });
   const drafts = uploads.results;
@@ -60,14 +84,62 @@ export function AdminUpload() {
   }, []);
   const deptOf = (k) => departments.find((d) => d.key === k || d.id === k);
   const inpatient = ((deptOf(dept) || {}).elements || []).some((e) => e === 'ICD10PCS' || e === 'DRG');
-  // DRG validation is inpatient only.
+  // DRG validation is inpatient only (checked once the departments are loaded, so a chart being
+  // loaded for editing keeps its work type).
   useEffect(() => {
-    if (!inpatient && cs.workType === 'drg') setCs((c) => ({ ...c, workType: 'code' }));
-  }, [inpatient, cs.workType]);
+    if (departments.length && !inpatient && cs.workType === 'drg') setCs((c) => ({ ...c, workType: 'code' }));
+  }, [departments.length, inpatient, cs.workType]);
+
+  // Fill the form from a saved chart or upload.
+  const loadInto = (src, edit) => {
+    setErr('');
+    setFile(null);
+    setDept(src.dept);
+    setTitle(src.title || '');
+    setText(src.record || '');
+    setPhi(scanPHI(src.record || ''));
+    setKey(rowsFromKey(src.answerKey));
+    setCs(fromCase(src));
+    setEditing(edit);
+    if (topRef.current) topRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const chartParam = urlParams.get('chart');
+  const uploadParam = urlParams.get('upload');
+  useEffect(() => {
+    if (!chartParam && !uploadParam) return undefined;
+    let cancelled = false;
+    setBusy('Loading the chart\u2026');
+    const req = chartParam ? get(ADMIN_CHART(chartParam)) : get(ADMIN_UPLOAD(uploadParam));
+    req
+      .then((src) => {
+        if (cancelled) return;
+        if (chartParam) loadInto(src, { kind: 'chart', id: src.id, label: src.id, status: 'published', uploaded: src.uploaded });
+        else loadInto(src, { kind: 'upload', id: src.id, label: src.chart || 'Draft', status: src.status, chartId: src.chart });
+      })
+      .catch((e) => !cancelled && setErr('Could not load the chart to edit: ' + e.message))
+      .finally(() => !cancelled && setBusy(''));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartParam, uploadParam]);
+
+  const clearForm = () => {
+    setFile(null);
+    setText('');
+    setKey([]);
+    setCs(emptyCase());
+    setTitle('');
+    setPhi([]);
+    setErr('');
+    setEditing(null);
+    if (urlParams.get('chart') || urlParams.get('upload')) setUrlParams({}, { replace: true });
+  };
+  const editUpload = (d) => setUrlParams({ upload: d.id });
 
   const readFile = async (f) => {
     setErr('');
-    setKey([]);
+    if (!editing) setKey([]);
     setFile(f);
     setBusy('Extracting text\u2026');
     try {
@@ -156,6 +228,36 @@ export function AdminUpload() {
   const addRow = () => setKey((k) => [...k, blankRow()]);
   const delRow = (i) => setKey((k) => k.filter((_, ix) => ix !== i));
 
+  // What stops a chart from going (or staying) live; '' when it is fine.
+  const publishProblem = () => {
+    if (!key.length) return 'Add at least one code before publishing.';
+    const bad = key.filter((r) => !r.code || (r.valid === false && !NOT_A_CODE.includes(r.type)));
+    if (bad.length) return bad.length + ' code(s) are empty or not found in the code database. Fix them before publishing.';
+    const noWhy = key.filter((r) => !r.why.trim());
+    if (noWhy.length) return 'Every code needs a rationale \u2014 ' + noWhy.length + ' missing.';
+    if (!key.some((r) => r.type === 'PDx')) return 'One code must be marked PDx (principal diagnosis).';
+    const problems = caseProblems(cs);
+    return problems.length ? problems.join(' ') : '';
+  };
+
+  // The chart as the API stores it (new upload, edited upload or edited chart).
+  const buildBody = () => ({
+    title: title || 'Uploaded chart',
+    record: text,
+    ...toCasePayload(cs, { inpatient }),
+    answerKey: key.map((r) => {
+      const row = { code: r.code, type: r.type, desc: r.desc, why: r.why };
+      if (DX_TYPES.includes(r.type) && inpatient && r.poa) row.poa = r.poa;
+      if (LINE_TYPES.includes(r.type)) {
+        // Blank = not graded; "-" = the line must carry no modifier.
+        if (r.mods.trim()) row.mods = r.mods.trim() === '-' ? [] : csv(r.mods).slice(0, 4);
+        if (r.units) row.units = Number(r.units);
+        if (csv(r.ptrs).length) row.ptrs = csv(r.ptrs).slice(0, 4);
+      }
+      return row;
+    }),
+  });
+
   const publish = async (asDraft) => {
     setErr('');
     if (!text.trim()) {
@@ -163,62 +265,51 @@ export function AdminUpload() {
       return;
     }
     if (!asDraft) {
-      if (!key.length) {
-        setErr('Add at least one code before publishing.');
-        return;
-      }
-      const bad = key.filter((r) => !r.code || (r.valid === false && !NOT_A_CODE.includes(r.type)));
-      if (bad.length) {
-        setErr(
-          bad.length +
-            ' code(s) are empty or not found in the code database. Fix them before publishing.',
-        );
-        return;
-      }
-      const noWhy = key.filter((r) => !r.why.trim());
-      if (noWhy.length) {
-        setErr('Every code needs a rationale \u2014 ' + noWhy.length + ' missing.');
-        return;
-      }
-      if (!key.some((r) => r.type === 'PDx')) {
-        setErr('One code must be marked PDx (principal diagnosis).');
-        return;
-      }
-      const problems = caseProblems(cs);
-      if (problems.length) {
-        setErr(problems.join(' '));
+      const problem = publishProblem();
+      if (problem) {
+        setErr(problem);
         return;
       }
     }
     setBusy(asDraft ? 'Saving draft\u2026' : 'Publishing\u2026');
     try {
-      await post(ADMIN_UPLOADS, {
-        dept,
-        title: title || 'Uploaded chart',
-        record: text,
-        ...toCasePayload(cs, { inpatient }),
-        answerKey: key.map((r) => {
-          const row = { code: r.code, type: r.type, desc: r.desc, why: r.why };
-          if (DX_TYPES.includes(r.type) && inpatient && r.poa) row.poa = r.poa;
-          if (LINE_TYPES.includes(r.type)) {
-            // Blank = not graded; "-" = the line must carry no modifier.
-            if (r.mods.trim()) row.mods = r.mods.trim() === '-' ? [] : csv(r.mods).slice(0, 4);
-            if (r.units) row.units = Number(r.units);
-            if (csv(r.ptrs).length) row.ptrs = csv(r.ptrs).slice(0, 4);
-          }
-          return row;
-        }),
-        sourceName: file ? file.name : null,
-        status: asDraft ? 'draft' : 'published',
-      });
-      setFile(null);
-      setText('');
-      setKey([]);
-      setCs(emptyCase());
-      setTitle('');
-      setPhi([]);
+      await post(ADMIN_UPLOADS, { dept, ...buildBody(), sourceName: file ? file.name : null, status: asDraft ? 'draft' : 'published' });
+      clearForm();
       refresh();
       if (!asDraft) refreshAdmin(); // the department's chart pool grew
+    } catch (ex) {
+      setErr('Save failed: ' + (ex.message || ex));
+    }
+    setBusy('');
+  };
+
+  // Edit mode: save the changes. A live chart (or published upload) must pass the publish checks;
+  // a draft can be saved as it is, or saved and published in one go.
+  const saveEdit = async (andPublish = false) => {
+    setErr('');
+    if (!text.trim()) {
+      setErr('No record text.');
+      return;
+    }
+    const live = editing.kind === 'chart' || editing.status === 'published';
+    if (live || andPublish) {
+      const problem = publishProblem();
+      if (problem) {
+        setErr(problem);
+        return;
+      }
+    }
+    setBusy('Saving changes\u2026');
+    try {
+      if (editing.kind === 'chart') await patch(ADMIN_CHART(editing.id), buildBody());
+      else {
+        await patch(ADMIN_UPLOAD(editing.id), { ...(live ? {} : { dept }), ...buildBody() });
+        if (andPublish) await patch(ADMIN_UPLOAD_STATUS(editing.id), { status: 'published' });
+      }
+      setNotice({ tone: 'ok', text: 'Saved changes to ' + (title || editing.label) + (andPublish ? ' and published it.' : '.') });
+      clearForm();
+      refresh();
+      refreshAdmin();
     } catch (ex) {
       setErr('Save failed: ' + (ex.message || ex));
     }
@@ -264,14 +355,34 @@ export function AdminUpload() {
   };
 
   return (
-    <div>
+    <div ref={topRef}>
       <div className="page-head">
-        <h1>Upload Charts</h1>
+        <h1>{editing ? 'Edit Chart' : 'Upload Charts'}</h1>
         <p>
-          Upload a de-identified record, review the suggested codes, then publish it to a
-          department.
+          {editing
+            ? 'Change the record, chart setup or answer key, then save.'
+            : 'Upload a de-identified record, review the suggested codes, then publish it to a department.'}
         </p>
       </div>
+      {editing && (
+        <div className="ue-banner" role="status">
+          <i className="bi bi-pencil-square" aria-hidden="true" />
+          <div>
+            <b>
+              {'Editing ' + (editing.kind === 'chart' ? 'chart ' + editing.id : editing.status === 'published' ? 'published upload ' + editing.label : 'draft upload')}
+              {title ? ' \u2014 ' + title : ''}
+            </b>
+            <span>
+              {editing.kind === 'chart' || editing.status === 'published'
+                ? 'This chart is live. It keeps its ID, department and position, so allocations and earlier scores stay as they are; students who submit after you save are graded against the new answer key.'
+                : 'Drafts are not visible to students. Save it as a draft, or save and publish it.'}
+            </span>
+          </div>
+          <button type="button" className="sc-ghost" onClick={clearForm} disabled={!!busy}>
+            Cancel editing
+          </button>
+        </div>
+      )}
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ padding: '18px 20px' }}>
           <div
@@ -291,7 +402,7 @@ export function AdminUpload() {
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
             <div style={{ minWidth: 230 }}>
               <div style={lbl}>DEPARTMENT</div>
-              <select value={dept} onChange={(ev) => setDept(ev.target.value)} style={inp}>
+              <select value={dept} onChange={(ev) => setDept(ev.target.value)} style={inp} disabled={!!editing && (editing.kind === 'chart' || editing.status === 'published')} title={editing && (editing.kind === 'chart' || editing.status === 'published') ? 'A live chart keeps its department' : undefined}>
                 {departments.map((dd) => dd.key || dd.id).map((k) => (
                   <option key={k} value={k}>
                     {(deptOf(k) || { name: k }).name}
@@ -310,7 +421,7 @@ export function AdminUpload() {
             </div>
           </div>
           <div style={{ marginBottom: 12 }}>
-            <div style={lbl}>RECORD FILE (PDF, DOC, DOCX or TXT)</div>
+            <div style={lbl}>{editing ? 'REPLACE THE RECORD FROM A FILE (optional)' : 'RECORD FILE (PDF, DOC, DOCX or TXT)'}</div>
             <input
               type="file"
               accept=".pdf,.doc,.docx,.txt"
@@ -399,11 +510,11 @@ export function AdminUpload() {
         </div>
       </div>
       {text && <CaseFields value={cs} onChange={setCs} inpatient={inpatient} lists={lists} onError={setErr} />}
-      {key.length > 0 && (
+      {(key.length > 0 || (editing && text)) && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-h">
             <div>
-              <h3>Suggested answer key — review before publishing</h3>
+              <h3>{editing ? 'Answer key' : 'Suggested answer key \u2014 review before publishing'}</h3>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                 AI-suggested. You are responsible for correctness. Codes are checked against the
                 live code database.
@@ -502,17 +613,35 @@ export function AdminUpload() {
               </div>
             ))}
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-              <button className="btn btn-teal" disabled={!!busy} onClick={() => publish(false)}>
-                Publish to students
-              </button>
-              <button
-                className="btn"
-                style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }}
-                disabled={!!busy}
-                onClick={() => publish(true)}
-              >
-                Save as draft
-              </button>
+              {editing ? (
+                <>
+                  <button className="btn btn-teal" disabled={!!busy} onClick={() => saveEdit(false)}>
+                    {editing.kind === 'chart' || editing.status === 'published' ? 'Save changes' : 'Save draft'}
+                  </button>
+                  {editing.kind === 'upload' && editing.status !== 'published' && (
+                    <button className="btn" style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }} disabled={!!busy} onClick={() => saveEdit(true)}>
+                      Save &amp; publish
+                    </button>
+                  )}
+                  <button className="btn" style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }} disabled={!!busy} onClick={clearForm}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                <button className="btn btn-teal" disabled={!!busy} onClick={() => publish(false)}>
+                  Publish to students
+                </button>
+                <button
+                  className="btn"
+                  style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }}
+                  disabled={!!busy}
+                  onClick={() => publish(true)}
+                >
+                  Save as draft
+                </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -585,6 +714,15 @@ export function AdminUpload() {
                   >
                     {(d.status || 'draft').toUpperCase()}
                   </span>
+                  <button
+                    className="btn"
+                    style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)', fontSize: 12 }}
+                    onClick={() => editUpload(d)}
+                    disabled={editing && editing.id === d.id}
+                    title="Edit this chart"
+                  >
+                    <i className="bi bi-pencil" aria-hidden="true" /> {editing && editing.id === d.id ? 'Editing' : 'Edit'}
+                  </button>
                   {d.status === 'published' ? (
                     <button
                       className="btn"

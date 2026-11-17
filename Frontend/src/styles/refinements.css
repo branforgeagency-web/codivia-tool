@@ -4978,3 +4978,13 @@ tbody tr:hover {
 @keyframes pq-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.pq-body{animation:none}.pq-chev{transition:none}}
 @media (max-width:600px){.pq-card{padding:0}.pq-head{padding:12px 14px;flex-wrap:wrap}.pq-body{padding:12px 14px 14px}}
+
+/* Admin: chart edit mode (pages/admin/Upload.jsx ?chart= / ?upload=) and Browse Charts actions */
+.ue-banner{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;margin-bottom:16px;border:1px solid #f6c89f;border-left:4px solid #f26722;border-radius:12px;background:#fff7ef}
+.ue-banner>i{font-size:20px;color:#c94a10;margin-top:2px}
+.ue-banner>div{flex:1;display:flex;flex-direction:column;gap:3px;font-size:13px;line-height:1.5;color:var(--ink)}
+.ue-banner>div b{font-size:14px}
+.ue-banner>div span{color:var(--muted)}
+.bc-acts{display:inline-flex;gap:6px}
+.bc-acts .bi{margin-right:2px}
+@media (max-width:600px){.ue-banner{flex-direction:column}}
