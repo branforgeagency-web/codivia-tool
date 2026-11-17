@@ -29,7 +29,7 @@ const Svg = ({ d, size = 18 }) => (
   </svg>
 );
 
-export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk, onAdd, onEdit, onDelete }) {
+export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk, onAdd, onEdit, onToggleStatus }) {
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim());
@@ -96,7 +96,7 @@ export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk
         <>
           <div className="ad-grid">
             {list.results.map((s) => (
-              <StudentCard key={s.uid} student={s} onPerf={onPerf} onAllocate={onAllocate} onEdit={onEdit} onDelete={onDelete} />
+              <StudentCard key={s.uid} student={s} onPerf={onPerf} onAllocate={onAllocate} onEdit={onEdit} onToggleStatus={onToggleStatus} />
             ))}
           </div>
           <Pagination {...list.pagerProps} itemLabel="students" />
@@ -138,7 +138,7 @@ export default function StudentsPage() {
       onBulk={() => setModal({ type: 'bulkAllocate' })}
       onAdd={() => setModal({ type: 'addStudent' })}
       onEdit={(student) => setModal({ type: 'editStudent', student })}
-      onDelete={(student) => setModal({ type: 'deleteStudent', student })}
+      onToggleStatus={(student) => setModal({ type: 'studentStatus', student })}
     />
   );
 }

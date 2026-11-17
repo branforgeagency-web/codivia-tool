@@ -57,6 +57,7 @@ export const ADMIN_CHART = (chartId) => `${ADMIN_CHARTS}/${encodeURIComponent(ch
 export const ADMIN_STUDENTS = '/admin/students';
 export const ADMIN_STUDENT = (userId) => `${ADMIN_STUDENTS}/${encodeURIComponent(userId)}`;
 export const ADMIN_STUDENT_ALLOCATIONS = (userId) => `${ADMIN_STUDENT(userId)}/allocations`;
+export const ADMIN_STUDENT_STATUS = (userId) => `${ADMIN_STUDENT(userId)}/status`; // PATCH { status: 'active' | 'disabled' }
 export const ADMIN_STUDENTS_BULK = `${ADMIN_STUDENTS}/bulk-allocate`;
 // Admin Upload page: uploaded charts, draft → published (admin only)
 export const ADMIN_UPLOADS = '/admin/uploads';

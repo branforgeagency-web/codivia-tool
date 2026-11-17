@@ -4886,6 +4886,28 @@ tbody tr:hover {
 .as-warn>i{font-size:20px}
 .dc-action.as-danger{background:var(--tone-b4232a);border-color:var(--tone-b4232a)}
 .dc-action.as-danger:disabled{opacity:.45}
+/* ConfirmDialog (components/ui/ConfirmDialog.jsx): warning box + confirm button per tone */
+.as-warn.cf-warn.warn{background:#fff2cf;color:#8a5d0c}
+.as-warn.cf-warn.ok{background:#dff4ea;color:#0e7a5b}
+.dc-action.cf-btn.danger{background:var(--tone-b4232a);border-color:var(--tone-b4232a)}
+.dc-action.cf-btn.warn{background:#b7791f;border-color:#b7791f}
+.dc-action.cf-btn.ok{background:#0e7a5b;border-color:#0e7a5b}
+.dc-action.cf-btn:disabled{opacity:.45;cursor:not-allowed}
+/* Student card: disabled account */
+/* Student card: disable / enable account button, shaded by what it does */
+.sc-icon.sc-status.disable{color:#c2412d;border-color:#f1c4ba;background:#fdeeea}
+.sc-icon.sc-status.disable:hover{color:#fff;border-color:#c2412d;background:#c2412d}
+.sc-icon.sc-status.enable{color:#0e7a5b;border-color:#9fd9bf;background:#dff4ea}
+.sc-icon.sc-status.enable:hover{color:#fff;border-color:#0e7a5b;background:#0e7a5b}
+/* Student card: account status shading. Active = green accent + faint green wash;
+   disabled = red accent, rose-tinted card, greyed avatar and stats. */
+.sc-card.is-enabled{border-top:4px solid #10b981;background:linear-gradient(180deg,#f0fbf6 0,#fff 90px)}
+.sc-card.is-enabled .sc-avatar{box-shadow:0 0 0 2px #fff,0 0 0 4px #10b981}
+.sc-card.is-disabled{border-color:#f1c4ba;border-top:4px solid #c2412d;background:linear-gradient(180deg,#fdeeea 0,#fbf6f4 90px)}
+.sc-card.is-disabled:hover{border-color:#e8a796;border-top-color:#c2412d;box-shadow:0 16px 32px -20px rgba(194,65,45,.55)}
+.sc-card.is-disabled .sc-avatar{filter:grayscale(1);opacity:.6;box-shadow:0 0 0 2px #fff,0 0 0 4px #c2412d}
+.sc-card.is-disabled .dc-title h3{color:#8a7f78;text-decoration:line-through;text-decoration-color:rgba(194,65,45,.5)}
+.sc-card.is-disabled .dc-metrics,.sc-card.is-disabled .sc-depts{opacity:.55;filter:grayscale(.6)}
 
 /* Admin: department form (pages/admin/components/DepartmentForm.jsx) */
 .df-row{display:grid;grid-template-columns:1fr 140px;gap:12px}

@@ -4,13 +4,13 @@ import { AddStudentForm } from './AddStudentForm.jsx';
 import { AllocateForm } from './AllocateForm.jsx';
 import { BulkAllocateForm } from './BulkAllocateForm.jsx';
 import { DeleteDepartmentForm } from './DeleteDepartmentForm.jsx';
-import { DeleteStudentForm } from './DeleteStudentForm.jsx';
 import { DepartmentForm } from './DepartmentForm.jsx';
 import { EditStudentForm } from './EditStudentForm.jsx';
+import { StudentStatusForm } from './StudentStatusForm.jsx';
 import { DeptAllocateForm } from './DeptAllocateForm.jsx';
 
 // ---- Admin modals: manage access, department allocation, bulk allocate,
-// add / edit / delete student, add / edit / delete department ----
+// add / edit / disable student, add / edit / delete department ----
 // Each form loads its own data from the API; saves go through AdminContext.
 export function AdminModal({ modal, onClose }) {
   const { saveStudentAllocations, allocateDept, bulkAllocate, refreshAll, setModal } = useAdmin();
@@ -34,8 +34,8 @@ export function AdminModal({ modal, onClose }) {
   if (modal.type === 'editStudent') {
     return <EditStudentForm student={modal.student} onClose={onClose} onSaved={refreshAll} />;
   }
-  if (modal.type === 'deleteStudent') {
-    return <DeleteStudentForm student={modal.student} onClose={onClose} onDeleted={refreshAll} />;
+  if (modal.type === 'studentStatus') {
+    return <StudentStatusForm student={modal.student} onClose={onClose} onSaved={refreshAll} />;
   }
   if (modal.type === 'addStudent') {
     return (

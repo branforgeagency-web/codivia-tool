@@ -3,6 +3,7 @@ const { DEPARTMENT_KEY_PATTERN } = require('../config/departments');
 const { STUDENT_STATUS_KEYS, ADMIN_STUDENT_LIMITS: L } = require('../config/adminStudents');
 const { objectId, strongPassword } = require('./custom.validation');
 const { USER_LIMITS } = require('../config/users');
+const { ALL_USER_STATUSES } = require('../config/userStatus');
 
 const userIdParam = Joi.object({ userId: Joi.string().custom(objectId).required() });
 const chart = Joi.number().integer().min(1);
@@ -40,6 +41,12 @@ const updateStudent = {
 };
 const deleteStudent = { params: userIdParam };
 
+// Disable / enable a student's account.
+const setStatus = {
+  params: userIdParam,
+  body: Joi.object({ status: Joi.string().valid(...ALL_USER_STATUSES).required() }),
+};
+
 const getStudent = { params: userIdParam };
 const getAllocations = { params: userIdParam };
 
@@ -51,4 +58,4 @@ const setAllocations = {
   }),
 };
 
-module.exports = { createStudent, updateStudent, deleteStudent, getStudents, getStudent, getAllocations, setAllocations };
+module.exports = { createStudent, updateStudent, deleteStudent, setStatus, getStudents, getStudent, getAllocations, setAllocations };

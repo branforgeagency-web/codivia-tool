@@ -14,6 +14,10 @@ const deleteStudent = async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 };
 
+const setStatus = async (req, res) => {
+  res.status(httpStatus.OK).json(await s.setStudentStatus(req.params.userId, req.body.status, req.user));
+};
+
 const getStudents = async (req, res) => {
   res.status(httpStatus.OK).json(await s.queryStudents(req.query));
 };
@@ -38,4 +42,4 @@ const applyBulk = async (req, res) => {
   res.status(httpStatus.OK).json(await s.applyBulkAllocation());
 };
 
-module.exports = { createStudent, updateStudent, deleteStudent, getStudents, getStudent, getAllocations, setAllocations, previewBulk, applyBulk };
+module.exports = { createStudent, updateStudent, deleteStudent, setStatus, getStudents, getStudent, getAllocations, setAllocations, previewBulk, applyBulk };

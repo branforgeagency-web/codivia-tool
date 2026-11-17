@@ -3,7 +3,8 @@
  * "View performance" and "Manage access" actions. Same look as AdminDeptCard (.dc-* styles).
  * Props: student (a GET /admin/students card: { uid, id, name, email, status, progress: { worked, allocated, avg },
  *        departments: [{ key, name, start, end, assigned, worked, complete }] }), onPerf(student), onAllocate(student),
- *        onEdit(student) / onDelete(student) — optional, show the pencil / bin buttons
+ *        onEdit(student) / onToggleStatus(student) — optional, show the pencil / disable-enable buttons.
+ *        student.accountStatus 'disabled' dims the card and shows the Disabled badge.
  * Styles: .dc-* and .sc-* in styles/refinements.css
  */
 import { accTone } from '../../utils/progress.js';
@@ -25,6 +26,7 @@ export const STUDENT_STATUS = Object.freeze({
   idle: { label: 'Not started', tone: 'warn' },
   unallocated: { label: 'Unallocated', tone: 'muted' },
   error: { label: 'Progress unreadable', tone: 'danger' },
+  disabled: { label: 'Disabled', tone: 'danger' },
 });
 
 // One chip per allocated department: "Cardiology · 1–50 · 12/50" (student.departments from the API).
@@ -36,8 +38,9 @@ function deptChips(student) {
   }));
 }
 
-export function StudentCard({ student, onPerf, onAllocate, onEdit, onDelete }) {
+export function StudentCard({ student, onPerf, onAllocate, onEdit, onToggleStatus }) {
   const { progress, status } = student;
+  const isDisabled = student.accountStatus === 'disabled';
   const badge = STUDENT_STATUS[status] || STUDENT_STATUS.idle;
   const chips = deptChips(student);
   const shown = chips.slice(0, MAX_DEPT_CHIPS);
@@ -45,7 +48,7 @@ export function StudentCard({ student, onPerf, onAllocate, onEdit, onDelete }) {
   const done = progress.allocated ? Math.min(100, Math.round((progress.worked / progress.allocated) * 100)) : null;
 
   return (
-    <article className="dc-card sc-card">
+    <article className={'dc-card sc-card ' + (isDisabled ? 'is-disabled' : 'is-enabled')}>
       <div className="dc-top">
         <span className="sc-avatar" aria-hidden="true">
           {initials(student.name)}
@@ -57,18 +60,23 @@ export function StudentCard({ student, onPerf, onAllocate, onEdit, onDelete }) {
           </span>
         </div>
         <span className={'dc-badge ' + badge.tone}>{badge.label}</span>
-        {(onEdit || onDelete) && (
+        {(onEdit || onToggleStatus) && (
           <span className="sc-tools">
             {onEdit && (
               <button type="button" className="sc-icon" onClick={() => onEdit(student)} title="Edit student" aria-label={'Edit ' + student.name}>
                 <i className="bi bi-pencil" aria-hidden="true" />
               </button>
             )}
-            {onDelete && (
-              <button type="button" className="sc-icon danger" onClick={() => onDelete(student)} title="Delete student" aria-label={'Delete ' + student.name}>
-                <i className="bi bi-trash" aria-hidden="true" />
-              </button>
-            )}
+            {onToggleStatus &&
+              (isDisabled ? (
+                <button type="button" className="sc-icon sc-status enable" onClick={() => onToggleStatus(student)} title="Enable account" aria-label={'Enable ' + student.name}>
+                  <i className="bi bi-person-check" aria-hidden="true" />
+                </button>
+              ) : (
+                <button type="button" className="sc-icon sc-status disable" onClick={() => onToggleStatus(student)} title="Disable account" aria-label={'Disable ' + student.name}>
+                  <i className="bi bi-person-slash" aria-hidden="true" />
+                </button>
+              ))}
           </span>
         )}
       </div>

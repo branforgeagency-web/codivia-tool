@@ -6,6 +6,12 @@ const { escapeRegex } = require('../utils/codeText');
 const { LIVE_STUDENT, countCharts, rangeCount } = require('./allocation.service');
 const userService = require('./user.service');
 const { ROLES } = require('../config/roles');
+const { USER_STATUS } = require('../config/userStatus');
+
+// Students the admin manages: every account not deleted, including disabled ones (so they can be
+// enabled again). LIVE_STUDENT (active only) is still used for allocation overlaps and bulk allocate.
+const LISTED_STUDENT = Object.freeze({ role: ROLES.STUDENT, deletedAt: null });
+const STUDENT_FIELDS = 'name email studentId status createdAt lastLoginAt';
 
 // ---------- Admin Students page ----------
 
@@ -26,8 +32,8 @@ const groupBy = (rows, key) => {
   return m;
 };
 
-const findLiveStudent = async (userId) => {
-  const s = await User.findOne({ _id: userId, ...LIVE_STUDENT }).select('name email studentId createdAt lastLoginAt').lean();
+const findStudent = async (userId) => {
+  const s = await User.findOne({ _id: userId, ...LISTED_STUDENT }).select(STUDENT_FIELDS).lean();
   if (!s) throw notFound();
   return s;
 };
@@ -37,14 +43,15 @@ const studentView = (s) => ({
   id: s.studentId || String(s._id),
   name: s.name || s.email,
   email: s.email,
+  accountStatus: s.status === USER_STATUS.DISABLED ? USER_STATUS.DISABLED : USER_STATUS.ACTIVE,
   createdAt: s.createdAt,
   lastLoginAt: s.lastLoginAt,
 });
 
-// Every active student as a card: allocated departments (with progress) + overall progress + status.
+// Every student (active or disabled) as a card: allocated departments (with progress) + overall progress + status.
 // Worked out from aggregates, so the full score history is never loaded for the list.
 const buildCards = async () => {
-  const students = await User.find(LIVE_STUDENT).select('name email studentId createdAt lastLoginAt').sort({ name: 1, _id: 1 }).lean();
+  const students = await User.find(LISTED_STUDENT).select(STUDENT_FIELDS).sort({ name: 1, _id: 1 }).lean();
   const ids = students.map((s) => s._id);
   const [allocations, scores, pools, departments] = await Promise.all([
     Allocation.find({ student: { $in: ids } }).select('student dept start end').lean(),
@@ -78,8 +85,9 @@ const buildCards = async () => {
       allocated: depts.reduce((n, d) => n + d.assigned, 0),
       avg: average(myScores.reduce((n, x) => n + x.sum, 0), worked),
     };
-    const status = !depts.length ? 'unallocated' : worked > 0 ? 'active' : 'idle';
-    return { ...studentView(s), status, progress, departments: depts };
+    const view = studentView(s);
+    const status = view.accountStatus === USER_STATUS.DISABLED ? 'disabled' : !depts.length ? 'unallocated' : worked > 0 ? 'active' : 'idle';
+    return { ...view, status, progress, departments: depts };
   });
 };
 
@@ -105,6 +113,7 @@ const queryStudents = async ({ search, status = 'all', page = 1, limit = 10 }) =
       worked: all.reduce((n, s) => n + s.progress.worked, 0),
       allocated: all.reduce((n, s) => n + s.progress.allocated, 0),
       unallocated: countOf('unallocated'),
+      disabled: countOf('disabled'),
     },
   };
 };
@@ -112,7 +121,7 @@ const queryStudents = async ({ search, status = 'all', page = 1, limit = 10 }) =
 // Performance panel: one student and every saved score ({ chartId: { dept, accuracy, ... } }),
 // plus department names for the labels.
 const getStudent = async (userId) => {
-  const s = await findLiveStudent(userId);
+  const s = await findStudent(userId);
   const [results, departments] = await Promise.all([
     ChartResult.find({ student: s._id }).select('-_id -student').lean(),
     Department.find().select('name').lean(),
@@ -127,7 +136,7 @@ const getStudent = async (userId) => {
 // Manage Access form: every active department with charts, this student's range in it, and the
 // other students' ranges there (so the form can flag overlaps while typing).
 const getStudentAllocations = async (userId) => {
-  const s = await findLiveStudent(userId);
+  const s = await findStudent(userId);
   const [departments, pools, liveIds] = await Promise.all([
     Department.find({ isActive: true }).select('name icon group elements order').sort({ order: 1, _id: 1 }).lean(),
     countCharts(),
@@ -163,7 +172,7 @@ const getStudentAllocations = async (userId) => {
 // Manage Access save: replace one student's whole allocation map. Departments left out lose access.
 // Everything is checked first, so either the whole map is saved or nothing is.
 const setStudentAllocations = async (userId, depts) => {
-  const student = await findLiveStudent(userId);
+  const student = await findStudent(userId);
   const keys = Object.keys(depts);
   const [found, pools] = await Promise.all([Department.find({ _id: { $in: keys } }).select('name').lean(), countCharts()]);
   const nameOf = new Map(found.map((d) => [d._id, d.name]));
@@ -255,15 +264,24 @@ const createStudent = async ({ name, email, password }, actor) => {
 // Edit a student's name, email or password (Students page → Edit). A new password signs the
 // student out everywhere (userService.updateUser revokes their sessions).
 const updateStudent = async (userId, updates, actor) => {
-  await findLiveStudent(userId);
+  await findStudent(userId);
   const user = await userService.updateUser(userId, updates, actor);
+  return { student: studentView(user.toObject ? user.toObject() : user) };
+};
+
+// Disable or re-enable a student's account (Students page → Disable / Enable). A disabled student
+// can't sign in and is signed out everywhere (userService.updateUser revokes their sessions); their
+// scores, allocations and certificates stay, and enabling the account restores access as it was.
+const setStudentStatus = async (userId, status, actor) => {
+  await findStudent(userId);
+  const user = await userService.updateUser(userId, { status }, actor);
   return { student: studentView(user.toObject ? user.toObject() : user) };
 };
 
 // Delete a student (soft delete: they can no longer sign in and leave the Students list; their
 // scores, allocations and certificates stay in the database for the records).
 const deleteStudent = async (userId, actor) => {
-  await findLiveStudent(userId);
+  await findStudent(userId);
   await userService.deleteUser(userId, actor);
 };
 
@@ -271,6 +289,7 @@ module.exports = {
   createStudent,
   updateStudent,
   deleteStudent,
+  setStudentStatus,
   queryStudents,
   getStudent,
   getStudentAllocations,

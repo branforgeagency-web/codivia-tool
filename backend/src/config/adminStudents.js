@@ -6,6 +6,7 @@ const STUDENT_STATUS_FILTERS = Object.freeze([
   { key: 'active', label: 'Active' },
   { key: 'idle', label: 'Not started' },
   { key: 'unallocated', label: 'Unallocated' },
+  { key: 'disabled', label: 'Disabled' },
 ]);
 const STUDENT_STATUS_KEYS = Object.freeze(STUDENT_STATUS_FILTERS.map((f) => f.key));
 

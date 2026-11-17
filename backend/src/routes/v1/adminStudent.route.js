@@ -26,6 +26,9 @@ router
   .patch(validate(v.updateStudent), c.updateStudent) // edit name / email / password
   .delete(validate(v.deleteStudent), c.deleteStudent); // soft delete
 
+// Disable / enable the account: { status: 'active' | 'disabled' }.
+router.patch('/:userId/status', validate(v.setStatus), c.setStatus);
+
 // Manage Access: the form's departments (with other students' ranges), and save the whole map.
 router
   .route('/:userId/allocations')
