@@ -381,7 +381,7 @@ export function Login() {
           </div>
         </div>
         </form>
-        <p className="cvx-roles">Admins and auditors sign in here too.</p>
+        <p className="cvx-roles">Admins sign in here too.</p>
       </main>
     </div>
   );

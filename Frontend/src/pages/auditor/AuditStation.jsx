@@ -1,3 +1,5 @@
+// DISCONNECTED (2026-11-17): the auditor role was removed and no route renders this page.
+// Kept for reference only.
 /* CODIVIA platform — auditor view */
 import { Header } from '../../components/layout/Header.jsx';
 import { useSession } from '../../context/SessionContext.jsx';

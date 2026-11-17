@@ -30,8 +30,6 @@ const AdminCharts = lazy(() => import('../pages/admin/Charts.jsx'));
 const AdminStudents = lazy(() => import('../pages/admin/Students.jsx'));
 const AdminUpload = lazy(() => import('../pages/admin/Upload.jsx'));
 const AdminQueries = lazy(() => import('../pages/admin/Queries.jsx'));
-// auditor
-const AuditStation = lazy(() => import('../pages/auditor/AuditStation.jsx'));
 
 // Where a student lands on "/" (or an old /app.html link). Old query links still work:
 //   ?view=findcode -> Code Search,  ?dept=CARDIO -> that department's chart queue
@@ -88,15 +86,6 @@ function AdminRoutes() {
   );
 }
 
-function AuditorRoutes() {
-  return (
-    <Routes>
-      <Route path={PATHS.auditor} element={<AuditStation />} />
-      <Route path="*" element={<Navigate to={PATHS.auditor} replace />} />
-    </Routes>
-  );
-}
-
 // A crash or a failed page download is contained to the page: the error boundary resets when the
 // user opens another page, so the rest of the app keeps working.
 export function AppRoutes() {
@@ -107,8 +96,7 @@ export function AppRoutes() {
       <Suspense fallback={<RouteLoading />}>
         {session.role === 'student' && <StudentRoutes />}
         {session.role === 'admin' && <AdminRoutes />}
-        {session.role === 'auditor' && <AuditorRoutes />}
-        {!['student', 'admin', 'auditor'].includes(session.role) && (
+        {!['student', 'admin'].includes(session.role) && (
           <ErrorState title="No workspace for this account" message={`Your account role (${session.role}) has no pages yet. Contact your administrator.`} />
         )}
       </Suspense>

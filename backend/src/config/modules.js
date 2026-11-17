@@ -17,7 +17,7 @@ const MODULES = Object.freeze({
 const MODULE_LIST = Object.freeze([
   { key: MODULES.ACCESS_CONTROL, label: 'Access Control', restricted: true },
   { key: MODULES.USERS, label: 'Users', restricted: true, adminOnly: true },
-  // Not restricted: students and auditors can view (active departments only); Admin manages.
+  // Not restricted: students can view (active departments only); Admin manages.
   { key: MODULES.DEPARTMENTS, label: 'Departments' },
   // Not restricted: every signed-in role can search codes (read-only reference data).
   { key: MODULES.CODES, label: 'Code Search' },

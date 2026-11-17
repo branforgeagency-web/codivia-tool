@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Medical-coding practice platform: students code real-format charts, get scored with a reason, track progress, and build a certificate and resume. Admins allocate charts and review performance; auditors have a read-only view.",
+  "description": "Medical-coding practice platform: students code real-format charts, get scored with a reason, track progress, and build a certificate and resume. Admins allocate charts, answer physician queries and review performance.",
   "scripts": {
     "dev": "vite",
     "start": "vite",
