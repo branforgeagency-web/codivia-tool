@@ -68,7 +68,8 @@ export const ADMIN_QUERY_ANSWER = (workId, queryId) => `${ADMIN_QUERIES}/${encod
 export const ADMIN_WORK = '/admin/work'; // GET ?status=attention|deferred|transferred|in_progress|done|all&dept=&queue=&search=&page=
 export const ADMIN_WORK_SUMMARY = `${ADMIN_WORK}/summary`; // GET { deferred, transferred, attention } — sidebar badge
 export const ADMIN_WORK_RETURN = (workId) => `${ADMIN_WORK}/${encodeURIComponent(workId)}/return`; // POST { note? }
-export const ADMIN_WORK_NOTES = (workId) => `${ADMIN_WORK}/${encodeURIComponent(workId)}/notes`; // POST { text }
+export const ADMIN_WORK_RESOLVE = (workId) => `${ADMIN_WORK}/${encodeURIComponent(workId)}/resolve`; // POST { verdict: 'correct'|'incorrect', note? }
+export const ADMIN_WORK_NOTES =(workId) => `${ADMIN_WORK}/${encodeURIComponent(workId)}/notes`; // POST { text }
 export const ADMIN_UPLOADS = '/admin/uploads';
 export const ADMIN_UPLOADS_EXTRACT = `${ADMIN_UPLOADS}/extract`;
 export const ADMIN_UPLOAD = (uploadId) => `${ADMIN_UPLOADS}/${encodeURIComponent(uploadId)}`;

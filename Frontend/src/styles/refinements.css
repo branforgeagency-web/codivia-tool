@@ -5017,4 +5017,16 @@ tbody tr:hover {
 .wa-x{color:var(--ink);word-break:break-word}
 .wa-none{margin:0;font-size:13px;color:var(--muted)}
 .wa-btns{display:inline-flex;gap:8px;flex-wrap:wrap}
+.wa-verdict{border:0;margin:10px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.wa-verdict legend{width:100%;margin:0 0 6px;padding:0;font-size:12.5px;font-weight:700;color:var(--muted)}
+.wa-verdict-opt{position:relative;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:13px;cursor:pointer;background:#fff}
+.wa-verdict-opt input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;pointer-events:none}
+.wa-verdict-opt:focus-within{outline:2px solid #f26722;outline-offset:2px}
+.wa-verdict-opt.correct.on{border-color:#2e9d5b;background:#eaf7ef;color:#1d6e3e}
+.wa-verdict-opt.incorrect.on{border-color:#d9822b;background:#fff4e6;color:#9a5410}
+.wa-resolved{margin:8px 0 0;font-size:13px;font-weight:600}
+.wa-resolved.correct{color:#1d6e3e}
+.wa-resolved.incorrect{color:#9a5410}
+.wa-resolved span{font-weight:400;color:var(--muted)}
+.wa-resolved .wa-resolved-note{display:block;margin-top:2px;color:inherit;font-style:italic}
 @media (max-width:600px){.wa-select select{min-width:0;width:100%}.wa-select{flex:1 1 100%}.wa-timeline li{grid-template-columns:22px 1fr}.wa-timeline li .wa-t{grid-column:2}.wa-timeline li .wa-x{grid-column:2}}

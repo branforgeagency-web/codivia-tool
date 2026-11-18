@@ -19,6 +19,9 @@ router.get('/summary', c.getSummary);
 // Send a deferred / transferred chart back to the student: { note? }
 router.post('/:workId/return', validate(v.returnToStudent), c.returnToStudent);
 
+// Close a transferred chart: { verdict: 'correct'|'incorrect', note? }
+router.post('/:workId/resolve', validate(v.resolveTransfer), c.resolveTransfer);
+
 // A note the student sees in the chart's Activity panel: { text }
 router.post('/:workId/notes', validate(v.addNote), c.addNote);
 

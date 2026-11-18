@@ -17,7 +17,7 @@ const { ObjectId } = mongoose.Types;
 
 // Tabs. "attention" = deferred + transferred: work that is waiting on someone.
 const TABS = Object.freeze([
-  { key: 'attention', label: 'Needs attention', statuses: [WORK_STATUS.DEFERRED, WORK_STATUS.TRANSFERRED] },
+  { key: 'attention', label: 'Needs attention', statuses: [WORK_STATUS.DEFERRED, WORK_STATUS.TRANSFERRED], openOnly: true },
   { key: WORK_STATUS.DEFERRED, label: 'Deferred', statuses: [WORK_STATUS.DEFERRED] },
   { key: WORK_STATUS.TRANSFERRED, label: 'Transferred', statuses: [WORK_STATUS.TRANSFERRED] },
   { key: WORK_STATUS.IN_PROGRESS, label: 'In progress', statuses: [WORK_STATUS.IN_PROGRESS] },
@@ -25,6 +25,11 @@ const TABS = Object.freeze([
   { key: 'all', label: 'All', statuses: null },
 ]);
 const WAITING = [WORK_STATUS.DEFERRED, WORK_STATUS.TRANSFERRED];
+// Still waiting on the admin: every deferred chart, and transferred charts the admin has not resolved.
+const OPEN_MATCH = Object.freeze({
+  $or: [{ status: WORK_STATUS.DEFERRED }, { status: WORK_STATUS.TRANSFERRED, 'transfer.resolution.at': null }],
+});
+const isResolved = (r) => !!(r.transfer && r.transfer.resolution && r.transfer.resolution.at);
 
 // Work of students who still exist (soft-deleted students drop out).
 const studentStages = () => [
@@ -40,9 +45,9 @@ const studentStages = () => [
   { $unwind: '$studentDoc' },
 ];
 
-// Sidebar badge: charts waiting on someone (deferred + transferred).
+// Sidebar badge: charts waiting on someone (deferred + unresolved transfers).
 const summary = async () => {
-  const rows = await ChartWork.aggregate([{ $match: { status: { $in: WAITING } } }, ...studentStages(), { $group: { _id: '$status', n: { $sum: 1 } } }]);
+  const rows = await ChartWork.aggregate([{ $match: OPEN_MATCH }, ...studentStages(), { $group: { _id: '$status', n: { $sum: 1 } } }]);
   const n = Object.fromEntries(rows.map((r) => [r._id, r.n]));
   const deferred = n[WORK_STATUS.DEFERRED] || 0;
   const transferred = n[WORK_STATUS.TRANSFERRED] || 0;
@@ -64,7 +69,16 @@ const toRow = (r, now) => {
     student: { uid: String(s._id), id: s.studentId || String(s._id), name: s.name || s.email, email: s.email, disabled: s.status === 'disabled' },
     chart: { id: r.chart, title: c.title || '', dept: c.dept || r.dept, deptName: c.deptName || c.dept || r.dept, workType: c.workType || 'code', position: c.position },
     defer: r.defer && r.defer.reason ? { reason: r.defer.reason, comment: r.defer.comment || '', at: r.defer.at } : null,
-    transfer: r.transfer && r.transfer.queue ? { queue: r.transfer.queue, reason: r.transfer.reason || '', comment: r.transfer.comment || '', at: r.transfer.at } : null,
+    transfer:
+      r.transfer && r.transfer.queue
+        ? {
+            queue: r.transfer.queue,
+            reason: r.transfer.reason || '',
+            comment: r.transfer.comment || '',
+            at: r.transfer.at,
+            resolution: isResolved(r) ? { verdict: r.transfer.resolution.verdict, note: r.transfer.resolution.note || '', at: r.transfer.resolution.at } : null,
+          }
+        : null,
     waitingSince,
     queries: { total: queries.length, pending: queries.filter((q) => !answeredAtOf(q, now)).length },
     comments: tail(activity.filter((a) => a.kind === 'comment'), L.comments),
@@ -120,6 +134,7 @@ const queryWork = async ({ status = 'attention', dept, queue, search, page = 1, 
 
   const rowMatch = {};
   if (tab.statuses) rowMatch.status = { $in: tab.statuses };
+  if (tab.openOnly) Object.assign(rowMatch, OPEN_MATCH);
   if (queue) rowMatch['transfer.queue'] = queue;
   const waiting = tab.statuses && tab.statuses.every((x) => WAITING.includes(x));
   const sortStage = waiting
@@ -137,7 +152,16 @@ const queryWork = async ({ status = 'attention', dept, queue, search, page = 1, 
     ...base,
     {
       $facet: {
-        counts: [...deptMatch, { $group: { _id: '$status', n: { $sum: 1 } } }],
+        counts: [
+          ...deptMatch,
+          {
+            $group: {
+              _id: '$status',
+              n: { $sum: 1 },
+              resolved: { $sum: { $cond: [{ $ifNull: ['$transfer.resolution.at', false] }, 1, 0] } },
+            },
+          },
+        ],
         queues: [...deptMatch, { $match: { status: WORK_STATUS.TRANSFERRED } }, { $group: { _id: '$transfer.queue', n: { $sum: 1 } } }, { $sort: { _id: 1 } }],
         depts: [{ $group: { _id: '$dept', name: { $first: '$chartDoc.deptName' }, n: { $sum: 1 } } }, { $sort: { name: 1 } }],
         total: [...deptMatch, { $match: rowMatch }, { $count: 'n' }],
@@ -162,7 +186,12 @@ const queryWork = async ({ status = 'attention', dept, queue, search, page = 1, 
   ]);
 
   const countOf = Object.fromEntries(out.counts.map((c) => [c._id, c.n]));
-  const tabCount = (t) => (t.statuses ? t.statuses.reduce((n, x) => n + (countOf[x] || 0), 0) : out.counts.reduce((n, c) => n + c.n, 0));
+  const resolvedTransfers = (out.counts.find((c) => c._id === WORK_STATUS.TRANSFERRED) || {}).resolved || 0;
+  const tabCount = (t) => {
+    if (!t.statuses) return out.counts.reduce((n, c) => n + c.n, 0);
+    const n = t.statuses.reduce((sum, x) => sum + (countOf[x] || 0), 0);
+    return t.openOnly ? n - resolvedTransfers : n;
+  };
   const totalResults = out.total[0] ? out.total[0].n : 0;
   return {
     results: out.rows.map((r) => toRow(r, now)),
@@ -202,4 +231,22 @@ const addNote = async (workId, { text }, admin) => {
   return { workId: String(workId) };
 };
 
-module.exports = { TABS, summary, queryWork, returnToStudent, addNote };
+// Close a transferred chart: the admin judges whether the student picked the right work queue.
+// The chart stays transferred (Completed in the student's queue) and leaves "Needs attention".
+const VERDICT_TEXT = { correct: 'right queue', incorrect: 'wrong queue' };
+const resolveTransfer = async (workId, { verdict, note = '' }, admin) => {
+  const work = await ChartWork.findById(workId).select('status transfer').lean();
+  if (!work) throw new ApiError(httpStatus.NOT_FOUND, 'Chart work not found');
+  if (work.status !== WORK_STATUS.TRANSFERRED) throw new ApiError(httpStatus.CONFLICT, 'Only transferred charts can be resolved');
+  if (isResolved(work)) throw new ApiError(httpStatus.CONFLICT, 'This transfer is already resolved');
+  const resolution = { verdict, note, at: new Date(), by: admin._id || admin.id };
+  const text = `Transfer to ${work.transfer.queue} resolved by ${adminName(admin)} — ${VERDICT_TEXT[verdict]}${note ? ': ' + note : ''}`;
+  const res = await ChartWork.updateOne(
+    { _id: workId, status: WORK_STATUS.TRANSFERRED, 'transfer.at': work.transfer.at, 'transfer.resolution.at': null },
+    { $set: { 'transfer.resolution': resolution }, ...pushActivity(text) }
+  );
+  if (!res.modifiedCount) throw new ApiError(httpStatus.CONFLICT, 'The chart changed in the meantime; reload and try again');
+  return { workId: String(workId), status: WORK_STATUS.TRANSFERRED, resolution: { verdict, note, at: resolution.at } };
+};
+
+module.exports = { TABS, summary, queryWork, returnToStudent, addNote, resolveTransfer };

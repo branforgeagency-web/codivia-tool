@@ -17,4 +17,8 @@ const addNote = async (req, res) => {
   res.status(httpStatus.CREATED).json(await s.addNote(req.params.workId, req.body, req.user));
 };
 
-module.exports = { getWork, getSummary, returnToStudent, addNote };
+const resolveTransfer = async (req, res) => {
+  res.status(httpStatus.OK).json(await s.resolveTransfer(req.params.workId, req.body, req.user));
+};
+
+module.exports = { getWork, getSummary, returnToStudent, addNote, resolveTransfer };

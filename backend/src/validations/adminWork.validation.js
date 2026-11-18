@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { ADMIN_WORK_TAB_KEYS, ADMIN_WORK_LIMITS: L } = require('../config/workQueue');
+const { ADMIN_WORK_TAB_KEYS, ADMIN_WORK_LIMITS: L, TRANSFER_VERDICTS } =require('../config/workQueue');
 const { DEPARTMENT_KEY_PATTERN } = require('../config/departments');
 const { objectId } = require('./custom.validation');
 
@@ -27,4 +27,13 @@ const addNote = {
   body: Joi.object({ text: Joi.string().trim().min(1).max(L.note).required() }),
 };
 
-module.exports = { getWork, returnToStudent, addNote };
+// Close a transferred chart: did the student pick the right work queue? The note is optional.
+const resolveTransfer = {
+  params: workIdParam,
+  body: Joi.object({
+    verdict: Joi.string().valid(...TRANSFER_VERDICTS).required(),
+    note: Joi.string().trim().max(L.note).allow(''),
+  }),
+};
+
+module.exports = { getWork, returnToStudent, addNote, resolveTransfer };

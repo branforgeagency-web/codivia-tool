@@ -7,7 +7,7 @@ import { useApiList } from '../../hooks/useApiList.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import { useReference, workTypeInfo } from '../../hooks/useReference.js';
 import { post } from '../../services/apiHelper.js';
-import { ADMIN_WORK, ADMIN_WORK_NOTES, ADMIN_WORK_RETURN } from '../../services/endpoints.js';
+import { ADMIN_WORK, ADMIN_WORK_NOTES, ADMIN_WORK_RESOLVE, ADMIN_WORK_RETURN } from '../../services/endpoints.js';
 import { PATHS } from '../../routes/paths.js';
 
 // ---- Admin: Chart Activity. What students do inside charts (ChartWork): deferred (reason),
@@ -30,6 +30,13 @@ const STATUS = {
   done: { label: '✓ Completed', tone: 'ok' },
 };
 
+// Closing a transfer: did the student pick the right work queue?
+const VERDICTS = [
+  { key: 'correct', label: 'Right queue', icon: 'bi-check-circle' },
+  { key: 'incorrect', label: 'Wrong queue', icon: 'bi-x-circle' },
+];
+const verdictLabel = (v) => (VERDICTS.find((x) => x.key === v) || VERDICTS[0]).label;
+
 // Timeline icons by activity kind (ChartWork.activity[].kind).
 const KIND_ICON = {
   opened: 'bi-play-circle',
@@ -45,7 +52,7 @@ const KIND_ICON = {
 };
 
 const EMPTY = {
-  attention: ['Nothing waiting', 'No student has a deferred or transferred chart right now.'],
+  attention: ['Nothing waiting', 'No deferred charts or unresolved transfers right now.'],
   deferred: ['No deferred charts', 'Charts students put on hold show up here with their reason.'],
   transferred: ['No transferred charts', 'Charts students send to another work queue show up here.'],
   in_progress: ['No charts in progress', 'Charts students have opened but not finished show up here.'],
@@ -91,17 +98,22 @@ function WorkCard({ w, open, onToggle, onChanged, typeLabel }) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [verdict, setVerdict] = useState('');
   const status = STATUS[w.status] || STATUS.in_progress;
-  const waiting = WAITING.includes(w.status);
+  const resolution = w.status === 'transferred' && w.transfer ? w.transfer.resolution : null;
+  const openTransfer = w.status === 'transferred' && !resolution;
+  const waiting = WAITING.includes(w.status) && !resolution;
   const bodyId = 'wa-body-' + w.workId;
 
   const act = async (kind) => {
     if (busy) return;
     if (kind === 'note' && !note.trim()) return;
+    if (kind === 'resolve' && !verdict) return;
     setBusy(kind);
     setError('');
     try {
       if (kind === 'return') await post(ADMIN_WORK_RETURN(w.workId), { note: note.trim() });
+      else if (kind === 'resolve') await post(ADMIN_WORK_RESOLVE(w.workId), { verdict, note: note.trim() });
       else await post(ADMIN_WORK_NOTES(w.workId), { text: note.trim() });
       setNote('');
       onChanged(kind, w);
@@ -127,6 +139,7 @@ function WorkCard({ w, open, onToggle, onChanged, typeLabel }) {
         </span>
         {w.queries.pending > 0 && <span className="dc-badge warn">{w.queries.pending} query pending</span>}
         <span className={'dc-badge ' + status.tone}>{status.label}</span>
+        {resolution && <span className={'dc-badge ' + (resolution.verdict === 'correct' ? 'ok' : 'warn')}>✓ Resolved · {verdictLabel(resolution.verdict)}</span>}
         <i className="bi bi-chevron-down pq-chev" aria-hidden="true" />
         <span className="sr-only">{open ? 'Close' : 'Open'}</span>
       </button>
@@ -199,6 +212,13 @@ function WorkCard({ w, open, onToggle, onChanged, typeLabel }) {
                 <b>{w.transfer.reason}</b>
                 {w.transfer.comment ? ' — ' + w.transfer.comment : ''}
               </p>
+              {resolution && (
+                <p className={'wa-resolved ' + resolution.verdict}>
+                  <i className={'bi ' + (resolution.verdict === 'correct' ? 'bi-check-circle' : 'bi-x-circle')} aria-hidden="true" /> Resolved — {verdictLabel(resolution.verdict).toLowerCase()}{' '}
+                  <span title={fullTime(resolution.at)}>· {ago(resolution.at)}</span>
+                  {resolution.note ? <span className="wa-resolved-note">{resolution.note}</span> : null}
+                </p>
+              )}
             </section>
           )}
 
@@ -252,6 +272,17 @@ function WorkCard({ w, open, onToggle, onChanged, typeLabel }) {
                 placeholder={waiting ? 'e.g. The provider has answered — please finish coding.' : 'Shown in the Activity panel of this chart…'}
               />
             </label>
+            {openTransfer && (
+              <fieldset className="wa-verdict">
+                <legend>Resolve transfer — was {w.transfer.queue} the right work queue?</legend>
+                {VERDICTS.map((v) => (
+                  <label key={v.key} className={'wa-verdict-opt ' + v.key + (verdict === v.key ? ' on' : '')}>
+                    <input type="radio" name={'verdict-' + w.workId} value={v.key} checked={verdict === v.key} onChange={() => setVerdict(v.key)} />
+                    <i className={'bi ' + v.icon} aria-hidden="true" /> {v.label}
+                  </label>
+                ))}
+              </fieldset>
+            )}
             {error && (
               <div className="cvx-msg err" role="alert">
                 {error}
@@ -259,9 +290,11 @@ function WorkCard({ w, open, onToggle, onChanged, typeLabel }) {
             )}
             <div className="pq-acts">
               <span className="pq-hint">
-                {waiting
-                  ? 'Returning puts the chart back in the student’s To do list. The note shows in the chart’s Activity panel.'
-                  : 'The student sees your note in the chart’s Activity panel.'}
+                {openTransfer
+                  ? 'Resolve closes the transfer; the chart stays Completed for the student. Return sends it back to their To do list.'
+                  : waiting
+                    ? 'Returning puts the chart back in the student’s To do list. The note shows in the chart’s Activity panel.'
+                    : 'The student sees your note in the chart’s Activity panel.'}
               </span>
               <span className="wa-btns">
                 <button type="button" className="sc-ghost" onClick={() => act('note')} disabled={!!busy || !note.trim()}>
@@ -270,6 +303,11 @@ function WorkCard({ w, open, onToggle, onChanged, typeLabel }) {
                 {waiting && (
                   <button type="button" className="dc-action" onClick={() => act('return')} disabled={!!busy}>
                     {busy === 'return' ? 'Returning…' : 'Return to student'}
+                  </button>
+                )}
+                {openTransfer && (
+                  <button type="button" className="dc-action" onClick={() => act('resolve')} disabled={!!busy || !verdict} title={verdict ? '' : 'Choose right or wrong queue first'}>
+                    {busy === 'resolve' ? 'Resolving…' : 'Resolve transfer'}
                   </button>
                 )}
               </span>
@@ -352,7 +390,12 @@ export default function ActivityPage() {
   const onChanged = (kind, w) => {
     setNotice({
       tone: 'ok',
-      text: kind === 'return' ? w.chart.id + ' is back in ' + w.student.name + '’s To do list.' : 'Note added to ' + w.chart.id + ' for ' + w.student.name + '.',
+      text:
+        kind === 'return'
+          ? w.chart.id + ' is back in ' + w.student.name + '’s To do list.'
+          : kind === 'resolve'
+            ? 'Transfer of ' + w.chart.id + ' (' + w.student.name + ') resolved.'
+            : 'Note added to ' + w.chart.id + ' for ' + w.student.name + '.',
     });
     refreshAll(); // the list and the sidebar badge
   };

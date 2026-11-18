@@ -43,7 +43,14 @@ const chartWorkSchema = new mongoose.Schema(
     draft: { type: Mixed, default: null }, // validated by chartWork validation before it is saved
     timeSpent: { type: Number, default: 0, min: 0 }, // seconds, across sessions
     defer: { reason: String, comment: String, at: Date },
-    transfer: { queue: String, reason: String, comment: String, at: Date },
+    // resolution: set when an admin closes the transfer (Chart Activity). A new transfer replaces it.
+    transfer: {
+      queue: String,
+      reason: String,
+      comment: String,
+      at: Date,
+      resolution: { verdict: String, note: String, at: Date, by: { type: ObjectId, ref: 'User' } },
+    },
     queries: { type: [querySchema], default: [] },
     session: { type: String, default: null }, // denial charge-correction session number (server-issued)
     activity: { type: [activitySchema], default: [] },
