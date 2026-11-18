@@ -17,3 +17,4 @@ module.exports.ReferenceList = require('./referenceList.model');
 module.exports.Certificate = require('./certificate.model');
 module.exports.Allocation = require('./allocation.model');
 module.exports.ChartUpload = require('./chartUpload.model');
+module.exports.AuditLog = require('./auditLog.model');

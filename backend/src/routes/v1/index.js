@@ -17,6 +17,7 @@ const myProgressRoute = require('./myProgress.route');
 const adminStudentRoute = require('./adminStudent.route');
 const adminQueryRoute = require('./adminQuery.route');
 const adminWorkRoute = require('./adminWork.route');
+const auditRoute = require('./audit.route');
 const chartUploadRoute = require('./chartUpload.route');
 const referenceRoute = require('./reference.route');
 
@@ -35,6 +36,7 @@ const routes = [
   { path: '/admin/uploads', route: chartUploadRoute },
   { path: '/admin/queries', route: adminQueryRoute },
   { path: '/admin/work', route: adminWorkRoute },
+  { path: '/admin/audit', route: auditRoute },
   { path: '/reference', route: referenceRoute },
   { path: '/codes', route: codeRoute },
   { path: '/guidelines', route: codingGuidelineRoute },

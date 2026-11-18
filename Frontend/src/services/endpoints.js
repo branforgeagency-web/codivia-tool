@@ -67,6 +67,7 @@ export const ADMIN_QUERY_ANSWER = (workId, queryId) => `${ADMIN_QUERIES}/${encod
 // Admin Chart Activity: what students do inside charts (deferred, transferred, in progress, done)
 export const ADMIN_WORK = '/admin/work'; // GET ?status=attention|deferred|transferred|in_progress|done|all&dept=&queue=&search=&page=
 export const ADMIN_WORK_SUMMARY = `${ADMIN_WORK}/summary`; // GET { deferred, transferred, attention } — sidebar badge
+export const ADMIN_AUDIT = '/admin/audit'; // GET ?category=&actor=&action=&from=&to=&search=&page= — Audit Log page
 export const ADMIN_WORK_RETURN = (workId) => `${ADMIN_WORK}/${encodeURIComponent(workId)}/return`; // POST { note? }
 export const ADMIN_WORK_RESOLVE = (workId) => `${ADMIN_WORK}/${encodeURIComponent(workId)}/resolve`; // POST { verdict: 'correct'|'incorrect', note? }
 export const ADMIN_WORK_NOTES =(workId) => `${ADMIN_WORK}/${encodeURIComponent(workId)}/notes`; // POST { text }

@@ -24,4 +24,5 @@ export const ADMIN_NAV = [
   { id: 'activity', path: PATHS.adminActivity, ic: '🧾', lbl: 'Chart Activity', ...tiles.resume },
   { id: 'upload', path: PATHS.adminUpload, ic: '📤', lbl: 'Upload Charts', ...tiles.upload },
   { id: 'queries', path: PATHS.adminQueries, ic: '💬', lbl: 'Physician Queries', ...tiles.guidelines },
+  { id: 'audit', path: PATHS.adminAudit, ic: '📜', lbl: 'Audit Log', ...tiles.codeSearch },
 ];

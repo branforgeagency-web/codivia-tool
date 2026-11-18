@@ -12,6 +12,7 @@ const paths = {
   departments: 'M3 7h18v14H3z M3 7V3h7l3 4',
   students: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M17 3a4 4 0 0 1 0 8 M22 21v-2a4 4 0 0 0-3-4',
   upload: 'M12 16V3 M7 8l5-5 5 5 M3 15v6h18v-6',
+  audit: 'M3 12a9 9 0 1 0 3-6.7 M3 4v5h5 M12 7v5l3 3',
   locked: 'M5 10h14v12H5z M8 10V6a4 4 0 0 1 8 0v4',
 };
 

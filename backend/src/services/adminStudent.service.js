@@ -244,14 +244,14 @@ const previewBulkAllocation = async () => {
 };
 
 const applyBulkAllocation = async () => {
-  const { plan } = await bulkPlan();
+  const { plan, depts, size } = await bulkPlan();
   const ops = plan.flatMap(({ student, ranges }) =>
     Object.entries(ranges).map(([dept, r]) => ({
       updateOne: { filter: { student, dept }, update: { $set: { start: r.start, end: r.end } }, upsert: true },
     }))
   );
   if (ops.length) await Allocation.bulkWrite(ops, { ordered: false });
-  return { allocated: plan.length };
+  return { allocated: plan.length, depts: depts.map((d) => d.key), size };
 };
 
 // Add a student by hand (Students page → Add student). Same account as a self sign-up: the server
