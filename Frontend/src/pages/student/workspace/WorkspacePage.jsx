@@ -16,7 +16,8 @@ import { MY_CHART, MY_CHART_COMMENTS, MY_CHART_DEFER, MY_CHART_QUERIES, MY_CHART
 import { useReference, workTypeInfo } from '../../../hooks/useReference.js';
 import { DenialLeft, DenialRight } from './Denial.jsx';
 import { DocumentsPanel } from './Documents.jsx';
-import { Encoder, fetchNotes } from './Encoder.jsx';
+import { fetchNotes } from './Encoder.jsx';
+import { CodeEntry } from './CodeEntry.jsx';
 import { runEdits } from './edits.js';
 import { DeferModal, QueryModal, SubmitModal, TransferModal } from './Modals.jsx';
 import { codeDescriber, demographicsOf, documentsOf, fmtTime, initialDraft, isEM, norm, settingOf, toSubmission, uid } from './model.js';
@@ -31,7 +32,13 @@ const IP_TABS = [
   ['abs', 'Abstract'],
   ['drg', 'MS-DRG'],
 ];
-const TAB_NAMES = { dx: 'Diagnoses', lines: 'Charge lines', pcs: 'Procedures', abs: 'Abstract', drg: 'MS-DRG' };
+const TAB_NAMES = { em: 'Level of service', dx: 'Diagnoses', lines: 'Charge lines', pcs: 'Procedures', abs: 'Abstract', drg: 'MS-DRG' };
+// The coding tabs of a chart: inpatient as above; outpatient CPT first (level of service, charge
+// lines), then ICD (diagnoses).
+const tabsOf = (set) =>
+  set.inpatient
+    ? IP_TABS
+    : [set.hasEM && ['em', 'Level of service'], set.hasLines && ['lines', 'Charge lines'], ['dx', 'Diagnoses']].filter(Boolean);
 const SAVE_DELAY = 1200;
 
 function Banner({ chart, set }) {
@@ -136,6 +143,7 @@ export default function WorkspacePage() {
   const [saveState, setSaveState] = useState(''); // '' | saving | saved | error
   const [savedAt, setSavedAt] = useState(null);
   const [tab, setTab] = useState('dx');
+  const [codeSet, setCodeSet] = useState('icd'); // top-level coding tab: cpt | pcs | icd
   const [docKey, setDocKey] = useState('');
   const [find, setFind] = useState('');
   const [flash, setFlash] = useState(null);
@@ -182,7 +190,8 @@ export default function WorkspacePage() {
         setWork(c.work);
         baseTime.current = (c.work && c.work.timeSpent) || 0;
         startedAt.current = Date.now();
-        setTab('dx');
+        setTab(tabsOf(settingOf(c))[0][0]);
+        setCodeSet(settingOf(c).hasLines ? 'cpt' : 'icd');
         setFind('');
         setEncQ('');
         setEncSel(null);
@@ -282,10 +291,11 @@ export default function WorkspacePage() {
     const onKey = (e) => {
       if (modal) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 'k' && encRef.current) {
+      const entry = document.querySelector('.wsx-entry input'); // first code entry box (CPT first)
+      if (mod && e.key.toLowerCase() === 'k' && entry) {
         e.preventDefault();
-        encRef.current.focus();
-        encRef.current.select();
+        entry.focus();
+        entry.select();
       } else if (mod && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setDocsOpen(true);
@@ -295,9 +305,9 @@ export default function WorkspacePage() {
             findRef.current.select();
           }
         }, 0);
-      } else if (e.altKey && /^[1-4]$/.test(e.key) && chart && settingOf(chart).inpatient) {
+      } else if (e.altKey && /^[1-4]$/.test(e.key) && chart && tabsOf(settingOf(chart))[+e.key - 1]) {
         e.preventDefault();
-        setTab(IP_TABS[+e.key - 1][0]);
+        setTab(tabsOf(settingOf(chart))[+e.key - 1][0]);
       }
     };
     document.addEventListener('keydown', onKey);
@@ -376,6 +386,39 @@ export default function WorkspacePage() {
     if (row[0] === 1) return [{ label: 'Add procedure', primary: true, run: addPcs }];
     return [{ label: 'Add charge line', primary: true, run: addLine }];
   };
+  // Typed code entry (CodeEntry): each box saves one code at a time. CPT / HCPCS first, then ICD.
+  // A save returns an error message, or '' when the code was added.
+  const saveDx = (row) => {
+    if (draft.dx.some((x) => norm(x.code) === norm(row[2]))) return row[2] + ' is already coded';
+    if (draft.dx.length >= set.maxDx) return 'A claim holds at most ' + set.maxDx + ' diagnoses';
+    change((d) => d.dx.push({ id: uid('d'), code: row[2], desc: row[3], poa: /^Z/.test(norm(row[2])) && set.inpatient ? '1' : '', ev: [] }));
+    setTab('dx');
+    return '';
+  };
+  const savePcs = (row) => {
+    if (draft.pcs.some((p) => norm(p.code) === norm(row[2]))) return row[2] + ' is already coded';
+    change((d) => d.pcs.push({ id: uid('p'), code: row[2], desc: row[3], date: '', ev: [] }));
+    setTab('pcs');
+    return '';
+  };
+  const saveLine = (row) => {
+    change((d) => {
+      const line = { id: uid('l'), code: row[2], desc: row[3], mods: ['', '', '', ''], units: 1, ptrs: [] };
+      if (isEM(norm(row[2]))) d.lines.unshift(line);
+      else d.lines.push(line);
+    });
+    setTab('lines');
+    return '';
+  };
+  // Entry boxes, always visible (CPT / HCPCS first, then PCS, then ICD). Saving opens the tab the code lands on.
+  const entryBoxes = [
+    set.hasLines && { key: 'cpt', label: 'CPT / HCPCS', sys: [2, 3], placeholder: 'e.g. 99214 or J1885', help: 'Type a procedure code and press Enter to save it as a charge line.', save: saveLine },
+    set.hasPCS && { key: 'pcs', label: 'ICD-10-PCS', sys: [1], placeholder: 'e.g. 0DTJ4ZZ', help: 'Type a procedure code and press Enter to save it.', save: savePcs },
+    { key: 'icd', label: 'ICD-10-CM', sys: [0], placeholder: 'e.g. J18.9', help: 'Type a diagnosis code and press Enter to save it. The first one is the ' + (set.inpatient ? 'principal' : 'primary') + ' diagnosis.', save: saveDx },
+  ].filter(Boolean);
+  // Top-level tabs: one per code set (CPT first). Each shows its entry box; the sub-tabs below are shared.
+  const codeSets = entryBoxes.map((b) => [b.key, b.label]);
+  const activeSet = codeSets.some(([k]) => k === codeSet) ? codeSet : codeSets[0][0];
   const removeDx = (id) =>
     change((d) => {
       const x = d.dx.find((r) => r.id === id);
@@ -490,6 +533,7 @@ export default function WorkspacePage() {
     ...draft.dx.map((x) => ({ id: x.id, code: x.code, desc: x.desc })),
     ...draft.pcs.map((p) => ({ id: p.id, code: p.code, desc: p.desc })),
   ];
+  const codingTabs = tabsOf(set);
   const errTab = (t) => edits.some((e) => e.sev === 'err' && e.tab === t);
 
   const codingBody = set.inpatient ? (
@@ -503,11 +547,13 @@ export default function WorkspacePage() {
       <DrgSection draft={draft} change={change} original={chart.original} lists={lists} />
     )
   ) : (
-    <>
+    tab === 'em' && set.hasEM ? (
+      <EmSection draft={draft} change={change} chart={chart} describe={describe} lists={lists} />
+    ) : tab === 'lines' && set.hasLines ? (
+      <LinesSection draft={draft} change={change} edits={edits} original={chart.workType === 'review' ? original : null} describe={describe} lists={lists} />
+    ) : (
       <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} />
-      {set.hasEM && <EmSection draft={draft} change={change} chart={chart} describe={describe} lists={lists} />}
-      {set.hasLines && <LinesSection draft={draft} change={change} edits={edits} original={chart.workType === 'review' ? original : null} describe={describe} lists={lists} />}
-    </>
+    )
   );
 
   return (
@@ -597,11 +643,6 @@ export default function WorkspacePage() {
             evidence={draft.evidence}
             linkTargets={linkTargets}
             onLink={linkEvidence}
-            onSearchText={(text) => {
-              setEncQ(text.slice(0, 80));
-              setEncSel(null);
-              if (encRef.current) encRef.current.focus();
-            }}
             find={find}
             setFind={setFind}
             flash={flash}
@@ -624,15 +665,24 @@ export default function WorkspacePage() {
                 </button>
               </div>
             )}
-            <Encoder codeDB={codeDB} dbStatus={dbStatus} systems={systems} q={encQ} setQ={setEncQ} sel={encSel} setSel={setEncSel} inputRef={encRef} actionsFor={actionsFor} />
-            {set.inpatient && (
-              <div className="tabs" role="tablist">
-                {IP_TABS.map(([k, l], i) => (
+            {codeSets.length > 1 && (
+              <div className="wsx-sets" role="tablist" aria-label="Code set">
+                {codeSets.map(([k, l]) => (
+                  <button key={k} type="button" role="tab" aria-selected={activeSet === k} className={activeSet === k ? 'on' : ''} onClick={() => setCodeSet(k)}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            )}
+            <CodeEntry boxes={entryBoxes.filter((b) => b.key === activeSet)} codeDB={codeDB} dbStatus={dbStatus} />
+            {codingTabs.length > 1 && (
+              <div className="wsx-subtabs" role="tablist" aria-label="Coding sections">
+                {codingTabs.map(([k, l], i) => (
                   <button key={k} type="button" role="tab" aria-selected={tab === k} className={'tab' + (tab === k ? ' on' : '')} title={'Alt+' + (i + 1)} onClick={() => setTab(k)}>
                     {l}
-                    {k === 'dx' || k === 'pcs' ? (
+                    {k === 'dx' || k === 'pcs' || k === 'lines' ? (
                       <span className={'pill ' + (errTab(k) ? 'err' : 'gray')} style={{ padding: '0 7px', marginLeft: 5 }}>
-                        {k === 'dx' ? draft.dx.length : draft.pcs.length}
+                        {k === 'dx' ? draft.dx.length : k === 'pcs' ? draft.pcs.length : draft.lines.length}
                       </span>
                     ) : errTab(k) ? (
                       <span className="pill err" style={{ padding: '0 7px', marginLeft: 5 }}>
@@ -668,8 +718,8 @@ export default function WorkspacePage() {
             acks={draft.acks}
             toggleAck={(k) => change((d) => (d.acks = d.acks.includes(k) ? d.acks.filter((x) => x !== k) : [...d.acks, k].slice(-100)))}
             tabName={(t) => TAB_NAMES[t] || t}
-            currentTab={set.inpatient ? tab : null}
-            goTab={set.inpatient ? (t) => setTab(t === 'lines' ? 'dx' : t) : null}
+            currentTab={tab}
+            goTab={(t) => setTab(codingTabs.some(([k]) => k === t) ? t : codingTabs[0][0])}
             queries={queries}
             notes={draft.notes}
             setNotes={(v) => change((d) => (d.notes = v))}

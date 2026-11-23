@@ -1,5 +1,6 @@
 /* CODIVIA workspace — right sidebar: edits (errors / warnings / prompts), queries, notes, activity. */
 import { useState } from 'react';
+import { Burger } from './Documents.jsx';
 
 export function Sidebar({ open, setOpen, edits, acks, toggleAck, tabName, currentTab, goTab, queries, notes, setNotes, activity, onComment }) {
   const [filter, setFilter] = useState('all');
@@ -8,10 +9,10 @@ export function Sidebar({ open, setOpen, edits, acks, toggleAck, tabName, curren
   const n = (s) => edits.filter((e) => e.sev === s).length;
   if (!open)
     return (
-      <div className="wsx-rail">
-        <button type="button" onClick={() => setOpen(true)}>
-          Open sidebar · {n('err')} errors
-        </button>
+      <div className="wsx-docrail right">
+        <Burger open={false} what="edits & scrubber" count={n('err') || n('warn')} tone={n('err') ? 'err' : n('warn') ? 'warn' : ''} onClick={() => setOpen(true)} />
+        {!n('err') && !n('warn') && <span className="okdot" title="No errors or warnings">✓</span>}
+        <span className="lbl" aria-hidden="true">Edits &amp; scrubber</span>
       </div>
     );
   const shown = edits.filter((e) => filter === 'all' || e.sev === filter);
@@ -28,12 +29,8 @@ export function Sidebar({ open, setOpen, edits, acks, toggleAck, tabName, curren
   return (
     <div className="card panel">
       <div className="ph">
+        <Burger open={true} what="edits & scrubber" onClick={() => setOpen(false)} />
         <h2>Edits &amp; scrubber</h2>
-        <div className="r">
-          <button type="button" className="ibtn" title="Close sidebar" onClick={() => setOpen(false)}>
-            ⇥
-          </button>
-        </div>
       </div>
       <div className="wsx-efilters" role="group" aria-label="Filter edits">
         {[['all', 'All', edits.length], ['err', 'Errors', n('err')], ['warn', 'Warnings', n('warn')], ['info', 'Prompts', n('info')]].map(([k, l, c]) => (

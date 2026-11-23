@@ -164,33 +164,32 @@ function PreviousHead({ r, onUse }) {
   );
 }
 
-function Burger({ open, onClick, count }) {
+// Animated hamburger that opens / closes a side panel (Documents, Edits & scrubber).
+export function Burger({ open, onClick, count, what = 'documents', tone = '' }) {
+  const label = (open ? 'Close ' : 'Open ') + what;
   return (
-    <button type="button" className={'wsx-burger' + (open ? ' on' : '')} onClick={onClick} aria-expanded={open} aria-label={open ? 'Close documents' : 'Open documents'} title={open ? 'Close documents' : 'Open documents'}>
+    <button type="button" className={'wsx-burger' + (open ? ' on' : '')} onClick={onClick} aria-expanded={open} aria-label={label} title={label}>
       <span className="bars" aria-hidden="true">
         <i />
         <i />
         <i />
       </span>
-      {!open && count ? <span className="cnt">{count}</span> : null}
+      {!open && count ? <span className={'cnt' + (tone ? ' ' + tone : '')}>{count}</span> : null}
     </button>
   );
 }
 
+// Closed = the document list only (Full record, … categories); the reading area is hidden.
+// Picking a document while closed opens the panel on it.
 export function DocumentsPanel(props) {
-  // Collapsed by default: a slim column with a hamburger that opens the full panel.
-  if (!props.open) {
-    return (
-      <div className="wsx-docrail">
-        <Burger open={false} count={props.docs.length} onClick={() => props.setOpen(true)} />
-        <span className="lbl" aria-hidden="true">Documents</span>
-      </div>
-    );
-  }
-  return <DocumentsOpen {...props} />;
+  return <DocumentsOpen {...props} collapsed={!props.open} />;
 }
 
-function DocumentsOpen({ docs, active, onOpen, evidence, linkTargets, onLink, onSearchText, find, setFind, flash, handwritten, findRef, toast, setOpen, previous, onUseCodes }) {
+function DocumentsOpen({ collapsed, docs, active, onOpen: openDoc, evidence, linkTargets, onLink, onSearchText, find, setFind, flash, handwritten, findRef, toast, setOpen, previous, onUseCodes }) {
+  const onOpen = (key) => {
+    openDoc(key);
+    if (collapsed) setOpen(true);
+  };
   const prevDocs = (previous || []).map(previousDoc);
   // Left list: the chart's own documents, then one entry per category. A category opens a list of
   // its records in the right box; a record opens its details (previous records: fills the codes).
@@ -256,9 +255,9 @@ function DocumentsOpen({ docs, active, onOpen, evidence, linkTargets, onLink, on
   };
 
   return (
-    <div className="card panel">
+    <div className={'card panel wsx-docpanel' + (collapsed ? ' collapsed' : '')}>
       <div className="ph">
-        <Burger open={true} onClick={() => setOpen(false)} />
+        <Burger open={!collapsed} onClick={() => setOpen(collapsed)} />
         <h2>Documents</h2>
         <div className="r">
           <input ref={findRef} className="inp" style={{ height: 32, width: 200 }} value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find in document  (Ctrl+F)" aria-label="Find in document" />        </div>
@@ -297,7 +296,7 @@ function DocumentsOpen({ docs, active, onOpen, evidence, linkTargets, onLink, on
         </div>
         )}
       </div>
-      <div className="wsx-tip">Tip: select text in a document to link it as evidence for a code, or to search it in the encoder.</div>
+      <div className="wsx-tip">Tip: select text in a document to link it as evidence for a code.</div>
       {pop && (
         <div className="wsx-selpop" style={{ left: pop.x, top: pop.y }} role="menu">
           <div className="h">
@@ -321,6 +320,7 @@ function DocumentsOpen({ docs, active, onOpen, evidence, linkTargets, onLink, on
           ) : (
             <div className="h">Add a diagnosis or procedure first.</div>
           )}
+          {onSearchText && (
           <button
             type="button"
             onClick={() => {
@@ -330,6 +330,7 @@ function DocumentsOpen({ docs, active, onOpen, evidence, linkTargets, onLink, on
           >
             ⌕ Search the encoder for this text
           </button>
+          )}
         </div>
       )}
     </div>

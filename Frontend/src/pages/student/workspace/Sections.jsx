@@ -1,6 +1,6 @@
 /* CODIVIA workspace — coding sections: diagnoses, E/M level, charge lines, procedures, abstract, MS-DRG. */
 import { useMemo, useState } from 'react';
-import { emGrid, isEM, LETTERS, norm, uid } from './model.js';
+import { isEM, LETTERS, norm, uid } from './model.js';
 
 // `lists` = the reference lists from GET /reference/work-queue (useReference).
 const opts = (lists, key) => (lists && lists[key]) || [];
@@ -108,33 +108,38 @@ export function DxSection({ draft, change, set, lists, readOnly, evidence, docs,
           </div>
         ))
       ) : (
-        <div className="empty">No diagnoses yet. Use the encoder above (Ctrl+K), or select text in a document and search it.</div>
+        <div className="empty">No diagnoses yet. Type an ICD-10-CM code in the box above and press Enter.</div>
       )}
     </div>
   );
 }
 
 // ---------- E/M level of service ----------
+// The student types the E/M level code themselves: no level grid, no MDM / time suggestions.
+// The saved level sits on charge line 1.
 export function EmSection({ draft, change, chart, describe, lists }) {
-  const grid = emGrid(lists, draft.ptGrid);
+  const [val, setVal] = useState('');
+  const [msg, setMsg] = useState('');
   const em = draft.lines.find((l) => isEM(norm(l.code)));
-  const t = parseInt(draft.emTime, 10);
-  const fit = t > 0 && draft.ptGrid !== 'ed' ? grid.filter((g) => g.minutes && t >= g.minutes).pop() : null;
-  const pick = (code) =>
+  const e = chart.encounter || {};
+  const typed = norm(val);
+  const save = () => {
+    if (!typed) return;
+    if (!isEM(typed) || !describe(typed)) return setMsg(`${val.trim().toUpperCase()} is not an E/M level code.`);
     change((d) => {
       const at = d.lines.findIndex((l) => isEM(norm(l.code)));
-      if (at > -1) {
-        if (norm(d.lines[at].code) === code) d.lines.splice(at, 1);
-        else Object.assign(d.lines[at], { code, desc: describe(code) });
-      } else d.lines.unshift({ id: uid('l'), code, desc: describe(code), mods: ['', '', '', ''], units: 1, ptrs: d.dx.slice(0, 4).map((x) => x.id) });
+      if (at > -1) Object.assign(d.lines[at], { code: typed, desc: describe(typed) });
+      else d.lines.unshift({ id: uid('l'), code: typed, desc: describe(typed), mods: ['', '', '', ''], units: 1, ptrs: [] });
     });
-  const hasG = draft.lines.some((l) => norm(l.code) === 'G2211');
-  const e = chart.encounter || {};
+    setVal('');
+    setMsg('');
+  };
+  const remove = () => change((d) => (d.lines = d.lines.filter((l) => !isEM(norm(l.code)))));
   return (
     <div className="sec">
       <div className="sh">
         <h3>Level of service (E/M)</h3>
-        <span className="hint">Choosing a level puts it on charge line 1.</span>
+        <span className="hint">Type the E/M code. It goes on charge line 1.</span>
       </div>
       <div className="wsx-los">
         <span className="lbl">Patient</span>
@@ -153,40 +158,52 @@ export function EmSection({ draft, change, chart, describe, lists }) {
             </span>
           )}
         </div>
-        <span className="lbl">Level (MDM{draft.ptGrid !== 'ed' ? ' · time' : ''})</span>
-        <div className="wsx-lvls" style={{ gridTemplateColumns: `repeat(${grid.length},1fr)` }}>
-          {grid.map((g) => (
-            <button key={g.code} type="button" className={'wsx-lv' + (em && norm(em.code) === g.code ? ' on' : '')} onClick={() => pick(g.code)}>
-              <span className="code">{g.code}</span>
-              <small>
-                {g.mdm}
-                {g.minutes ? ` · ${g.minutes}+ min` : ''}
-              </small>
+        <span className="lbl">E/M level</span>
+        <div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              className="inp wsx-emcode"
+              value={val}
+              maxLength={6}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={em ? 'Change level…' : 'E/M code'}
+              aria-label="E/M level code"
+              onChange={(ev) => {
+                setVal(ev.target.value.toUpperCase());
+                setMsg('');
+              }}
+              onKeyDown={(ev) => {
+                if (ev.key === 'Enter') {
+                  ev.preventDefault();
+                  save();
+                }
+              }}
+            />
+            <button type="button" className="btn sm primary" onClick={save} disabled={!typed}>
+              Save
             </button>
-          ))}
+            {em && (
+              <span className="wsx-emsaved">
+                <span className="code">{em.code}</span>
+                <span className="muted">{em.desc}</span>
+                <button type="button" className="ibtn x" title="Remove E/M level" onClick={remove}>
+                  ✕
+                </button>
+              </span>
+            )}
+          </div>
+          {msg && (
+            <div className="err" role="alert" style={{ fontSize: 12.5, marginTop: 5, color: 'var(--w-err)', fontWeight: 600 }}>
+              {msg}
+            </div>
+          )}
         </div>
         {draft.ptGrid !== 'ed' && (
           <>
             <span className="lbl">Total time</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div>
               <input className="inp" style={{ width: 90 }} inputMode="numeric" placeholder="min" value={draft.emTime} onChange={(ev) => change((d) => (d.emTime = ev.target.value.replace(/\D/g, '').slice(0, 4)))} aria-label="Total time in minutes" />
-              <span className="muted">{!t ? '' : fit ? <>Time alone supports <b>{fit.code}</b></> : 'Below the time thresholds'}</span>
-              <button
-                type="button"
-                className="btn sm"
-                style={{ marginLeft: 'auto' }}
-                onClick={() =>
-                  change((d) => {
-                    if (hasG) d.lines = d.lines.filter((l) => norm(l.code) !== 'G2211');
-                    else {
-                      const at = d.lines.findIndex((l) => isEM(norm(l.code))) + 1;
-                      d.lines.splice(at, 0, { id: uid('l'), code: 'G2211', desc: describe('G2211'), mods: ['', '', '', ''], units: 1, ptrs: d.dx[0] ? [d.dx[0].id] : [] });
-                    }
-                  })
-                }
-              >
-                {hasG ? '✓ G2211 added' : '+ Add-on G2211'}
-              </button>
             </div>
           </>
         )}
@@ -410,7 +427,7 @@ export function LinesSection({ draft, change, edits, original, describe, lists, 
           </tbody>
         </table>
       ) : (
-        <div className="empty">No charge lines yet. Pick an E/M level above, or add a procedure with the encoder (CPT / HCPCS).</div>
+        <div className="empty">No charge lines yet. Type a CPT / HCPCS code in the box above and press Enter, or pick an E/M level.</div>
       )}
       {children}
       <datalist id="wsx-modlist">
@@ -431,7 +448,7 @@ export function PcsSection({ draft, change, evidence, docs, onGoEvidence, readOn
     <div className="sec">
       <div className="sh">
         <h3>Procedures (ICD-10-PCS)</h3>
-        <span className="hint">Find codes with the encoder (code set: ICD-10-PCS). Row 1 is the principal procedure.</span>
+        <span className="hint">Type ICD-10-PCS codes in the box above. Row 1 is the principal procedure.</span>
       </div>
       {draft.pcs.length ? (
         <table className="wsx-simple">

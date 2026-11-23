@@ -91,10 +91,14 @@
 .wsx-banner .bf em{display:block;font-style:normal;font-size:12px;color:var(--w-navy-mut)}
 
 /* grid */
-.wsx-grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(380px,1fr) minmax(560px,1.25fr) 310px;gap:14px;padding:14px 20px}
-.wsx-grid.closed{grid-template-columns:minmax(400px,1fr) minmax(600px,1.35fr) 52px}
-.wsx-grid.docs-closed{grid-template-columns:52px minmax(600px,1fr) 310px}
-.wsx-grid.docs-closed.closed{grid-template-columns:52px minmax(600px,1fr) 52px}
+/* Same track structure in every state, so opening / closing a side panel slides smoothly. */
+.wsx-grid{flex:1;min-height:0;display:grid;grid-template-columns:40% minmax(520px,1fr) 310px;gap:14px;padding:14px 20px;transition:grid-template-columns .35s cubic-bezier(.4,0,.2,1)}
+.wsx-grid.closed{grid-template-columns:40% minmax(520px,1fr) 52px}
+.wsx-grid.docs-closed{grid-template-columns:232px minmax(520px,1fr) 310px}
+.wsx-grid.docs-closed.closed{grid-template-columns:232px minmax(520px,1fr) 52px}
+.wsx-grid>*{min-width:0;animation:wsxFade .3s ease}
+@keyframes wsxFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.wsx-grid{transition:none}.wsx-grid>*{animation:none}}
 .wsx-grid.two{grid-template-columns:minmax(420px,1fr) minmax(560px,1.2fr)}
 .wsx .panel{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .wsx .ph{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid var(--w-line)}
@@ -180,9 +184,30 @@
 .wsx-burger.on .bars i:nth-child(2){opacity:0;transform:translateX(-6px)}
 .wsx-burger.on .bars i:nth-child(3){top:5.75px;transform:rotate(-45deg)}
 .wsx-burger .cnt{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--w-brand);color:#fff;font-size:10.5px;font-weight:800;line-height:18px;text-align:center;border:2px solid #fff}
+.wsx-burger .cnt.err{background:var(--w-err)}
+.wsx-burger .cnt.warn{background:var(--w-warn)}
+.wsx-docrail .okdot{width:20px;height:20px;border-radius:50%;background:var(--w-ok);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center}
 .wsx-docrail{display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:10px}
 .wsx-docrail .lbl{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--w-muted)}
 .wsx-tip{padding:8px 15px;border-top:1px solid var(--w-line);font-size:12.5px;color:var(--w-muted)}
+
+/* code-set tabs (CPT / HCPCS · ICD-10-PCS · ICD-10-CM) */
+.wsx-sets{align-self:flex-start;display:inline-flex;gap:2px;margin:10px 15px 0;padding:3px;background:var(--w-line2);border-radius:999px}
+.wsx-sets button{border:0;background:none;color:var(--w-muted);font-weight:800;font-size:12px;padding:5px 13px;border-radius:999px;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s}
+.wsx-sets button:hover{color:var(--w-ink)}
+.wsx-sets button.on{background:var(--w-navy);color:#fff;box-shadow:0 1px 3px rgba(15,47,86,.3)}
+.wsx-emcode{width:120px;font-family:var(--w-mono);font-weight:700;font-size:14px;text-transform:uppercase}
+.wsx-emsaved{display:inline-flex;align-items:center;gap:8px;padding:3px 6px 3px 10px;border:1px solid var(--w-navy-ln);background:var(--w-navy-lt);border-radius:8px;font-size:13px}
+/* typed code entry (CPT / HCPCS, ICD-10-PCS, ICD-10-CM) */
+.wsx-entries{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:12px 15px;border-bottom:1px solid var(--w-line);background:#FCFBFA}
+.wsx-entry label{display:block;font-size:11.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--w-muted);margin-bottom:5px}
+.wsx-entry .row{display:flex;gap:8px}
+.wsx-entry .inp.code{flex:1;min-width:0;height:36px;font-family:var(--w-mono);font-size:15px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.wsx-entry .inp.code.ok{border-color:var(--w-ok)}
+.wsx-entry .inp.code.bad{border-color:var(--w-warn)}
+.wsx-entry .btn.sm{height:36px}
+.wsx-entry .hint{font-size:12px;color:var(--w-muted);margin-top:5px;min-height:16px;line-height:1.35}
+.wsx-entry .hint.err{color:var(--w-err);font-weight:600}
 
 /* encoder */
 .wsx-enc{padding:11px 15px;border-bottom:1px solid var(--w-line);background:#FCFBFA;position:relative}
@@ -332,5 +357,19 @@ table.wsx-simple{width:100%;border-collapse:collapse;font-size:14px}
 @media (max-width:1280px){
   .wsx-grid,.wsx-grid.closed{grid-template-columns:1fr 1.2fr;overflow:auto}
   .wsx-grid>:nth-child(3){grid-column:1/-1;min-height:320px}
-  .wsx-grid.docs-closed,.wsx-grid.docs-closed.closed{grid-template-columns:52px 1fr}
+  .wsx-grid.docs-closed,.wsx-grid.docs-closed.closed{grid-template-columns:232px 1fr}
 }
+
+/* Documents closed: keep the list, hide the reading area (the grid column slides to 232px) */
+.wsx-docpanel .wsx-docs{transition:grid-template-columns .35s cubic-bezier(.4,0,.2,1)}
+.wsx-docpanel.collapsed .wsx-docs{grid-template-columns:1fr 0}
+.wsx-docpanel.collapsed .wsx-doclist{border-right:none}
+.wsx-docpanel.collapsed .wsx-docs>.pb,.wsx-docpanel.collapsed .ph .r,.wsx-docpanel.collapsed .wsx-tip{display:none}
+.wsx-docpanel .ph h2{white-space:nowrap}
+
+/* coding sub-tabs (Level of service · Charge lines · Diagnoses …) as small switches */
+.wsx-subtabs{display:flex;flex-wrap:wrap;gap:6px;padding:9px 15px;border-bottom:1px solid var(--w-line)}
+.wsx-subtabs .tab{border:1px solid var(--w-line);background:#fff;color:var(--w-muted);font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;white-space:nowrap;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.wsx-subtabs .tab:hover{color:var(--w-ink);border-color:#cfcac3}
+.wsx-subtabs .tab.on{background:var(--w-brand-lt);border-color:var(--w-brand);color:var(--w-brand-d)}
+.wsx-subtabs .tab .pill{font-size:10.5px;line-height:16px}

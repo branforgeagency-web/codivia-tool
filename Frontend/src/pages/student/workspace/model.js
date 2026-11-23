@@ -198,7 +198,10 @@ export function initialDraft(chart, describe) {
     d.abs = { admitType: '', admitSrc: '', disp: '', attending: e.provider || '' };
   }
   const o = chart.original;
-  if (o && chart.workType !== 'code') {
+  // Only denial work starts from the billed claim (the student corrects those lines). Every other
+  // chart starts empty: the student codes it; a review chart's original charges stay visible
+  // under Charge lines → Original / Compare.
+  if (o && chart.workType === 'denial') {
     d.dx = (o.dx || []).map((x) => ({ id: uid('d'), code: x.code, desc: describe(x.code), poa: x.poa || '', ev: [] }));
     const idOf = (code) => (d.dx.find((x) => norm(x.code) === norm(code)) || {}).id;
     d.lines = (o.lines || []).map((l) => ({
