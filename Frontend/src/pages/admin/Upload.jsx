@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import React from 'react';
 import { PageLoader } from '../../components/ui/PageLoader.jsx';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
 import { useApiList } from '../../hooks/useApiList.js';
 import { validateCode } from '../../utils/codes.js';
 import { scanPHI } from '../../utils/phi.js';
 import { del, get, patch, post } from '../../services/apiHelper.js';
+import { checkMediaFile, uploadMedia } from '../../services/media.service.js';
 import {
   ADMIN_CHART,
   ADMIN_UPLOAD,
@@ -16,13 +18,14 @@ import {
   DEPARTMENTS,
 } from '../../services/endpoints.js';
 import { useAdmin } from '../../context/AdminContext.jsx';
-import { CaseFields, caseProblems, emptyCase, fromCase, toCasePayload } from './UploadCase.jsx';
+import { CaseFields, caseIssues, emptyCase, fromCase, toCasePayload } from './UploadCase.jsx';
 import { useReference, workTypeInfo } from '../../hooks/useReference.js';
 
 // Data: /admin/uploads. The record text is extracted on the server (POST /admin/uploads/extract);
 // the text, the chart setup (work type, patient, documents, encounter, original charges, denial,
 // grading extras) and the answer key are sent: the same structure as a published chart.
-// The original file itself is not stored.
+// The original file is stored in S3 through POST /media-upload (uploadMedia); its key is saved
+// with the upload as sourceFile, so the list can link to it.
 //
 // Edit mode: /admin/upload?chart=EM-0001 (a chart in the pool, from Browse Charts) or ?upload=<id>
 // (an uploaded chart, from the list below). The same form loads the saved chart; Save sends PATCH
@@ -55,6 +58,9 @@ const rowsFromKey = (key) =>
 
 export function AdminUpload() {
   const [file, setFile] = useState(null);
+  // The chosen file once stored in S3: { key, url, size, mimeType }; null until then (or on failure).
+  const [stored, setStored] = useState(null);
+  const [fileNote, setFileNote] = useState('');
   const [text, setText] = useState('');
   const [dept, setDept] = useState('GENSURG');
   const [title, setTitle] = useState('');
@@ -70,6 +76,14 @@ export function AdminUpload() {
   const [editing, setEditing] = useState(null);
   const [urlParams, setUrlParams] = useSearchParams();
   const topRef = useRef(null);
+  // Save / publish: which button is working ('draft' | 'publish' | 'save' | 'savePublish'), the
+  // check that failed ('draft' | 'publish': its problems stay listed, and update, until fixed),
+  // and the server's error. fileKey remounts the file input so a reset clears the chosen file.
+  const [saving, setSaving] = useState(null);
+  const [check, setCheck] = useState(null);
+  const [saveErr, setSaveErr] = useState('');
+  const [fileKey, setFileKey] = useState(0);
+  const issuesRef = useRef(null);
   // Uploaded charts, newest first, 10 per page (GET /admin/uploads).
   const uploads = useApiList(ADMIN_UPLOADS, { params: { status: statusTab }, reloadKey: version });
   const drafts = uploads.results;
@@ -94,6 +108,8 @@ export function AdminUpload() {
   const loadInto = (src, edit) => {
     setErr('');
     setFile(null);
+    setStored(null);
+    setFileNote('');
     setDept(src.dept);
     setTitle(src.title || '');
     setText(src.record || '');
@@ -126,12 +142,18 @@ export function AdminUpload() {
 
   const clearForm = () => {
     setFile(null);
+    setStored(null);
+    setFileNote('');
+    setFileKey((k) => k + 1); // the file input shows no file again
     setText('');
     setKey([]);
     setCs(emptyCase());
+    setDept('GENSURG');
     setTitle('');
     setPhi([]);
     setErr('');
+    setCheck(null);
+    setSaveErr('');
     setEditing(null);
     if (urlParams.get('chart') || urlParams.get('upload')) setUrlParams({}, { replace: true });
   };
@@ -141,15 +163,23 @@ export function AdminUpload() {
     setErr('');
     if (!editing) setKey([]);
     setFile(f);
-    setBusy('Extracting text\u2026');
+    setStored(null);
+    setFileNote('');
+    setBusy('Extracting text and storing the file\u2026');
     try {
-      if (!/\.(pdf|doc|docx|txt)$/i.test(f.name)) {
-        throw new Error('Unsupported file type. Use PDF, DOC/DOCX or TXT.');
-      }
-      if (f.size > 10 * 1024 * 1024) throw new Error('File exceeds the 10 MB limit.');
+      checkMediaFile(f, 'charts');
       const form = new FormData();
       form.append('file', f);
-      const result = await post(ADMIN_UPLOADS_EXTRACT, form);
+      // Text extraction and the S3 upload (POST /media-upload) run together. A failed S3 upload
+      // doesn't block the chart: the text is still used and the chart is saved without the file.
+      const [result, media] = await Promise.all([
+        post(ADMIN_UPLOADS_EXTRACT, form),
+        uploadMedia(f, { folder: 'charts' }).catch((ex) => {
+          setFileNote('The original file could not be stored (' + (ex.message || ex) + '). The chart will be saved without it.');
+          return null;
+        }),
+      ]);
+      if (media) setStored({ key: media.key, url: media.url, size: media.size, mimeType: media.mimeType });
       const t = (result && result.text) || '';
       if (!t) throw new Error('No text was returned by the extraction service.');
       setText(t);
@@ -228,16 +258,64 @@ export function AdminUpload() {
   const addRow = () => setKey((k) => [...k, blankRow()]);
   const delRow = (i) => setKey((k) => k.filter((_, ix) => ix !== i));
 
-  // What stops a chart from going (or staying) live; '' when it is fine.
-  const publishProblem = () => {
-    if (!key.length) return 'Add at least one code before publishing.';
-    const bad = key.filter((r) => !r.code || (r.valid === false && !NOT_A_CODE.includes(r.type)));
-    if (bad.length) return bad.length + ' code(s) are empty or not found in the code database. Fix them before publishing.';
-    const noWhy = key.filter((r) => !r.why.trim());
-    if (noWhy.length) return 'Every code needs a rationale \u2014 ' + noWhy.length + ' missing.';
-    if (!key.some((r) => r.type === 'PDx')) return 'One code must be marked PDx (principal diagnosis).';
-    const problems = caseProblems(cs);
-    return problems.length ? problems.join(' ') : '';
+  // Everything that stops a save, as { path, msg } (path = the field's data-field). 'draft' checks
+  // what the server needs to store it; 'publish' (and saving a live chart) also checks what students
+  // need: a complete answer key with a PDx, and the work type's setup. Same rules as the server.
+  const collectIssues = (mode) => {
+    const publishing = mode === 'publish';
+    const out = [];
+    const add = (path, msg) => out.push({ path, msg });
+    if (!dept) add('dept', 'Choose a department.');
+    if (!title.trim()) add('title', 'Add a chart title.');
+    else if (title.trim().length > 200) add('title', 'The chart title is too long (200 characters at most).');
+    if (!text.trim()) add('record', 'The record text is empty.');
+    if (publishing) {
+      if (!key.length) add('key', 'Add at least one code to the answer key.');
+      key.forEach((r, i) => {
+        const row = 'Code ' + (i + 1) + (r.code.trim() ? ' (' + r.code.trim() + ')' : '');
+        if (!r.code.trim()) add(`key.${i}.code`, row + ': enter the code.');
+        else if (r.valid === false && !NOT_A_CODE.includes(r.type)) add(`key.${i}.code`, row + ': not found in the code database.');
+        if (!r.desc.trim()) add(`key.${i}.desc`, row + ': add the description.');
+        if (!r.why.trim()) add(`key.${i}.why`, row + ': add why this code is reported.');
+      });
+      if (key.length && !key.some((r) => r.type === 'PDx')) add('key.0.type', 'Mark one code as PDx (principal diagnosis).');
+    }
+    out.push(...caseIssues(cs, { inpatient, publish: publishing }));
+    return out;
+  };
+  const issues = check ? collectIssues(check) : [];
+  const badFields = new Set(issues.map((x) => x.path));
+  const flag = (path) => ({ 'data-field': path, 'aria-invalid': badFields.has(path) ? true : undefined });
+  // Jump to a field named in the problem list.
+  const focusField = (path) => {
+    const el = document.querySelector(`[data-field="${path}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof el.focus === 'function') el.focus({ preventScroll: true });
+  };
+  // Runs the check for a save; on problems, lists them by the buttons and keeps them updated.
+  const passes = (mode) => {
+    const found = collectIssues(mode);
+    setCheck(found.length ? mode : null);
+    if (found.length) requestAnimationFrame(() => issuesRef.current && issuesRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    return !found.length;
+  };
+  // A save that failed on the server, in words the admin can act on. The form is kept as it is.
+  const saveError = (ex) => {
+    const msg = (ex && ex.message) || String(ex);
+    if (!ex || !ex.status) {
+      if (/fetch|network|load failed/i.test(msg)) return 'Could not reach the server. Check your connection and try again; nothing in the form was lost.';
+      return msg;
+    }
+    if (ex.status === 401) return 'Your session has ended. Sign in again, then save; nothing in the form was lost.';
+    if (ex.status === 403) return 'Your account is not allowed to save charts.';
+    if (ex.status === 413) return 'The chart is too large to save. Shorten the record or remove a source document.';
+    if (ex.status >= 500) return 'The server could not save the chart (' + msg + '). Try again; nothing in the form was lost.';
+    return msg;
+  };
+  const showSaveErr = (text) => {
+    setSaveErr(text);
+    requestAnimationFrame(() => issuesRef.current && issuesRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   };
 
   // The chart as the API stores it (new upload, edited upload or edited chart).
@@ -258,62 +336,74 @@ export function AdminUpload() {
     }),
   });
 
+  // After a successful save: empty form at the top of the page, and the notice says what happened.
+  const done = (text) => {
+    clearForm();
+    setNotice({ tone: 'ok', text });
+    if (topRef.current) topRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // New upload: Publish to students / Save as draft.
   const publish = async (asDraft) => {
+    if (saving || busy) return;
     setErr('');
-    if (!text.trim()) {
-      setErr('No record text.');
-      return;
-    }
-    if (!asDraft) {
-      const problem = publishProblem();
-      if (problem) {
-        setErr(problem);
-        return;
-      }
-    }
-    setBusy(asDraft ? 'Saving draft\u2026' : 'Publishing\u2026');
+    setSaveErr('');
+    if (!passes(asDraft ? 'draft' : 'publish')) return;
+    setSaving(asDraft ? 'draft' : 'publish');
+    const name = title.trim();
     try {
-      await post(ADMIN_UPLOADS, { dept, ...buildBody(), sourceName: file ? file.name : null, status: asDraft ? 'draft' : 'published' });
-      clearForm();
+      const out = await post(ADMIN_UPLOADS, { dept, ...buildBody(), sourceName: file ? file.name : null, sourceFile: stored, status: asDraft ? 'draft' : 'published' });
+      done(asDraft ? `Saved \u201c${name}\u201d as a draft. Students can't see it until you publish it.` : `Published \u201c${name}\u201d${out && out.chart ? ' as ' + out.chart : ''}. It is now in the chart pool.`);
       refresh();
       if (!asDraft) refreshAdmin(); // the department's chart pool grew
     } catch (ex) {
-      setErr('Save failed: ' + (ex.message || ex));
+      showSaveErr((asDraft ? 'Could not save the draft: ' : 'Could not publish: ') + saveError(ex));
+    } finally {
+      setSaving(null);
     }
-    setBusy('');
   };
 
   // Edit mode: save the changes. A live chart (or published upload) must pass the publish checks;
   // a draft can be saved as it is, or saved and published in one go.
   const saveEdit = async (andPublish = false) => {
+    if (saving || busy) return;
     setErr('');
-    if (!text.trim()) {
-      setErr('No record text.');
-      return;
-    }
+    setSaveErr('');
     const live = editing.kind === 'chart' || editing.status === 'published';
-    if (live || andPublish) {
-      const problem = publishProblem();
-      if (problem) {
-        setErr(problem);
-        return;
-      }
-    }
-    setBusy('Saving changes\u2026');
+    if (!passes(live || andPublish ? 'publish' : 'draft')) return;
+    setSaving(andPublish ? 'savePublish' : 'save');
+    const name = title.trim() || editing.label;
+    let saved = false;
     try {
       if (editing.kind === 'chart') await patch(ADMIN_CHART(editing.id), buildBody());
       else {
-        await patch(ADMIN_UPLOAD(editing.id), { ...(live ? {} : { dept }), ...buildBody() });
+        await patch(ADMIN_UPLOAD(editing.id), {
+          ...(live ? {} : { dept }),
+          ...buildBody(),
+          // a new file chosen while editing replaces the stored one
+          ...(file && stored ? { sourceName: file.name, sourceFile: stored } : {}),
+        });
+        saved = true;
         if (andPublish) await patch(ADMIN_UPLOAD_STATUS(editing.id), { status: 'published' });
       }
-      setNotice({ tone: 'ok', text: 'Saved changes to ' + (title || editing.label) + (andPublish ? ' and published it.' : '.') });
-      clearForm();
+      done(`Saved changes to \u201c${name}\u201d` + (andPublish ? ' and published it.' : '.'));
       refresh();
       refreshAdmin();
     } catch (ex) {
-      setErr('Save failed: ' + (ex.message || ex));
+      if (ex && ex.status === 404 && editing.kind === 'upload') {
+        // The upload was deleted (here or in another tab). Keep what's in the form as a new upload.
+        setEditing(null);
+        if (urlParams.get('upload')) setUrlParams({}, { replace: true });
+        refresh();
+        showSaveErr('This chart was deleted, so the changes could not be saved to it. The form is kept: save it as a new draft or publish it.');
+      } else if (saved) {
+        // The edit is stored; only publishing failed. It stays a draft, still open here.
+        refresh();
+        showSaveErr('Your changes were saved, but the chart could not be published: ' + saveError(ex));
+      } else showSaveErr('Could not save the changes: ' + saveError(ex));
+    } finally {
+      setSaving(null);
     }
-    setBusy('');
   };
 
   // Publish adds it to the chart pool; back to draft takes it out (refused once students submitted it).
@@ -327,14 +417,17 @@ export function AdminUpload() {
     }
     refresh();
   };
-  const remove = async (d) => {
+  // Delete asks first (ConfirmDialog); a refusal from the server shows inside the dialog.
+  const [toDelete, setToDelete] = useState(null);
+  const remove = (d) => {
     setErr('');
-    try {
-      await del(ADMIN_UPLOAD(d.id));
-      if (d.status === 'published') refreshAdmin();
-    } catch (ex) {
-      setErr('Delete failed: ' + ex.message);
-    }
+    setToDelete(d);
+  };
+  const deleteNow = (d) => () => del(ADMIN_UPLOAD(d.id));
+  const afterDelete = (d) => () => {
+    if (d.status === 'published') refreshAdmin();
+    // The chart open in the Edit form is gone: leave edit mode, or Save would hit a missing record.
+    if (editing && editing.kind === 'upload' && editing.id === d.id) clearForm();
     refresh();
   };
 
@@ -402,7 +495,7 @@ export function AdminUpload() {
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
             <div style={{ minWidth: 230 }}>
               <div style={lbl}>DEPARTMENT</div>
-              <select value={dept} onChange={(ev) => setDept(ev.target.value)} style={inp} disabled={!!editing && (editing.kind === 'chart' || editing.status === 'published')} title={editing && (editing.kind === 'chart' || editing.status === 'published') ? 'A live chart keeps its department' : undefined}>
+              <select value={dept} {...flag('dept')} onChange={(ev) => setDept(ev.target.value)} style={inp} disabled={!!editing && (editing.kind === 'chart' || editing.status === 'published')} title={editing && (editing.kind === 'chart' || editing.status === 'published') ? 'A live chart keeps its department' : undefined}>
                 {departments.map((dd) => dd.key || dd.id).map((k) => (
                   <option key={k} value={k}>
                     {(deptOf(k) || { name: k }).name}
@@ -414,6 +507,8 @@ export function AdminUpload() {
               <div style={lbl}>CHART TITLE</div>
               <input
                 value={title}
+                {...flag('title')}
+                maxLength={200}
                 onChange={(ev) => setTitle(ev.target.value)}
                 placeholder="e.g. Incisional hernia, 6 cm, reducible"
                 style={inp}
@@ -423,20 +518,32 @@ export function AdminUpload() {
           <div style={{ marginBottom: 12 }}>
             <div style={lbl}>{editing ? 'REPLACE THE RECORD FROM A FILE (optional)' : 'RECORD FILE (PDF, DOC, DOCX or TXT)'}</div>
             <input
+              key={fileKey}
               type="file"
               accept=".pdf,.doc,.docx,.txt"
+              disabled={!!busy || !!saving}
               onChange={(ev) => {
                 const f = ev.target.files && ev.target.files[0];
                 if (f) readFile(f);
               }}
               style={{ fontSize: 13 }}
             />
+            {stored && (
+              <div className="up-file ok">
+                {'✓ Stored in S3 · '}
+                <a href={stored.url} target="_blank" rel="noopener noreferrer">
+                  Open the file
+                </a>
+              </div>
+            )}
+            {fileNote && <div className="up-file warn">{fileNote}</div>}
           </div>
           {text && (
             <div style={{ marginBottom: 12 }}>
               <div style={lbl}>EXTRACTED RECORD — edit if needed</div>
               <textarea
                 value={text}
+                {...flag('record')}
                 onChange={(ev) => {
                   setText(ev.target.value);
                   setPhi(scanPHI(ev.target.value));
@@ -509,8 +616,9 @@ export function AdminUpload() {
           </div>
         </div>
       </div>
-      {text && <CaseFields value={cs} onChange={setCs} inpatient={inpatient} lists={lists} onError={setErr} />}
-      {(key.length > 0 || (editing && text)) && (
+      {text && <CaseFields value={cs} onChange={setCs} inpatient={inpatient} lists={lists} onError={setErr} errors={badFields} />}
+      {/* Shown once there is record text, so Save as draft is reachable before any code is added. */}
+      {text && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-h">
             <div>
@@ -529,6 +637,12 @@ export function AdminUpload() {
             </button>
           </div>
           <div style={{ padding: '12px 16px' }}>
+            {!key.length && (
+              <div {...flag('key')} tabIndex={-1} style={{ fontSize: 12.5, color: badFields.has('key') ? 'var(--tone-b4232a)' : 'var(--muted)', marginBottom: 12 }}>
+                No codes yet. Use <b>Suggest codes with Claude</b> or <b>+ Row</b> to add them. You can save a draft
+                now; publishing needs at least one code, with one marked PDx.
+              </div>
+            )}
             {key.map((r, i) => (
               <div
                 key={i}
@@ -542,6 +656,7 @@ export function AdminUpload() {
               >
                 <input
                   value={r.code}
+                  {...flag(`key.${i}.code`)}
                   onChange={(ev) => setRow(i, 'code', ev.target.value.toUpperCase())}
                   placeholder="CODE"
                   style={{
@@ -554,6 +669,7 @@ export function AdminUpload() {
                 />
                 <select
                   value={r.type}
+                  {...flag(`key.${i}.type`)}
                   onChange={(ev) => setRow(i, 'type', ev.target.value)}
                   style={{ ...inp, width: 96 }}
                 >
@@ -565,12 +681,14 @@ export function AdminUpload() {
                 </select>
                 <input
                   value={r.desc}
+                  {...flag(`key.${i}.desc`)}
                   onChange={(ev) => setRow(i, 'desc', ev.target.value)}
-                  placeholder="description"
+                  placeholder="description (required)"
                   style={{ ...inp, flex: 1, minWidth: 180 }}
                 />
                 <input
                   value={r.why}
+                  {...flag(`key.${i}.why`)}
                   onChange={(ev) => setRow(i, 'why', ev.target.value)}
                   placeholder="why this code (required)"
                   style={{ ...inp, flex: 2, minWidth: 220 }}
@@ -612,34 +730,65 @@ export function AdminUpload() {
                 )}
               </div>
             ))}
-            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            {/* Problems and save errors sit right above the buttons, where the admin is looking. */}
+            <div ref={issuesRef} aria-live="polite">
+              {issues.length > 0 && (
+                <div className="up-issues" role="alert">
+                  <b>
+                    {(check === 'publish' ? 'Before publishing, fix ' : 'Before saving, fix ') +
+                      (issues.length === 1 ? 'this:' : 'these ' + issues.length + ' things:')}
+                  </b>
+                  <ul>
+                    {issues.map((x, i) => (
+                      <li key={i}>
+                        <button type="button" onClick={() => focusField(x.path)} title="Go to this field">
+                          {x.msg}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {saveErr && (
+                <div className="up-save-err" role="alert">
+                  <i className="bi bi-exclamation-octagon-fill" aria-hidden="true" />
+                  <span>{saveErr}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
               {editing ? (
                 <>
-                  <button className="btn btn-teal" disabled={!!busy} onClick={() => saveEdit(false)}>
-                    {editing.kind === 'chart' || editing.status === 'published' ? 'Save changes' : 'Save draft'}
+                  <button className="btn btn-teal" disabled={!!busy || !!saving} aria-busy={saving === 'save'} onClick={() => saveEdit(false)}>
+                    {saving === 'save' && <span className="btn-spin" aria-hidden="true" />}
+                    {saving === 'save' ? 'Saving…' : editing.kind === 'chart' || editing.status === 'published' ? 'Save changes' : 'Save draft'}
                   </button>
                   {editing.kind === 'upload' && editing.status !== 'published' && (
-                    <button className="btn" style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }} disabled={!!busy} onClick={() => saveEdit(true)}>
-                      Save &amp; publish
+                    <button className="btn" style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }} disabled={!!busy || !!saving} aria-busy={saving === 'savePublish'} onClick={() => saveEdit(true)}>
+                      {saving === 'savePublish' && <span className="btn-spin" aria-hidden="true" />}
+                      {saving === 'savePublish' ? 'Publishing…' : 'Save & publish'}
                     </button>
                   )}
-                  <button className="btn" style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }} disabled={!!busy} onClick={clearForm}>
+                  <button className="btn" style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }} disabled={!!busy || !!saving} onClick={clearForm}>
                     Cancel
                   </button>
                 </>
               ) : (
                 <>
-                <button className="btn btn-teal" disabled={!!busy} onClick={() => publish(false)}>
-                  Publish to students
-                </button>
-                <button
-                  className="btn"
-                  style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }}
-                  disabled={!!busy}
-                  onClick={() => publish(true)}
-                >
-                  Save as draft
-                </button>
+                  <button className="btn btn-teal" disabled={!!busy || !!saving} aria-busy={saving === 'publish'} onClick={() => publish(false)}>
+                    {saving === 'publish' && <span className="btn-spin" aria-hidden="true" />}
+                    {saving === 'publish' ? 'Publishing…' : 'Publish to students'}
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }}
+                    disabled={!!busy || !!saving}
+                    aria-busy={saving === 'draft'}
+                    onClick={() => publish(true)}
+                  >
+                    {saving === 'draft' && <span className="btn-spin" aria-hidden="true" />}
+                    {saving === 'draft' ? 'Saving draft…' : 'Save as draft'}
+                  </button>
                 </>
               )}
             </div>
@@ -699,6 +848,14 @@ export function AdminUpload() {
                       (d.answerKey || []).length +
                       ' codes' +
                       (d.sourceName ? ' \u00b7 ' + d.sourceName : '')}
+                    {d.sourceFile && d.sourceFile.url && (
+                      <>
+                        {' \u00b7 '}
+                        <a href={d.sourceFile.url} target="_blank" rel="noopener noreferrer">
+                          Original file
+                        </a>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -755,6 +912,8 @@ export function AdminUpload() {
                       fontWeight: 800,
                     }}
                     onClick={() => remove(d)}
+                    title="Delete this chart"
+                    aria-label="Delete this chart"
                   >
                     ×
                   </button>
@@ -770,6 +929,32 @@ export function AdminUpload() {
           <Pagination {...uploads.pagerProps} itemLabel="uploads" />
         </div>
       </div>
+      {toDelete && (
+        <ConfirmDialog
+          title="Delete this chart?"
+          subtitle={toDelete.chart || 'Draft'}
+          tone="danger"
+          warning={
+            <>
+              <b>{toDelete.title || toDelete.sourceName || 'This chart'}</b> ({toDelete.deptName || toDelete.dept}) will be deleted
+              {toDelete.sourceFile ? ', together with its original file' : ''}.
+              {toDelete.status === 'published' && ' It is live: it will be taken out of the chart pool, so students stop getting it.'}
+              {' '}This cannot be undone.
+              {toDelete.status === 'published' && (
+                <>
+                  <br />
+                  To hide it from students but keep it, use <b>Unpublish</b> instead.
+                </>
+              )}
+            </>
+          }
+          confirmLabel="Delete chart"
+          busyLabel="Deleting…"
+          onConfirm={deleteNow(toDelete)}
+          onDone={afterDelete(toDelete)}
+          onClose={() => setToDelete(null)}
+        />
+      )}
     </div>
   );
 }

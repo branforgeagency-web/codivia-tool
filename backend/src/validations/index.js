@@ -16,3 +16,4 @@ module.exports.myProgressValidation = require('./myProgress.validation');
 module.exports.adminQueryValidation = require('./adminQuery.validation');
 module.exports.adminWorkValidation = require('./adminWork.validation');
 module.exports.auditValidation = require('./audit.validation');
+module.exports.mediaValidation = require('./media.validation');

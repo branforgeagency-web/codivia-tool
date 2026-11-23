@@ -75,3 +75,7 @@ export const ADMIN_UPLOADS = '/admin/uploads';
 export const ADMIN_UPLOADS_EXTRACT = `${ADMIN_UPLOADS}/extract`;
 export const ADMIN_UPLOAD = (uploadId) => `${ADMIN_UPLOADS}/${encodeURIComponent(uploadId)}`;
 export const ADMIN_UPLOAD_STATUS = (uploadId) => `${ADMIN_UPLOAD(uploadId)}/status`;
+
+// S3 media storage. POST multipart/form-data: file=<file>, folder=charts
+// -> { key, url, name, size, mimeType, folder }. Use uploadMedia() in services/media.service.js.
+export const MEDIA_UPLOAD = '/media-upload';

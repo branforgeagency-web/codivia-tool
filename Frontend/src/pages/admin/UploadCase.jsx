@@ -119,7 +119,7 @@ export function toCasePayload(c, { inpatient }) {
   const extraWhy = Object.fromEntries(
     c.keyMeta.extraWhy
       .split('\n')
-      .map((l) => l.match(/^\s*([A-Z0-9.]+)\s*[:—-]\s*(.+)$/i))
+      .map((l) => l.match(EXTRA_WHY_LINE))
       .filter(Boolean)
       .map((m) => [m[1].toUpperCase(), m[2].trim()]),
   );
@@ -134,21 +134,55 @@ export function toCasePayload(c, { inpatient }) {
   return payload;
 }
 
-// What the student workspace needs for this work type (checked before publishing).
-export function caseProblems(c) {
+// The chart setup's problems, each with the field it belongs to ({ path, msg }; path matches the
+// input's data-field). Always: values the server would reject or that would be silently dropped.
+// Publishing also needs what the student workspace needs for the work type.
+const EXTRA_WHY_LINE = /^\s*([A-Z0-9.]+)\s*[:—-]\s*(.+)$/i;
+const wholeIn = (v, min, max) => /^\d+$/.test(String(v).trim()) && Number(v) >= min && Number(v) <= max;
+const amount = (v) => /^\d+(\.\d{1,2})?$/.test(String(v).trim());
+export function caseIssues(c, { inpatient, publish }) {
   const p = [];
+  const add = (path, msg) => p.push({ path, msg });
+  const type = c.workType;
   const o = c.original;
-  if (c.workType === 'review' && !o.dx.some((d) => d.code.trim()) && !o.lines.some((l) => l.code.trim())) p.push('A charge review needs the provider’s original diagnoses or charge lines.');
-  if (c.workType === 'drg' && !o.dx.some((d) => d.code.trim())) p.push('A DRG validation needs the pre-coded diagnoses.');
-  if (c.workType === 'denial') {
-    if (!o.lines.some((l) => l.code.trim())) p.push('A denial needs the charge lines as billed.');
-    if (!o.lines.some((l) => l.remit)) p.push('A denial needs at least one remit (reason) code.');
-    if (!c.denial.invoice.num.trim()) p.push('A denial needs the invoice / claim number.');
-    if (!c.keyMeta.decision) p.push('A denial needs the correct decision.');
+  if (c.patient.age.trim() && !wholeIn(c.patient.age, 0, 130)) add('patient.age', 'Patient age must be a whole number from 0 to 130.');
+  if (inpatient && c.encounter.los.trim() && !wholeIn(c.encounter.los, 0, 365)) add('encounter.los', 'LOS must be a whole number of days (0 to 365).');
+  c.documents.forEach((d, i) => {
+    const t = d.title.trim();
+    const b = d.body.trim();
+    if (t && !b) add(`documents.${i}.body`, `Source document ${i + 1} (“${t}”) has no text. Add it or remove the document.`);
+    else if (!t && b) add(`documents.${i}.title`, `Source document ${i + 1} needs a title.`);
+    else if (!t && !b) add(`documents.${i}.title`, `Source document ${i + 1} is empty. Fill it in or remove it.`);
+  });
+  c.keyMeta.extraWhy.split('\n').forEach((line, i) => {
+    if (line.trim() && !EXTRA_WHY_LINE.test(line)) add('keyMeta.extraWhy', `“Why codes should not be reported”, line ${i + 1}: write it as CODE: reason.`);
+  });
+  if (type === 'denial') {
+    const inv = c.denial.invoice;
+    if (inv.billed.trim() && !amount(inv.billed)) add('denial.invoice.billed', 'Billed $ must be an amount, e.g. 245.00.');
+    if (inv.allowed.trim() && !amount(inv.allowed)) add('denial.invoice.allowed', 'Allowed $ must be an amount, e.g. 180.00.');
+    if (inv.daysToAppeal.trim() && !wholeIn(inv.daysToAppeal, 0, 3650)) add('denial.invoice.daysToAppeal', 'Days left to appeal must be a whole number.');
   }
-  const badCodes = [...o.dx.map((d) => d.code), ...o.lines.map((l) => l.code), ...list(o.pcs)].filter((x) => x.trim() && validateCode(x) === false);
-  if (c.workType !== 'code' && badCodes.length) p.push('Not in the code database: ' + badCodes.join(', '));
+  if (!publish) return p;
+
+  if (type === 'review' && !o.dx.some((d) => d.code.trim()) && !o.lines.some((l) => l.code.trim())) add('original.dx', 'A charge review needs the provider’s original diagnoses or charge lines.');
+  if (type === 'drg' && !o.dx.some((d) => d.code.trim())) add('original.dx', 'A DRG validation needs the pre-coded diagnoses.');
+  if (type === 'denial') {
+    if (!o.lines.some((l) => l.code.trim())) add('original.lines', 'A denial needs the charge lines as billed.');
+    else if (!o.lines.some((l) => l.remit)) add('original.lines', 'A denial needs at least one remit (reason) code on the billed lines.');
+    if (!c.denial.invoice.num.trim()) add('denial.invoice.num', 'A denial needs the invoice / claim number.');
+    if (!c.keyMeta.decision) add('keyMeta.decision', 'A denial needs the correct decision.');
+  }
+  if (type !== 'code') {
+    const badCodes = [...o.dx.map((d) => d.code), ...o.lines.map((l) => l.code), ...list(o.pcs)].filter((x) => x.trim() && validateCode(x) === false);
+    if (badCodes.length) add('original.dx', 'Not in the code database: ' + badCodes.join(', '));
+  }
   return p;
+}
+
+// What the student workspace needs for this work type (checked before publishing), as messages.
+export function caseProblems(c, inpatient = false) {
+  return caseIssues(c, { inpatient, publish: true }).map((x) => x.msg);
 }
 
 // ---------------------------------------------------------------- UI
@@ -160,6 +194,8 @@ const hint = { fontSize: 11.5, color: 'var(--muted)', margin: '-6px 0 10px' };
 const ghostBtn = { background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)', fontSize: 12 };
 const xBtn = { border: '1px solid var(--line)', background: 'var(--color-white)', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontWeight: 800 };
 const grid = (cols) => ({ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: '10px 12px' });
+const BAD = { borderColor: 'var(--tone-dc2626, #dc2626)', boxShadow: '0 0 0 3px rgba(220, 38, 38, .12)' };
+const BAD_LABEL = { color: 'var(--tone-b4232a, #b4232a)' };
 const codeBorder = (code) => ({ borderColor: code && validateCode(code) === false ? 'var(--tone-fca5a5)' : 'var(--line)' });
 
 function Field({ label, children, span }) {
@@ -171,8 +207,11 @@ function Field({ label, children, span }) {
   );
 }
 
-export function CaseFields({ value: c, onChange, inpatient, lists, onError }) {
+export function CaseFields({ value: c, onChange, inpatient, lists, onError, errors }) {
   const [busyDoc, setBusyDoc] = useState(false);
+  // Fields with a problem (paths from caseIssues) get a red border; data-field lets the page jump to them.
+  const flag = (path) => ({ 'data-field': path, 'aria-invalid': errors && errors.has(path) ? true : undefined });
+  const badStyle = (path) => (errors && errors.has(path) ? BAD : null);
   const set = (fn) => onChange((cur) => {
     const n = structuredClone(cur);
     fn(n);
@@ -185,8 +224,9 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError }) {
       <input
         value={get(c) ?? ''}
         placeholder={ph}
+        {...flag(path)}
         onChange={(e) => set((n) => (parts.slice(0, -1).reduce((x, k) => x[k], n)[parts[parts.length - 1]] = e.target.value))}
-        style={{ ...inp, ...(extra || {}) }}
+        style={{ ...inp, ...(extra || {}), ...badStyle(path) }}
       />
     );
   };
@@ -304,7 +344,7 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError }) {
         {c.documents.map((d, i) => (
           <div key={d.key} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 10, marginBottom: 10 }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <input value={d.title} placeholder="Title, e.g. History & Physical" onChange={(e) => set((n) => (n.documents[i].title = e.target.value))} style={{ ...inp, flex: 1 }} />
+              <input value={d.title} placeholder="Title, e.g. History & Physical" {...flag(`documents.${i}.title`)} onChange={(e) => set((n) => (n.documents[i].title = e.target.value))} style={{ ...inp, flex: 1, ...badStyle(`documents.${i}.title`) }} />
               <input value={d.sub} placeholder="Subtitle, e.g. 03/15 01:10 · R. Patel, MD" onChange={(e) => set((n) => (n.documents[i].sub = e.target.value))} style={{ ...inp, flex: 1 }} />
               <button type="button" style={xBtn} disabled={i === 0} onClick={() => set((n) => n.documents.splice(i - 1, 0, n.documents.splice(i, 1)[0]))} title="Move up">
                 ▲
@@ -313,7 +353,7 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError }) {
                 ×
               </button>
             </div>
-            <textarea value={d.body} placeholder={'HEADING:\nText…  (lines ending in ":" in capitals start sections)'} onChange={(e) => set((n) => (n.documents[i].body = e.target.value))} style={{ ...inp, minHeight: 110, fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 12 }} />
+            <textarea value={d.body} placeholder={'HEADING:\nText…  (lines ending in ":" in capitals start sections)'} {...flag(`documents.${i}.body`)} onChange={(e) => set((n) => (n.documents[i].body = e.target.value))} style={{ ...inp, minHeight: 110, fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 12, ...badStyle(`documents.${i}.body`) }} />
           </div>
         ))}
       </div>
@@ -323,7 +363,9 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError }) {
         <div style={sec}>
           <h4 style={h4}>{type === 'denial' ? 'Claim as billed' : type === 'drg' ? 'Pre-coded abstract' : 'Provider’s original charges'}</h4>
           <p style={hint}>What arrives with the chart. The student starts from this and must correct it.</p>
-          <div style={lbl}>Diagnoses (in billed order)</div>
+          <div style={{ ...lbl, ...(errors && errors.has('original.dx') ? BAD_LABEL : null) }} {...flag('original.dx')} tabIndex={-1}>
+            Diagnoses (in billed order)
+          </div>
           {c.original.dx.map((d, i) => (
             <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
               <span style={{ width: 26, fontWeight: 800, color: 'var(--muted)', paddingTop: 8 }}>{'ABCDEFGHIJKLMNOPQRSTUVWXY'[i]}</span>
@@ -349,7 +391,9 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError }) {
 
           {!inpatient && (
             <>
-              <div style={lbl}>Charge lines</div>
+              <div style={{ ...lbl, ...(errors && errors.has('original.lines') ? BAD_LABEL : null) }} {...flag('original.lines')} tabIndex={-1}>
+                Charge lines
+              </div>
               {c.original.lines.map((l, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                   <input value={l.code} placeholder="CPT/HCPCS" onChange={(e) => set((n) => (n.original.lines[i].code = e.target.value.toUpperCase()))} style={{ ...inp, width: 110, fontWeight: 800, ...codeBorder(l.code) }} />
@@ -445,7 +489,7 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError }) {
           {type === 'denial' && (
             <>
               <Field label="Correct decision">
-                <select value={c.keyMeta.decision} onChange={(e) => set((n) => (n.keyMeta.decision = e.target.value))} style={inp}>
+                <select value={c.keyMeta.decision} {...flag('keyMeta.decision')} onChange={(e) => set((n) => (n.keyMeta.decision = e.target.value))} style={{ ...inp, ...badStyle('keyMeta.decision') }}>
                   <option value="">—</option>
                   {opts(lists, 'denialDecisions').map((d) => (
                     <option key={d.value} value={d.value}>
@@ -473,7 +517,7 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError }) {
             </>
           )}
           <Field label="Why codes should NOT be reported (one per line: CODE: reason)" span={2}>
-            <textarea value={c.keyMeta.extraWhy} onChange={(e) => set((n) => (n.keyMeta.extraWhy = e.target.value))} style={{ ...inp, minHeight: 60 }} placeholder={'R50.9: Fever is integral to the sinusitis (OCG I.B.5)\nJ01.90: Unspecified — site and recurrence are documented'} />
+            <textarea value={c.keyMeta.extraWhy} {...flag('keyMeta.extraWhy')} onChange={(e) => set((n) => (n.keyMeta.extraWhy = e.target.value))} style={{ ...inp, minHeight: 60, ...badStyle('keyMeta.extraWhy') }} placeholder={'R50.9: Fever is integral to the sinusitis (OCG I.B.5)\nJ01.90: Unspecified — site and recurrence are documented'} />
           </Field>
           <Field label="Suggested answer to a CDI query (shown to you on Physician Queries; never sent automatically)" span={2}>
             <textarea value={c.cdiResponse} onChange={(e) => set((n) => (n.cdiResponse = e.target.value))} style={{ ...inp, minHeight: 50 }} placeholder="Optional. e.g. Confirmed: acute recurrent maxillary sinusitis…" />

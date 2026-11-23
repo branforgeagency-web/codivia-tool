@@ -23,3 +23,4 @@ module.exports.chartUploadService = require('./chartUpload.service');
 module.exports.adminQueryService = require('./adminQuery.service');
 module.exports.adminWorkService = require('./adminWork.service');
 module.exports.auditService = require('./audit.service');
+module.exports.mediaService = require('./media.service');

@@ -25,6 +25,14 @@ const envSchema = Joi.object({
   ADMIN_NAME: Joi.string().trim().max(100).default('Admin User'),
   ADMIN_EMAIL: Joi.string().trim().lowercase().email(),
   ADMIN_PASSWORD: Joi.string(),
+
+  // S3 media storage (POST /media-upload). Credentials are optional here so the API still boots
+  // without them; uploads then fail with a clear 503.
+  AWS_REGION: Joi.string().trim().default('ap-south-1'),
+  AWS_S3_BUCKET: Joi.string().trim().default('codivia'),
+  AWS_S3_PUBLIC_URL: Joi.string().trim().uri({ scheme: ['https', 'http'] }).default('https://codivia.s3.ap-south-1.amazonaws.com'),
+  AWS_ACCESS_KEY_ID: Joi.string().trim().allow(''),
+  AWS_SECRET_ACCESS_KEY: Joi.string().trim().allow(''),
 }).unknown();
 
 const { value: env, error } = envSchema

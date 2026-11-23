@@ -6,6 +6,14 @@ const { UPLOAD_STATUS } = require('../models/chartUpload.model');
 const { objectId } = require('./custom.validation');
 const { answerRow, caseFields } = require('./chartCase.validation');
 
+// A file stored by POST /media-upload (charts folder). Only the key is trusted; the URL is rebuilt
+// on the server, so a chart can't point at an outside link.
+const sourceFile = Joi.object({
+  key: Joi.string().trim().max(L.sourceKey).pattern(/^charts\/[A-Za-z0-9/_.-]+$/).required(),
+  size: Joi.number().integer().min(0),
+  mimeType: Joi.string().trim().max(120),
+}).allow(null);
+
 const text = (max) => Joi.string().trim().max(max).allow('');
 const status = Joi.string().valid(...Object.values(UPLOAD_STATUS));
 const uploadId = Joi.object({ uploadId: Joi.string().custom(objectId).required() });
@@ -26,6 +34,7 @@ const createUpload = {
       age: Joi.number().integer().min(0).max(130),
     }),
     sourceName: Joi.string().trim().max(L.sourceName).allow(null, ''),
+    sourceFile,
     status: status.default(UPLOAD_STATUS.DRAFT),
   }),
 };
@@ -50,6 +59,7 @@ const updateUpload = {
   body: Joi.object({
     dept: Joi.string().trim().uppercase().pattern(DEPARTMENT_KEY_PATTERN),
     sourceName: Joi.string().trim().max(L.sourceName).allow(null, ''),
+    sourceFile,
     ...chartEditFields,
   }).min(1),
 };

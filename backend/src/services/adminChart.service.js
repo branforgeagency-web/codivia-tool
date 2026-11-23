@@ -165,6 +165,7 @@ const updateChart = async (chartId, body) => {
     encounter: body.encounter,
     original: body.original,
     denial: body.denial,
+    previousRecords: body.previousRecords !== undefined ? body.previousRecords : cur.previousRecords, // kept when the form leaves it out
     keyMeta: body.keyMeta,
     cdiResponse: body.cdiResponse,
   };

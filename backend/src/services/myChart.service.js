@@ -284,5 +284,4 @@ const getMyChart = async (student, deptKey, chartId) => {
   };
 };
 
-
 module.exports = { getMyDepartments, getMyQueue, getMyChart, findMyRange, isInpatientDept };

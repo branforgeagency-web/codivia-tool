@@ -18,6 +18,13 @@ const config = {
   },
   bcrypt: { saltRounds: env.BCRYPT_SALT_ROUNDS },
   seedAdmin: { name: env.ADMIN_NAME, email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD },
+  s3: {
+    region: env.AWS_REGION,
+    bucket: env.AWS_S3_BUCKET,
+    publicUrl: env.AWS_S3_PUBLIC_URL.replace(/\/+$/, ''),
+    accessKeyId: env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY || '',
+  },
 };
 
 module.exports = Object.freeze(config);

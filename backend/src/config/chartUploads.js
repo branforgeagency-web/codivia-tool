@@ -16,11 +16,14 @@ const UPLOAD_LIMITS = Object.freeze({
   why: 2000,
   patientName: 100,
   sourceName: 255,
+  sourceKey: 400,
 });
 
 // Work-queue fields an uploaded chart can carry (documents, encounter, original charges, denial …).
 const CASE_LIMITS = Object.freeze({
   documents: 12,
+  previousRecords: 20,
+  previousCodes: 50,
   docTitle: 120,
   docBody: 100000,
   short: 200,

@@ -2,6 +2,8 @@
 
 > **Prompt for the AI:** Set up (or extend) the backend of this project using **exactly** the folder structure, file naming, layering and code patterns described below. Do not introduce other patterns (no TypeScript, no classes for services, no per-request `try/catch` wrappers, no `catchAsync`, no extra frameworks). When I ask for a new feature/module, create it by following the **"Adding a new module"** checklist at the end. Keep code short, readable and commented only where the "why" is not obvious.
 
+> **Frontend side:** how the React app calls these routes (API helper, endpoints, token refresh, error handling, list hooks) is in [`Frontend/FRONTEND_API_PROMPT.md`](../Frontend/FRONTEND_API_PROMPT.md).
+
 ---
 
 ## 1. Tech stack

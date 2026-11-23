@@ -72,6 +72,10 @@ const chartSchema = new mongoose.Schema(
     original: { type: Mixed, default: undefined },
     // Denial details: { invoice: { num, icn, received, billed, allowed, daysToAppeal }, history: [[date, event, detail, amount]] }
     denial: { type: Mixed, default: undefined },
+    // The patient's previous medical records, added with the chart (shown under "Previous records";
+    // the student can carry the codes forward). These are earlier visits, not this chart's answer key:
+    //   [{ key, title, dos, provider, facility, body, codes: [{ code, desc, type, poa, mods, units }] }]
+    previousRecords: { type: Mixed, default: undefined },
     // Graded extras that are not codes: { disp, decision }. Never sent to students.
     keyMeta: { type: Mixed, default: undefined, private: true },
     // The physician's answer to a CDI query on this chart. Sent only once the query is answered.

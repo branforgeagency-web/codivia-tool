@@ -6,6 +6,7 @@ const { UPLOAD_STATUS } = require('../models/chartUpload.model');
 const { CHART_UPLOAD, UPLOAD_LIMITS } = require('../config/chartUploads');
 const { WORK_TYPES } = require('../config/workQueue');
 const counterService = require('./counter.service');
+const { publicUrl, deleteFile } = require('./media.service');
 const ApiError = require('../utils/ApiError');
 const httpStatus = require('../utils/httpStatus');
 
@@ -36,9 +37,11 @@ const toView = (u, deptName) => ({
   encounter: u.encounter || null,
   original: u.original || null,
   denial: u.denial || null,
+  previousRecords: u.previousRecords || [],
   keyMeta: u.keyMeta || null,
   cdiResponse: u.cdiResponse || '',
   sourceName: u.sourceName,
+  sourceFile: u.sourceFile && u.sourceFile.key ? { ...u.sourceFile, url: publicUrl(u.sourceFile.key) } : null,
   status: u.status,
   chart: u.chart,
   createdAt: u.createdAt,
@@ -138,6 +141,10 @@ const checkPublishable = (upload) => {
   if (incomplete.length) {
     throw new ApiError(httpStatus.BAD_REQUEST, `${incomplete.length} answer key row(s) need a code, type, description and rationale before publishing`);
   }
+  // Same rule as the Upload form, so publishing a draft from the list can't skip it.
+  if (!key.some((r) => r.type === 'PDx')) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'One code must be marked PDx (principal diagnosis) before publishing');
+  }
   // What each work type needs so the student workspace can show it.
   const bad = (msg) => {
     throw new ApiError(httpStatus.BAD_REQUEST, msg);
@@ -180,6 +187,7 @@ const chartFields = (u) => {
     encounter: u.encounter || undefined,
     original: type !== WORK_TYPES.CODE ? u.original || undefined : undefined,
     denial: type === WORK_TYPES.DENIAL ? u.denial || undefined : undefined,
+    previousRecords: u.previousRecords && u.previousRecords.length ? u.previousRecords : undefined,
     keyMeta: u.keyMeta || undefined,
     cdiResponse: u.cdiResponse || undefined,
   };
@@ -189,9 +197,11 @@ const chartFields = (u) => {
 // that are missing were cleared by the admin. Patient fields are merged (blank = keep).
 const REQUIRED_EDITS = ['title', 'record', 'answerKey', 'difficulty', 'workType'];
 const OPTIONAL_EDITS = ['documents', 'encounter', 'original', 'denial', 'keyMeta', 'cdiResponse'];
+const KEPT_WHEN_ABSENT = ['previousRecords']; // the edit form may not send these yet
 const applyUploadEdits = (upload, body) => {
   REQUIRED_EDITS.forEach((k) => body[k] !== undefined && upload.set(k, body[k]));
   OPTIONAL_EDITS.forEach((k) => upload.set(k, body[k] === undefined || body[k] === '' ? undefined : body[k]));
+  KEPT_WHEN_ABSENT.forEach((k) => body[k] !== undefined && upload.set(k, body[k] && body[k].length ? body[k] : undefined));
   if (body.patient) upload.set('patient', { ...(upload.toObject().patient || {}), ...body.patient });
 };
 
@@ -298,7 +308,7 @@ const getUpload = async (id) => {
 // Edit an upload (Upload page -> Edit). A draft can move to another department. A published upload
 // must pass the publish checks, and its chart in the pool is updated too (same ID and position, so
 // allocations and earlier scores are untouched; later submissions are graded against the new key).
-const updateUpload = async (id, { dept: newDept, sourceName, ...body }) => {
+const updateUpload = async (id, { dept: newDept, sourceName, sourceFile, ...body }) => {
   const upload = await findUpload(id);
   if (newDept && newDept !== upload.dept) {
     if (upload.status === UPLOAD_STATUS.PUBLISHED) {
@@ -310,6 +320,10 @@ const updateUpload = async (id, { dept: newDept, sourceName, ...body }) => {
     upload.dept = newDept;
   }
   if (sourceName !== undefined) upload.sourceName = sourceName || undefined;
+  // A replaced file is removed from S3 after the save succeeds.
+  const oldKey = upload.sourceFile && upload.sourceFile.key;
+  const replacedKey = sourceFile !== undefined && oldKey && oldKey !== (sourceFile && sourceFile.key) ? oldKey : null;
+  if (sourceFile !== undefined) upload.sourceFile = sourceFile || undefined;
   applyUploadEdits(upload, body);
   const dept = await findDepartment(upload.dept);
   if (upload.status === UPLOAD_STATUS.PUBLISHED && upload.chart) {
@@ -321,6 +335,7 @@ const updateUpload = async (id, { dept: newDept, sourceName, ...body }) => {
     }
   }
   await upload.save();
+  if (replacedKey) await deleteFile(replacedKey);
   return toView(upload.toObject(), dept.name);
 };
 
@@ -328,6 +343,7 @@ const deleteUpload = async (id) => {
   const upload = await findUpload(id);
   await unpublish(upload); // refused if students have submitted it
   await upload.deleteOne();
+  if (upload.sourceFile && upload.sourceFile.key) await deleteFile(upload.sourceFile.key);
 };
 
 module.exports = { extractFileText, listUploads, createUpload, getUpload, updateUpload, setStatus, deleteUpload, chartFields, checkPublishable, applyUploadEdits };

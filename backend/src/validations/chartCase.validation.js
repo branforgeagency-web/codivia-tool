@@ -21,6 +21,33 @@ const documents = Joi.array()
   .max(L.documents)
   .unique('key');
 
+// The patient's previous medical records (earlier visits) and the codes billed on them.
+const previousRecords = Joi.array()
+  .items(
+    Joi.object({
+      key: Joi.string().trim().pattern(/^[a-z0-9_-]{1,30}$/i).required(),
+      title: Joi.string().trim().min(1).max(L.docTitle).required(),
+      dos: text(L.short),
+      provider: text(L.short),
+      facility: text(L.short),
+      body: Joi.string().trim().min(1).max(L.docBody).required(),
+      codes: Joi.array()
+        .items(
+          Joi.object({
+            code: code.required(),
+            desc: text(L.desc),
+            type: text(10), // PDx, SDx, Dx, CPT, HCPCS, PCS, DRG
+            poa: Joi.string().valid('', ...POA_VALUES),
+            mods,
+            units: Joi.number().integer().min(1).max(9999).allow(null),
+          })
+        )
+        .max(L.previousCodes),
+    })
+  )
+  .max(L.previousRecords)
+  .unique('key');
+
 const encounter = Joi.object({
   mrn: text(L.short),
   acct: text(L.short),
@@ -106,6 +133,7 @@ const caseFields = {
   encounter,
   original,
   denial,
+  previousRecords,
   keyMeta,
   cdiResponse: text(L.why),
 };

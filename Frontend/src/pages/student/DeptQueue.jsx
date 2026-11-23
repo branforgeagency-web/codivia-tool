@@ -106,8 +106,6 @@ export function DeptQueue({ dept, results, onBack, onOpen }) {
   const d = list.data.department;
   const sum = list.data.summary;
   const charts = list.results;
-  const types = list.data.types || [];
-  const typeTotal = types.reduce((n, t) => n + t.count, 0);
 
   return (
     <div className="chart-queue">
@@ -129,9 +127,9 @@ export function DeptQueue({ dept, results, onBack, onOpen }) {
           <h3>Your Chart Queue</h3>
           <input
             type="search"
-            aria-label="Search chart ID, patient, MRN, date, payer or facility"
+            aria-label="Search chart ID, MRN, provider, payer or facility"
             value={q}
-            placeholder="Search patient, MRN, chart ID, payer…"
+            placeholder="Search MRN, chart ID, payer…"
             style={{ fontSize: 12, padding: '6px 10px', border: '1px solid var(--line)', borderRadius: 6, minWidth: 240 }}
             onChange={(ev) => setQ(ev.target.value)}
           />
@@ -149,27 +147,12 @@ export function DeptQueue({ dept, results, onBack, onOpen }) {
             {list.loading ? 'Loading…' : 'Showing ' + charts.length + ' of ' + list.total + ' charts'}
           </span>
         </div>
-        {types.length > 1 && (
-          <div className="queue-toolbar" style={{ paddingTop: 0 }}>
-            <div className="charts-filters" role="group" aria-label="Filter charts by work type">
-              <button type="button" aria-pressed={type === 'all'} onClick={() => setType('all')}>
-                All types<span>{typeTotal}</span>
-              </button>
-              {types.map((t) => (
-                <button type="button" key={t.key} aria-pressed={type === t.key} onClick={() => setType(t.key)}>
-                  {workTypeInfo(ref, t.key).label + 's'}
-                  <span>{t.count}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
         <div className="queue-table-scroll" role="region" aria-label="Chart queue" tabIndex={0}>
           <table>
             <caption className="sr-only">Allocated charts for {d.name}</caption>
             <thead>
               <tr>
-                {['MRN · Chart', 'Type', 'Date of service', 'Patient', 'Provider', 'Payer', 'Work notes', 'Status', 'Action'].map((h) => (
+                {['MRN · Chart', 'Provider', 'Payer', 'Work notes', 'Status', 'Action'].map((h) => (
                   <th key={h} scope="col">
                     {h}
                   </th>
@@ -179,26 +162,14 @@ export function DeptQueue({ dept, results, onBack, onOpen }) {
             <tbody>
               {charts.map((c) => {
                 const t = workTypeInfo(ref, c.workType || 'code');
-                const isNewPt = /^new/i.test(c.ptype || '');
                 return (
                   <tr key={c.id}>
                     <td>
                       <div style={{ fontWeight: 600, fontFamily: "'SF Mono',monospace", fontSize: 12.5 }}>{c.mrn || '—'}</div>
                       <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                         {c.id}
-                        {c.ptype ? <span style={{ ...pill(isNewPt ? TYPE_TONE.brand : TYPE_TONE.navy), marginLeft: 6, fontSize: 9.5, padding: '1px 6px' }}>{isNewPt ? 'NEW' : 'EST'}</span> : null}
                         {c.handwritten ? <span style={{ ...pill(TYPE_TONE.brand), marginLeft: 6, fontSize: 9.5, padding: '1px 6px' }}>✎ HANDWRITTEN</span> : null}
                       </div>
-                    </td>
-                    <td>
-                      <span style={pill(TYPE_TONE[t.cls] || TYPE_TONE.navy)}>{t.label}</span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: 12.5 }}>{c.dos || '—'}</div>
-                      {c.dosLabel && <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{c.dosLabel}</div>}
-                    </td>
-                    <td>
-                      <div style={{ fontSize: 12.5, fontWeight: 700 }}>{c.patient || '—'}</div>
                     </td>
                     <td>
                       <div style={{ fontSize: 12.5 }}>{c.provider || '—'}</div>
@@ -227,7 +198,7 @@ export function DeptQueue({ dept, results, onBack, onOpen }) {
         {list.total === 0 ? (
           <div style={{ textAlign: 'center', padding: '14px', color: 'var(--muted)', fontSize: 13 }}>
             <strong>{!sum.assigned ? 'No charts allocated yet' : status === 'deferred' ? 'Nothing deferred' : status === 'done' ? 'No completed charts yet' : 'No matching charts'}</strong>
-            <p>{!sum.assigned ? 'Your trainer can assign charts to this department.' : search || type !== 'all' ? 'Try a different search or type filter.' : status === 'todo' ? 'Everything in this allocation is worked. Nice!' : ''}</p>
+            <p>{!sum.assigned ? 'Your trainer can assign charts to this department.' : search || type !== 'all' ? 'Try a different search.' : status === 'todo' ? 'Everything in this allocation is worked. Nice!' : ''}</p>
             {sum.assigned > 0 && (search || type !== 'all') && (
               <button
                 className="btn btn-ghost"

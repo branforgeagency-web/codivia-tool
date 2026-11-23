@@ -19,7 +19,7 @@ import { DocumentsPanel } from './Documents.jsx';
 import { Encoder, fetchNotes } from './Encoder.jsx';
 import { runEdits } from './edits.js';
 import { DeferModal, QueryModal, SubmitModal, TransferModal } from './Modals.jsx';
-import { codeDescriber, documentsOf, fmtTime, initialDraft, isEM, norm, settingOf, toSubmission, uid } from './model.js';
+import { codeDescriber, demographicsOf, documentsOf, fmtTime, initialDraft, isEM, norm, settingOf, toSubmission, uid } from './model.js';
 import { ResultView } from './Result.jsx';
 import { AbstractSection, DrgSection, DxSection, EmSection, LinesSection, PcsSection } from './Sections.jsx';
 import { Sidebar } from './Sidebar.jsx';
@@ -46,7 +46,33 @@ function Banner({ chart, set }) {
       </div>
     ) : null;
   const ptype = e.ptype || '';
+  // Plain charts: the record's demographic lines live here (not as a Documents tab).
+  const demo = useMemo(() => demographicsOf(chart), [chart.record, chart.documents]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = new Set([p.name, ...Object.values(e)].filter((v) => typeof v === 'string' && v).map((v) => v.toLowerCase()));
+  const [open, setOpen] = useState(true);
+  const sexAge = (p.sex === 'F' ? 'Female' : p.sex === 'M' ? 'Male' : p.sex) + ' · ' + p.age + ' y';
+  const toggle = (
+    <button type="button" className={'wsx-bantoggle' + (open ? ' on' : '')} onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? 'Hide patient details' : 'Show patient details'} title={open ? 'Hide patient details' : 'Show patient details'}>
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+        <path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+  if (!open) {
+    return (
+      <div className="wsx-bannerwrap closed">
+        <div className="wsx-banner mini">
+          <span className="nm">{p.name}</span>
+          <span className="sub">{sexAge}</span>
+          {e.mrn && <span className="sub m">MRN {e.mrn}</span>}
+          {e.allergy && e.allergy !== 'NKDA' && <span className="btag alert">Allergy: {e.allergy}</span>}
+        </div>
+        {toggle}
+      </div>
+    );
+  }
   return (
+    <div className="wsx-bannerwrap">
     <div className="wsx-banner">
       <div className="who">
         <div className="nm">{p.name}</div>
@@ -67,8 +93,27 @@ function Banner({ chart, set }) {
       {set.inpatient && f('LOS', e.los != null && e.los + ' days')}
       {f(set.inpatient ? 'Attending' : 'Provider', e.provider, e.specialty)}
       {!set.inpatient && f('Visit type · POS', e.visitType, e.pos && 'POS ' + e.pos)}
-      {f('Payer', e.payer, e.plan || e.facility)}
+      {f('Payer', e.payer, e.plan)}
+      {f('Member ID', e.member, '', 1)}
+      {f('Facility', e.facility)}
+      {f('Last seen', e.lastSeen)}
       {!Object.keys(e).length && f('Department', chart.deptName)}
+      {demo.pairs
+        .filter((x) => !shown.has(x.value.toLowerCase()))
+        .map((x, i) => (
+          <div className="bf" key={'d' + i}>
+            <span>{x.label}</span>
+            <b>{x.value}</b>
+          </div>
+        ))}
+      {demo.notes.length > 0 && (
+        <div className="bf note" title={demo.notes.join('\n')}>
+          <span>Note</span>
+          <b>{demo.notes.join(' · ')}</b>
+        </div>
+      )}
+    </div>
+    {toggle}
     </div>
   );
 }
@@ -97,6 +142,7 @@ export default function WorkspacePage() {
   const [encQ, setEncQ] = useState('');
   const [encSel, setEncSel] = useState(null);
   const [sidebar, setSidebar] = useState(true);
+  const [docsOpen, setDocsOpen] = useState(false); // Documents panel starts collapsed
   const [modal, setModal] = useState(null);
   const [notes, setNotes] = useState({});
   const [result, setResult] = useState(null);
@@ -240,10 +286,15 @@ export default function WorkspacePage() {
         e.preventDefault();
         encRef.current.focus();
         encRef.current.select();
-      } else if (mod && e.key.toLowerCase() === 'f' && findRef.current) {
+      } else if (mod && e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        findRef.current.focus();
-        findRef.current.select();
+        setDocsOpen(true);
+        setTimeout(() => {
+          if (findRef.current) {
+            findRef.current.focus();
+            findRef.current.select();
+          }
+        }, 0);
       } else if (e.altKey && /^[1-4]$/.test(e.key) && chart && settingOf(chart).inpatient) {
         e.preventDefault();
         setTab(IP_TABS[+e.key - 1][0]);
@@ -339,8 +390,53 @@ export default function WorkspacePage() {
       const row = d.dx.find((x) => x.id === target.id) || d.pcs.find((x) => x.id === target.id);
       if (row) row.ev.push(id);
     });
+  // Carry a previous record's codes into this chart: diagnoses (principal first), procedures,
+  // charge lines and DRG — whatever this department codes. Codes already here are skipped.
+  const carryForwardCodes = (prev) => {
+    const codes = prev.codes || [];
+    let added = 0;
+    const d = structuredClone(draftRef.current);
+    {
+      const has = (list, code) => list.some((x) => norm(x.code) === norm(code));
+      const dxOf = codes.filter((c) => /^(PDx|SDx|Dx)$/i.test(c.type));
+      dxOf
+        .slice()
+        .sort((a, b) => (/^PDx$/i.test(b.type) ? 1 : 0) - (/^PDx$/i.test(a.type) ? 1 : 0))
+        .forEach((c) => {
+          if (has(d.dx, c.code) || d.dx.length >= set.maxDx) return;
+          const x = { id: uid('d'), code: c.code, desc: describe(c.code) || c.desc, poa: set.inpatient ? c.poa || '' : '', ev: [] };
+          if (/^PDx$/i.test(c.type) && !d.dx.length) d.dx.unshift(x);
+          else d.dx.push(x);
+          added += 1;
+        });
+      if (set.hasPCS)
+        codes
+          .filter((c) => /^PCS$/i.test(c.type) && !has(d.pcs, c.code))
+          .forEach((c) => {
+            d.pcs.push({ id: uid('p'), code: c.code, desc: describe(c.code) || c.desc, date: '', ev: [] });
+            added += 1;
+          });
+      if (set.hasLines)
+        codes
+          .filter((c) => /^(CPT|HCPCS)$/i.test(c.type) && !has(d.lines, c.code))
+          .forEach((c) => {
+            const line = { id: uid('l'), code: c.code, desc: describe(c.code) || c.desc, mods: [...(c.mods || []), '', '', '', ''].slice(0, 4), units: c.units || 1, ptrs: d.dx[0] ? [d.dx[0].id] : [] };
+            if (isEM(norm(c.code))) d.lines.unshift(line);
+            else d.lines.push(line);
+            added += 1;
+          });
+      const drg = codes.find((c) => /^DRG$/i.test(c.type));
+      if (set.hasDRG && drg && !d.drg) {
+        d.drg = drg.code;
+        added += 1;
+      }
+    }
+    if (added) setDraft(d);
+    toast(added ? `Added ${added} code${added > 1 ? 's' : ''} from ${prev.title || "the previous record"} — review them against this visit` : 'Those codes are already on this chart');
+  };
   const goEvidence = (ev) => {
     setDocKey(ev.doc);
+    setDocsOpen(true);
     setFlash(null);
     setTimeout(() => setFlash(ev.id), 30);
   };
@@ -489,8 +585,12 @@ export default function WorkspacePage() {
           />
         </div>
       ) : (
-        <div className={'wsx-grid' + (sidebar ? '' : ' closed')}>
+        <div className={'wsx-grid' + (sidebar ? '' : ' closed') + (docsOpen ? '' : ' docs-closed')}>
           <DocumentsPanel
+            previous={chart.previousRecords || []}
+            onUseCodes={carryForwardCodes}
+            open={docsOpen}
+            setOpen={setDocsOpen}
             docs={docs}
             active={docKey}
             onOpen={setDocKey}

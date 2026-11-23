@@ -29,6 +29,36 @@ export function settingOf(chart) {
   };
 }
 
+// ---- demographics (for the patient header) ----
+const DEMO_TAB = 'Demographics';
+const titleCase = (s) => s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+
+// Plain charts: the record's demographic lines as [{ label, value }] plus any free-text header lines.
+// Empty for charts that come with their own documents (their header comes from chart.encounter).
+export function demographicsOf(chart) {
+  if (chart.documents && chart.documents.length) return { pairs: [], notes: [] };
+  const tabs = groupSectionsIntoTabs(parseRecordSections(chart.record));
+  const demo = tabs.length > 1 && tabs.find((t) => t.tab === DEMO_TAB);
+  if (!demo) return { pairs: [], notes: [] };
+  const pairs = [];
+  const notes = [];
+  demo.sections.forEach((s) => {
+    const head = s.head === 'RECORD' ? '' : titleCase(s.head);
+    String(s.body || '')
+      .split('\n')
+      .flatMap((ln) => ln.split(/\s{3,}|\s\|\s|\t+/))
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .forEach((x) => {
+        const m = x.match(/^([A-Za-z][A-Za-z0-9 #\/().'-]{1,40}):\s*(.+)$/);
+        if (m) pairs.push({ label: m[1].trim(), value: m[2].trim() });
+        else if (head) pairs.push({ label: head, value: x });
+        else notes.push(x);
+      });
+  });
+  return { pairs, notes };
+}
+
 // ---- documents ----
 // A chart's documents, or (plain charts) its record split into document-like groups.
 export function documentsOf(chart, queries = []) {
@@ -36,7 +66,10 @@ export function documentsOf(chart, queries = []) {
   if (chart.documents && chart.documents.length) {
     docs = chart.documents.map((d) => ({ key: d.key, title: d.title, sub: d.sub || '', sections: parseRecordSections(d.body) }));
   } else {
-    const tabs = groupSectionsIntoTabs(parseRecordSections(chart.record));
+    let tabs = groupSectionsIntoTabs(parseRecordSections(chart.record));
+    // Demographics go in the patient header (see demographicsOf), not in the document list —
+    // unless they are the whole record, so nothing is lost.
+    if (tabs.length > 1) tabs = tabs.filter((t) => t.tab !== DEMO_TAB);
     docs = tabs.length
       ? [{ key: 'full', title: 'Full record', sub: 'Every section', sections: tabs.flatMap((t) => t.sections) }].concat(
           tabs.map((t, i) => ({ key: 'g' + i, title: t.tab, sub: t.sections.map((s) => s.head).filter((h) => h !== 'RECORD').slice(0, 3).join(' · '), sections: t.sections })),

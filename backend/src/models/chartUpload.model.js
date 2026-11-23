@@ -54,9 +54,18 @@ const chartUploadSchema = new mongoose.Schema(
     encounter: { type: Mixed, default: undefined },
     original: { type: Mixed, default: undefined },
     denial: { type: Mixed, default: undefined },
+    previousRecords: { type: Mixed, default: undefined },
     keyMeta: { type: Mixed, default: undefined },
     cdiResponse: { type: String, default: undefined },
     sourceName: { type: String, default: null }, // original file name, for the list
+    // The original file in S3 (POST /media-upload); url is built from the key on read.
+    sourceFile: {
+      type: new mongoose.Schema(
+        { key: { type: String, required: true }, size: Number, mimeType: String },
+        { _id: false }
+      ),
+      default: undefined,
+    },
     status: { type: String, enum: Object.values(UPLOAD_STATUS), default: UPLOAD_STATUS.DRAFT },
     chart: { type: String, ref: 'Chart', default: null }, // the published Chart's ID
     createdBy: { type: ObjectId, ref: 'User', default: null },
