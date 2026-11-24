@@ -34,7 +34,9 @@ import { useReference, workTypeInfo } from '../../hooks/useReference.js';
 const DX_TYPES = ['PDx', 'SDx', 'Dx'];
 const LINE_TYPES = ['CPT', 'HCPCS'];
 const NOT_A_CODE = ['DRG', 'PDGM']; // not in the code database, so not validated against it
-const blankRow = (type = 'SDx') => ({ code: '', type, desc: '', why: '', poa: '', mods: '', units: '', ptrs: '', valid: null });
+const blankRow = (type = 'SDx') => ({ code: '', type, desc: '', why: '', poa: '', mods: '', units: '', ptrs: '', uncertain: false, valid: null });
+// Answer key types, with the diagnosis terms of the chart's encounter type (values stay PDx / SDx / Dx).
+const typeLabel = (t, ip) => (t === 'PDx' ? (ip ? 'PDx · Principal' : 'PDx · Primary') : t === 'SDx' ? 'SDx · Secondary' : t === 'Dx' ? 'Dx · Secondary' : t);
 const csv = (s) =>
   String(s || '')
     .split(/[,\s]+/)
@@ -53,6 +55,7 @@ const rowsFromKey = (key) =>
     mods: Array.isArray(r.mods) ? (r.mods.length ? r.mods.join(',') : '-') : '',
     units: r.units ? String(r.units) : '',
     ptrs: (r.ptrs || []).join(','),
+    uncertain: !!r.uncertain,
     valid: validFor(r.code || '', r.type || 'SDx'),
   }));
 
@@ -97,7 +100,14 @@ export function AdminUpload() {
       .catch((e) => setErr('Could not load departments: ' + e.message));
   }, []);
   const deptOf = (k) => departments.find((d) => d.key === k || d.id === k);
-  const inpatient = ((deptOf(dept) || {}).elements || []).some((e) => e === 'ICD10PCS' || e === 'DRG');
+  // The chart's encounter type decides the setup; until one is chosen (or for an older chart), the
+  // department's code sets do, as before. ip = inpatient encounter; inpatient = inpatient facility claim.
+  const deptIP = ((deptOf(dept) || {}).elements || []).some((e) => e === 'ICD10PCS' || e === 'DRG');
+  const ip = cs.encounterType ? cs.encounterType === 'IP' : deptIP;
+  const inpatient = ip && (!cs.encounterType || cs.billingType !== 'professional');
+  // Changing the encounter type of a chart students worked: the server asks for confirmation (409).
+  const [encConfirm, setEncConfirm] = useState(null); // { message, review, andPublish }
+  const [loadedEncounter, setLoadedEncounter] = useState(null); // encounter / billing type as saved
   // DRG validation is inpatient only (checked once the departments are loaded, so a chart being
   // loaded for editing keeps its work type).
   useEffect(() => {
@@ -116,6 +126,7 @@ export function AdminUpload() {
     setPhi(scanPHI(src.record || ''));
     setKey(rowsFromKey(src.answerKey));
     setCs(fromCase(src));
+    setLoadedEncounter({ encounterType: src.encounterType || '', billingType: src.billingType || '' });
     setEditing(edit);
     if (topRef.current) topRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -155,6 +166,8 @@ export function AdminUpload() {
     setCheck(null);
     setSaveErr('');
     setEditing(null);
+    setLoadedEncounter(null);
+    setEncConfirm(null);
     if (urlParams.get('chart') || urlParams.get('upload')) setUrlParams({}, { replace: true });
   };
   const editUpload = (d) => setUrlParams({ upload: d.id });
@@ -203,6 +216,8 @@ export function AdminUpload() {
         'You are a certified medical coding auditor. Read the clinical record below and produce the correct answer key.\n\n' +
         'Department: ' +
         d.name +
+        '\nEncounter type: ' +
+        (ip ? 'IP (inpatient): PDx is the principal diagnosis' : 'OP (outpatient): PDx is the primary (first-listed) diagnosis; do not code uncertain diagnoses') +
         '\nCode sets in scope: ' +
         (d.elements || []).join(', ') +
         '\n\n' +
@@ -278,7 +293,11 @@ export function AdminUpload() {
         if (!r.desc.trim()) add(`key.${i}.desc`, row + ': add the description.');
         if (!r.why.trim()) add(`key.${i}.why`, row + ': add why this code is reported.');
       });
-      if (key.length && !key.some((r) => r.type === 'PDx')) add('key.0.type', 'Mark one code as PDx (principal diagnosis).');
+      const term = ip ? 'principal diagnosis' : 'primary (first-listed) diagnosis';
+      const pdx = key.map((r, i) => [r, i]).filter(([r]) => r.type === 'PDx');
+      if (key.length && !pdx.length) add('key.0.type', `Mark one code as PDx (${term}).`);
+      if (pdx.length > 1) add(`key.${pdx[1][1]}.type`, `Only one code can be PDx (${term}); mark the others SDx.`);
+      if (pdx.length && pdx[0][0].uncertain && !ip) add(`key.${pdx[0][1]}.type`, 'An outpatient primary diagnosis cannot be an uncertain diagnosis: use the sign or symptom code.');
     }
     out.push(...caseIssues(cs, { inpatient, publish: publishing }));
     return out;
@@ -326,6 +345,7 @@ export function AdminUpload() {
     answerKey: key.map((r) => {
       const row = { code: r.code, type: r.type, desc: r.desc, why: r.why };
       if (DX_TYPES.includes(r.type) && inpatient && r.poa) row.poa = r.poa;
+      if (DX_TYPES.includes(r.type) && r.uncertain) row.uncertain = true;
       if (LINE_TYPES.includes(r.type)) {
         // Blank = not graded; "-" = the line must carry no modifier.
         if (r.mods.trim()) row.mods = r.mods.trim() === '-' ? [] : csv(r.mods).slice(0, 4);
@@ -365,7 +385,7 @@ export function AdminUpload() {
 
   // Edit mode: save the changes. A live chart (or published upload) must pass the publish checks;
   // a draft can be saved as it is, or saved and published in one go.
-  const saveEdit = async (andPublish = false) => {
+  const saveEdit = async (andPublish = false, confirmEncounterChange = false) => {
     if (saving || busy) return;
     setErr('');
     setSaveErr('');
@@ -375,11 +395,13 @@ export function AdminUpload() {
     const name = title.trim() || editing.label;
     let saved = false;
     try {
-      if (editing.kind === 'chart') await patch(ADMIN_CHART(editing.id), buildBody());
+      const confirm = confirmEncounterChange ? { confirmEncounterChange: true } : {};
+      if (editing.kind === 'chart') await patch(ADMIN_CHART(editing.id), { ...buildBody(), ...confirm });
       else {
         await patch(ADMIN_UPLOAD(editing.id), {
           ...(live ? {} : { dept }),
           ...buildBody(),
+          ...confirm,
           // a new file chosen while editing replaces the stored one
           ...(file && stored ? { sourceName: file.name, sourceFile: stored } : {}),
         });
@@ -390,7 +412,11 @@ export function AdminUpload() {
       refresh();
       refreshAdmin();
     } catch (ex) {
-      if (ex && ex.status === 404 && editing.kind === 'upload') {
+      const review = ex && ex.status === 409 && ((ex.data && ex.data.details) || []).find((x) => x.rule === 'encounter.change.review');
+      if (review) {
+        // Students have work on this chart: show what the change touches and let the admin confirm it.
+        setEncConfirm({ message: ex.message, review, andPublish });
+      } else if (ex && ex.status === 404 && editing.kind === 'upload') {
         // The upload was deleted (here or in another tab). Keep what's in the form as a new upload.
         setEditing(null);
         if (urlParams.get('upload')) setUrlParams({}, { replace: true });
@@ -616,7 +642,24 @@ export function AdminUpload() {
           </div>
         </div>
       </div>
-      {text && <CaseFields value={cs} onChange={setCs} inpatient={inpatient} lists={lists} onError={setErr} errors={badFields} />}
+      {text && (
+        <CaseFields
+          value={cs}
+          onChange={setCs}
+          inpatient={inpatient}
+          ip={ip}
+          lists={lists}
+          onError={setErr}
+          errors={badFields}
+          encounterNote={
+            editing && loadedEncounter && (loadedEncounter.encounterType !== cs.encounterType || (cs.encounterType === 'IP' && loadedEncounter.billingType !== cs.billingType))
+              ? loadedEncounter.encounterType
+                ? `Changed from ${loadedEncounter.encounterType}${loadedEncounter.billingType ? ' / ' + loadedEncounter.billingType : ''}. If students have worked this chart you will be asked to confirm on save.`
+                : 'This older chart had no encounter type; it was coded as ' + (deptIP ? 'IP (inpatient facility)' : 'OP (outpatient)') + ' from its department.'
+              : ''
+          }
+        />
+      )}
       {/* Shown once there is record text, so Save as draft is reachable before any code is added. */}
       {text && (
         <div className="card" style={{ marginBottom: 16 }}>
@@ -671,11 +714,11 @@ export function AdminUpload() {
                   value={r.type}
                   {...flag(`key.${i}.type`)}
                   onChange={(ev) => setRow(i, 'type', ev.target.value)}
-                  style={{ ...inp, width: 96 }}
+                  style={{ ...inp, width: 150 }}
                 >
                   {['PDx', 'SDx', 'Dx', 'CPT', 'HCPCS', 'MOD', 'PCS', ...(inpatient ? ['DRG'] : [])].map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {typeLabel(t, ip)}
                     </option>
                   ))}
                 </select>
@@ -693,6 +736,15 @@ export function AdminUpload() {
                   placeholder="why this code (required)"
                   style={{ ...inp, flex: 2, minWidth: 220 }}
                 />
+                {DX_TYPES.includes(r.type) && (
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: 'var(--muted)', minHeight: 38 }}
+                    title="Documented as probable / suspected / rule out at discharge. Inpatient facility charts expect it coded as if established; outpatient and professional charts grade reporting it as an error (OCG IV.H)."
+                  >
+                    <input type="checkbox" checked={!!r.uncertain} onChange={(ev) => setRow(i, 'uncertain', ev.target.checked)} />
+                    Uncertain dx
+                  </label>
+                )}
                 {DX_TYPES.includes(r.type) && inpatient && (
                   <select value={r.poa} onChange={(ev) => setRow(i, 'poa', ev.target.value)} style={{ ...inp, width: 104 }} title="POA indicator the student must report">
                     <option value="">POA —</option>
@@ -843,6 +895,8 @@ export function AdminUpload() {
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                     {(d.deptName || d.dept) +
                       ' \u00b7 ' +
+                      (d.encounterType || 'No encounter type') +
+                      ' \u00b7 ' +
                       workTypeInfo(lists, d.workType || 'code').label +
                       ' \u00b7 ' +
                       (d.answerKey || []).length +
@@ -929,6 +983,33 @@ export function AdminUpload() {
           <Pagination {...uploads.pagerProps} itemLabel="uploads" />
         </div>
       </div>
+      {encConfirm && (
+        <ConfirmDialog
+          title="Change the encounter type?"
+          subtitle={editing ? editing.label : ''}
+          tone="warn"
+          warning={
+            <>
+              <b>
+                {encConfirm.review.from} → {encConfirm.review.to}
+              </b>
+              {'. '}
+              {encConfirm.review.submitted > 0 && `${encConfirm.review.submitted} student score(s) were graded as ${encConfirm.review.from}; they stay as they are. `}
+              {encConfirm.review.inProgress > 0 &&
+                `${encConfirm.review.inProgress} student draft(s) will switch to the new diagnosis terms (primary / principal) and the students are told to review their work. `}
+              Later submissions are graded as {encConfirm.review.to}. The change is recorded in the audit log.
+            </>
+          }
+          confirmLabel="Confirm and save"
+          busyLabel="Saving…"
+          onConfirm={() => {
+            const andPublish = encConfirm.andPublish;
+            setEncConfirm(null);
+            return saveEdit(andPublish, true);
+          }}
+          onClose={() => setEncConfirm(null)}
+        />
+      )}
       {toDelete && (
         <ConfirmDialog
           title="Delete this chart?"

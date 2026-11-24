@@ -1,6 +1,6 @@
 /* CODIVIA workspace — coding sections: diagnoses, E/M level, charge lines, procedures, abstract, MS-DRG. */
 import { useMemo, useState } from 'react';
-import { isEM, LETTERS, norm, uid } from './model.js';
+import { DX_CLASS_LABEL, dxClassOptions, firstTerm, isEM, LETTERS, norm, uid } from './model.js';
 
 // `lists` = the reference lists from GET /reference/work-queue (useReference).
 const opts = (lists, key) => (lists && lists[key]) || [];
@@ -23,92 +23,207 @@ export function EvidenceChips({ row, evidence, docs, onGo }) {
 }
 
 // ---------- diagnoses ----------
-export function DxSection({ draft, change, set, lists, readOnly, evidence, docs, onGoEvidence, onInfo, removeDx }) {
+// Sequence | ICD-10-CM code | description | diagnosis type | (POA) | actions. The first-listed diagnosis
+// (primary on OP charts, principal on IP charts) always stays in row 1; secondary diagnoses can be
+// re-sequenced (drag ⣿ or ▲▼). Edit changes the code or the classification of one row.
+// editDx(id, code, cls) -> error message | '' (WorkspacePage checks the code and the one-first-listed rule).
+function DxEditRow({ x, set, editDx, onDone, colSpan }) {
+  const [code, setCode] = useState(x.code);
+  const [cls, setCls] = useState(x.cls || 'secondary');
+  const [msg, setMsg] = useState('');
+  const save = () => {
+    const err = editDx(x.id, code.trim(), cls);
+    if (err) setMsg(err);
+    else onDone();
+  };
+  return (
+    <tr className="edit">
+      <td colSpan={colSpan}>
+        <div className="wsx-dxedit">
+          <input
+            className="inp code"
+            value={code}
+            maxLength={10}
+            autoFocus
+            spellCheck={false}
+            aria-label="ICD-10-CM code"
+            onChange={(e) => {
+              setCode(e.target.value.toUpperCase());
+              setMsg('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') save();
+              if (e.key === 'Escape') onDone();
+            }}
+          />
+          <select className="inp" value={cls} aria-label="Diagnosis type" onChange={(e) => setCls(e.target.value)}>
+            {dxClassOptions(set).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="btn sm primary" onClick={save}>
+            Save
+          </button>
+          <button type="button" className="btn sm" onClick={onDone}>
+            Cancel
+          </button>
+          {msg && (
+            <span className="err" role="alert">
+              {msg}
+            </span>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+export function DxSection({ draft, change, set, lists, readOnly, evidence, docs, onGoEvidence, onInfo, removeDx, editDx }) {
   const [dragId, setDragId] = useState(null);
   const [over, setOver] = useState(null);
-  const reorder = (from, to) => change((d) => (d.dx = move(d.dx, from, to)));
+  const [editing, setEditing] = useState(null);
+  const P = set.firstListed;
+  const pinned = draft.dx[0] && draft.dx[0].cls === P; // row 1 holds the first-listed diagnosis
+  const movable = (i) => !readOnly && !(pinned && i === 0) && draft.dx[i].cls !== P;
+  const canMoveTo = (to) => !(pinned && to === 0);
+  const reorder = (from, to) => canMoveTo(to) && change((d) => (d.dx = move(d.dx, from, to)));
+  const cols = 5 + (set.inpatient ? 1 : 0);
+  const typeLabel = (x) =>
+    x.cls === P ? (
+      <span className="pill brand">{DX_CLASS_LABEL[P]}</span>
+    ) : x.cls === 'secondary' ? (
+      <span className="pill gray">Secondary</span>
+    ) : x.cls ? (
+      <span className="pill err" title={`Not used on ${set.ip ? 'inpatient' : 'outpatient'} charts — edit it`}>
+        {DX_CLASS_LABEL[x.cls]} ✕
+      </span>
+    ) : (
+      <span className="pill warn">Not classified</span>
+    );
   return (
     <div className="sec">
       <div className="sh">
         <h3>Diagnoses</h3>
         <span className="hint">
-          {readOnly ? 'As billed.' : `Drag ⣿ to re-sequence. ${set.inpatient ? 'Row 1 is the principal diagnosis (PDx).' : 'A is the primary diagnosis.'}`}
+          {readOnly
+            ? 'As billed.'
+            : `Sequence 1 is the ${firstTerm(set)}${set.ip ? '' : ' (first-listed)'}. Drag ⣿ or use ▲▼ to re-sequence secondary diagnoses.`}
         </span>
         <span className="r">
           {draft.dx.length} of {set.maxDx}
         </span>
       </div>
       {draft.dx.length ? (
-        draft.dx.map((x, i) => (
-          <div
-            key={x.id}
-            className={'wsx-dx' + (dragId === x.id ? ' dragging' : '') + (over === x.id ? ' over' : '')}
-            draggable={!readOnly}
-            onDragStart={() => setDragId(x.id)}
-            onDragEnd={() => {
-              setDragId(null);
-              setOver(null);
-            }}
-            onDragOver={(e) => {
-              if (dragId == null) return;
-              e.preventDefault();
-              setOver(x.id);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const from = draft.dx.findIndex((r) => r.id === dragId);
-              if (from > -1) reorder(from, i);
-              setDragId(null);
-              setOver(null);
-            }}
-          >
-            {!readOnly && <span className="grip" title="Drag to re-sequence">⣿</span>}
-            {set.inpatient ? <span className={'seqb' + (i === 0 ? ' p' : '')}>{i === 0 ? 'PDx' : i + 1}</span> : <span className="letter">{LETTERS[i]}</span>}
-            <span className="code">{x.code}</span>
-            <span className="desc">
-              {x.desc || '—'} {!set.inpatient && i === 0 && <span className="pill brand">Primary</span>}
-              {set.inpatient && (
-                <div>
-                  <EvidenceChips row={x} evidence={evidence} docs={docs} onGo={onGoEvidence} />
-                </div>
-              )}
-            </span>
-            {set.inpatient && (
-              <select
-                className={'wsx-poa' + (x.poa ? '' : ' missing')}
-                value={x.poa || ''}
-                disabled={readOnly}
-                aria-label={'POA for ' + x.code}
-                onChange={(e) => change((d) => (d.dx[i].poa = e.target.value))}
-              >
-                <option value="">POA?</option>
-                {opts(lists, 'poa').map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+        <table className="wsx-lines wsx-dxt">
+          <thead>
+            <tr>
+              <th>Seq</th>
+              <th>ICD-10-CM</th>
+              <th>Description</th>
+              <th>Diagnosis type</th>
+              {set.inpatient && <th>POA</th>}
+              <th className="act">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {draft.dx.map((x, i) =>
+              editing === x.id ? (
+                <DxEditRow key={x.id} x={x} set={set} editDx={editDx} colSpan={cols} onDone={() => setEditing(null)} />
+              ) : (
+                <tr
+                  key={x.id}
+                  className={(dragId === x.id ? 'dragging' : '') + (over === x.id ? ' over' : '')}
+                  draggable={movable(i)}
+                  onDragStart={() => setDragId(x.id)}
+                  onDragEnd={() => {
+                    setDragId(null);
+                    setOver(null);
+                  }}
+                  onDragOver={(e) => {
+                    if (dragId == null || !canMoveTo(i)) return;
+                    e.preventDefault();
+                    setOver(x.id);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const from = draft.dx.findIndex((r) => r.id === dragId);
+                    if (from > -1) reorder(from, i);
+                    setDragId(null);
+                    setOver(null);
+                  }}
+                >
+                  <td className="ln">
+                    {movable(i) ? (
+                      <span className="grip" title="Drag to re-sequence">
+                        ⣿
+                      </span>
+                    ) : (
+                      <span className="grip off" aria-hidden="true">
+                        ⣿
+                      </span>
+                    )}
+                    <span className={'seqb' + (x.cls === P ? ' p' : '')}>{i + 1}</span>
+                  </td>
+                  <td className="code">{x.code}</td>
+                  <td className="dsx">
+                    {x.desc || '—'}
+                    {set.inpatient && (
+                      <div>
+                        <EvidenceChips row={x} evidence={evidence} docs={docs} onGo={onGoEvidence} />
+                      </div>
+                    )}
+                  </td>
+                  <td>{typeLabel(x)}</td>
+                  {set.inpatient && (
+                    <td>
+                      <select
+                        className={'wsx-poa' + (x.poa ? '' : ' missing')}
+                        value={x.poa || ''}
+                        disabled={readOnly}
+                        aria-label={'POA for ' + x.code}
+                        onChange={(e) => change((d) => (d.dx[i].poa = e.target.value))}
+                      >
+                        <option value="">POA?</option>
+                        {opts(lists, 'poa').map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  )}
+                  <td className="act">
+                    <button type="button" className="ibtn" title="Tabular & notes" onClick={() => onInfo(x.code)}>
+                      ⓘ
+                    </button>
+                    {!readOnly && (
+                      <>
+                        <button type="button" className="ibtn" disabled={!movable(i) || !canMoveTo(i - 1) || i === 0} title="Move up" aria-label={'Move ' + x.code + ' up'} onClick={() => reorder(i, i - 1)}>
+                          ▲
+                        </button>
+                        <button type="button" className="ibtn" disabled={!movable(i) || i === draft.dx.length - 1} title="Move down" aria-label={'Move ' + x.code + ' down'} onClick={() => reorder(i, i + 1)}>
+                          ▼
+                        </button>
+                        {editDx && (
+                          <button type="button" className="ibtn" title="Edit" aria-label={'Edit ' + x.code} onClick={() => setEditing(x.id)}>
+                            ✎
+                          </button>
+                        )}
+                        <button type="button" className="ibtn x" title="Delete" aria-label={'Delete ' + x.code} onClick={() => removeDx(x.id)}>
+                          ✕
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ),
             )}
-            <button type="button" className="ibtn" title="Tabular & notes" onClick={() => onInfo(x.code)}>
-              ⓘ
-            </button>
-            {!readOnly && (
-              <>
-                <button type="button" className="ibtn" disabled={i === 0} title="Move up" onClick={() => reorder(i, i - 1)}>
-                  ▲
-                </button>
-                <button type="button" className="ibtn" disabled={i === draft.dx.length - 1} title="Move down" onClick={() => reorder(i, i + 1)}>
-                  ▼
-                </button>
-                <button type="button" className="ibtn x" title="Remove" onClick={() => removeDx(x.id)}>
-                  ✕
-                </button>
-              </>
-            )}
-          </div>
-        ))
+          </tbody>
+        </table>
       ) : (
-        <div className="empty">No diagnoses yet. Type an ICD-10-CM code in the box above and press Enter.</div>
+        <div className="empty">No diagnoses yet. Choose the diagnosis type, type an ICD-10-CM code in the box above and press Enter.</div>
       )}
     </div>
   );

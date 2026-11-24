@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { WORK_TYPE_LIST, WORK_TYPES } = require('../config/workQueue');
+const { ENCOUNTER_TYPE_LIST, BILLING_TYPE_LIST } = require('../config/encounter');
 const { toJSON } = require('./plugins');
 
 const { Mixed } = mongoose.Schema.Types;
@@ -12,6 +13,9 @@ const SOURCES = ['builtin', 'upload'];
 //   mods  - modifiers the charge line must carry (CPT/HCPCS)
 //   units - units the charge line must bill
 //   ptrs  - the diagnosis codes the charge line must point to, first = main reason
+//   uncertain - a diagnosis documented as uncertain ("probable", "suspected", "rule out") at discharge.
+//           Expected only where uncertain diagnoses are coded as if established (inpatient facility);
+//           on outpatient / professional charts reporting it is graded as an error (OCG IV.H).
 const answerSchema = new mongoose.Schema(
   {
     code: { type: String, required: true, trim: true },
@@ -22,6 +26,7 @@ const answerSchema = new mongoose.Schema(
     mods: { type: [String], default: undefined },
     units: { type: Number, default: undefined },
     ptrs: { type: [String], default: undefined },
+    uncertain: { type: Boolean, default: undefined },
   },
   { _id: false }
 );
@@ -61,6 +66,13 @@ const chartSchema = new mongoose.Schema(
     handwritten: { type: Boolean, default: false },
     source: { type: String, enum: SOURCES, default: 'builtin' },
 
+    // ---- encounter (config/encounter.js) ----
+    // OP / IP. Required for new charts; charts made before it existed have none and keep the
+    // department-derived behaviour (no value is guessed for them).
+    encounterType: { type: String, enum: ENCOUNTER_TYPE_LIST, default: undefined },
+    // IP only: facility (ICD-10-PCS, POA, MS-DRG) or professional (CPT / HCPCS). Unset on OP charts.
+    billingType: { type: String, enum: BILLING_TYPE_LIST, default: undefined },
+
     // ---- work queue (all optional; plain charts are "code from the documentation") ----
     workType: { type: String, enum: WORK_TYPE_LIST, default: WORK_TYPES.CODE },
     documents: { type: [documentSchema], default: undefined },
@@ -86,6 +98,7 @@ const chartSchema = new mongoose.Schema(
 
 chartSchema.index({ dept: 1, position: 1 }, { unique: true });
 chartSchema.index({ dept: 1, workType: 1 });
+chartSchema.index({ dept: 1, encounterType: 1 });
 chartSchema.plugin(toJSON);
 
 module.exports = mongoose.model('Chart', chartSchema);

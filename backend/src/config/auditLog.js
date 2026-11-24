@@ -26,6 +26,7 @@ const AUDIT_ACTIONS = Object.freeze({
   'allocation.remove': { category: 'allocations', label: 'Removed allocation' },
 
   'chart.edit': { category: 'charts', label: 'Edited chart' },
+  'chart.encounterType': { category: 'charts', label: 'Changed encounter type' },
   'upload.create': { category: 'charts', label: 'Uploaded chart' },
   'upload.update': { category: 'charts', label: 'Edited upload' },
   'upload.publish': { category: 'charts', label: 'Published chart' },

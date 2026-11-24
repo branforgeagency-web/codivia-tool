@@ -20,7 +20,7 @@ import { fetchNotes } from './Encoder.jsx';
 import { CodeEntry } from './CodeEntry.jsx';
 import { runEdits } from './edits.js';
 import { DeferModal, QueryModal, SubmitModal, TransferModal } from './Modals.jsx';
-import { codeDescriber, demographicsOf, documentsOf, fmtTime, initialDraft, isEM, norm, settingOf, toSubmission, uid } from './model.js';
+import { BILLING_LABEL, codeDescriber, demographicsOf, documentsOf, dxClassOptions, ENCOUNTER_LABEL, firstTerm, fmtTime, icdRow, initialDraft, isBillable, isEM, norm, sequenceDx, settingOf, toSubmission, uid } from './model.js';
 import { ResultView } from './Result.jsx';
 import { AbstractSection, DrgSection, DxSection, EmSection, LinesSection, PcsSection } from './Sections.jsx';
 import { Sidebar } from './Sidebar.jsx';
@@ -71,6 +71,9 @@ function Banner({ chart, set }) {
         <div className="wsx-banner mini">
           <span className="nm">{p.name}</span>
           <span className="sub">{sexAge}</span>
+          <span className="btag" title={'Encounter type: ' + ENCOUNTER_LABEL[set.encounterType]}>
+            {set.encounterType}
+          </span>
           {e.mrn && <span className="sub m">MRN {e.mrn}</span>}
           {e.allergy && e.allergy !== 'NKDA' && <span className="btag alert">Allergy: {e.allergy}</span>}
         </div>
@@ -87,7 +90,11 @@ function Banner({ chart, set }) {
           {p.sex === 'F' ? 'Female' : p.sex === 'M' ? 'Male' : p.sex} · {p.age} y
         </div>
         <div className="tags">
-          {set.inpatient && <span className="btag">INPATIENT</span>}
+          {/* Encounter type (and billing type) from the chart record — read-only for the student. */}
+          <span className="btag enc" title={'Encounter type: ' + set.encounterType + ' – ' + ENCOUNTER_LABEL[set.encounterType] + (set.billingType ? ' · ' + BILLING_LABEL[set.billingType] + ' billing' : '')}>
+            {set.encounterType + ' · ' + ENCOUNTER_LABEL[set.encounterType].toUpperCase()}
+          </span>
+          {set.ip && set.billingType && <span className="btag">{set.billingType === 'facility' ? 'FACILITY' : 'PROFESSIONAL'}</span>}
           {ptype && <span className="btag">{ptype === 'new' ? 'NEW PATIENT' : 'ESTABLISHED'}</span>}
           {e.allergy && <span className={'btag' + (e.allergy !== 'NKDA' ? ' alert' : '')}>Allergy: {e.allergy}</span>}
           {chart.handwritten && <span className="btag">HANDWRITTEN</span>}
@@ -96,10 +103,10 @@ function Banner({ chart, set }) {
       {f('MRN', e.mrn, '', 1)}
       {f('Account', e.acct, '', 1)}
       {f('Encounter', e.encounterId, '', 1)}
-      {set.inpatient ? f('Admit → Discharge', e.admit && `${e.admit} → ${e.discharge || '—'}`) : f('Date of service', e.dos)}
-      {set.inpatient && f('LOS', e.los != null && e.los + ' days')}
-      {f(set.inpatient ? 'Attending' : 'Provider', e.provider, e.specialty)}
-      {!set.inpatient && f('Visit type · POS', e.visitType, e.pos && 'POS ' + e.pos)}
+      {set.ip ? f('Admit → Discharge', e.admit && `${e.admit} → ${e.discharge || '—'}`) : f('Date of service', e.dos)}
+      {set.ip && f('LOS', e.los != null && e.los + ' days')}
+      {f(set.ip ? 'Attending' : 'Provider', e.provider, e.specialty)}
+      {!set.ip && f('Visit type · POS', e.visitType, e.pos && 'POS ' + e.pos)}
       {f('Payer', e.payer, e.plan)}
       {f('Member ID', e.member, '', 1)}
       {f('Facility', e.facility)}
@@ -144,6 +151,7 @@ export default function WorkspacePage() {
   const [savedAt, setSavedAt] = useState(null);
   const [tab, setTab] = useState('dx');
   const [codeSet, setCodeSet] = useState('icd'); // top-level coding tab: cpt | pcs | icd
+  const [entryPrefill, setEntryPrefill] = useState(null); // { key, code, n }: code moved from the wrong entry box
   const [docKey, setDocKey] = useState('');
   const [find, setFind] = useState('');
   const [flash, setFlash] = useState(null);
@@ -152,6 +160,7 @@ export default function WorkspacePage() {
   const [sidebar, setSidebar] = useState(true);
   const [docsOpen, setDocsOpen] = useState(false); // Documents panel starts collapsed
   const [modal, setModal] = useState(null);
+  const [dxCls, setDxCls] = useState(''); // diagnosis type picked next to the ICD-10-CM box ('' = automatic)
   const [notes, setNotes] = useState({});
   const [result, setResult] = useState(null);
   const [toastMsg, setToastMsg] = useState('');
@@ -195,6 +204,7 @@ export default function WorkspacePage() {
         setFind('');
         setEncQ('');
         setEncSel(null);
+        setDxCls('');
       })
       .catch((e) => {
         if (!live) return;
@@ -332,7 +342,7 @@ export default function WorkspacePage() {
   const type = workTypeInfo(lists, chart.workType || 'code');
   const queries = (work && work.queries) || [];
   const docs = documentsOf(chart, queries);
-  const edits = runEdits({ chart, draft, notes, describe });
+  const edits = runEdits({ chart, draft, notes, describe, lookupIcd: codeDB ? (c) => icdRow(codeDB, c) : null });
   const errs = edits.filter((e) => e.sev === 'err').length;
   const openWarns = edits.filter((e) => e.sev === 'warn' && !draft.acks.includes(e.key)).length;
   const ready = !errs && !openWarns && !pending;
@@ -343,18 +353,21 @@ export default function WorkspacePage() {
   if (set.hasLines) systems.push({ key: 'CPT', label: 'CPT / HCPCS', sys: [2, 3] });
 
   // ---------------------------------------------------------------- actions
+  const P = set.firstListed; // 'primary' (OP) or 'principal' (IP)
+  const hasFirst = draft.dx.some((x) => x.cls === P);
+  const currentFirst = draft.dx.find((x) => x.cls === P);
+  const newDx = (code, desc, cls) => ({ id: uid('d'), code, desc, poa: /^Z/.test(norm(code)) && set.inpatient ? '1' : '', cls, ev: [] });
+  // "Make primary / principal": the chosen code becomes the first-listed diagnosis, the old one secondary.
   const addDx = (row, principal) => {
     const code = row[2];
     change((d) => {
       const at = d.dx.findIndex((x) => norm(x.code) === norm(code));
+      if (at < 0 && d.dx.length >= set.maxDx) return;
+      if (principal) d.dx.forEach((x) => x.cls === P && (x.cls = 'secondary'));
       if (at > -1) {
-        if (principal) d.dx.unshift(d.dx.splice(at, 1)[0]);
-        return;
-      }
-      if (d.dx.length >= set.maxDx) return;
-      const x = { id: uid('d'), code, desc: row[3], poa: /^Z/.test(norm(code)) && set.inpatient ? '1' : '', ev: [] };
-      if (principal) d.dx.unshift(x);
-      else d.dx.push(x);
+        if (principal) d.dx[at].cls = P;
+      } else d.dx.push(newDx(code, row[3], principal ? P : 'secondary'));
+      d.dx = sequenceDx(d.dx, set);
     });
     if (draft.dx.length >= set.maxDx) toast(`A claim holds at most ${set.maxDx} diagnoses`);
     setEncSel(null);
@@ -380,7 +393,7 @@ export default function WorkspacePage() {
   const actionsFor = (row) => {
     if (row[0] === 0)
       return [
-        { label: draft.dx.some((x) => norm(x.code) === norm(row[2])) ? `Make ${set.inpatient ? 'principal' : 'primary'}` : `Add as ${set.inpatient ? 'principal' : 'primary'} dx`, primary: true, run: (r) => addDx(r, true) },
+        { label: draft.dx.some((x) => norm(x.code) === norm(row[2])) ? `Make ${P}` : `Add as ${P} dx`, primary: true, run: (r) => addDx(r, true) },
         { label: 'Add as secondary dx', run: (r) => addDx(r, false), disabled: draft.dx.some((x) => norm(x.code) === norm(row[2])) },
       ];
     if (row[0] === 1) return [{ label: 'Add procedure', primary: true, run: addPcs }];
@@ -388,11 +401,44 @@ export default function WorkspacePage() {
   };
   // Typed code entry (CodeEntry): each box saves one code at a time. CPT / HCPCS first, then ICD.
   // A save returns an error message, or '' when the code was added.
+  // The diagnosis type chosen next to the ICD-10-CM box: first-listed until there is one, then secondary.
+  const entryCls = dxCls || (hasFirst ? 'secondary' : P);
+  const onlyOne = (code) => `Only one ${firstTerm(set)} is allowed — ${code} is already the ${firstTerm(set)}. Edit it first, or add this code as secondary.`;
   const saveDx = (row) => {
     if (draft.dx.some((x) => norm(x.code) === norm(row[2]))) return row[2] + ' is already coded';
     if (draft.dx.length >= set.maxDx) return 'A claim holds at most ' + set.maxDx + ' diagnoses';
-    change((d) => d.dx.push({ id: uid('d'), code: row[2], desc: row[3], poa: /^Z/.test(norm(row[2])) && set.inpatient ? '1' : '', ev: [] }));
+    if (entryCls === P && currentFirst) return onlyOne(currentFirst.code);
+    change((d) => {
+      // The first-listed diagnosis goes in row 1; secondary diagnoses are added at the end.
+      if (entryCls === P) d.dx.unshift(newDx(row[2], row[3], P));
+      else d.dx.push(newDx(row[2], row[3], 'secondary'));
+    });
+    setDxCls('');
     setTab('dx');
+    toast(`${row[2]} added as ${entryCls === P ? firstTerm(set) : 'secondary diagnosis'}`);
+    return '';
+  };
+  // Edit one diagnosis: its code and/or classification. Same checks as adding one.
+  const editDx = (id, typedCode, cls) => {
+    const row = icdRow(codeDB, typedCode);
+    if (!typedCode) return 'Enter an ICD-10-CM code.';
+    if (codeDB && !row) return `${typedCode} is not a valid ICD-10-CM code.`;
+    if (row && !isBillable(row)) return `${row[2]} is a header code — code to the highest specificity.`;
+    const code = row ? row[2] : typedCode;
+    if (draft.dx.some((x) => x.id !== id && norm(x.code) === norm(code))) return code + ' is already coded';
+    const other = draft.dx.find((x) => x.id !== id && x.cls === P);
+    if (cls === P && other) return onlyOne(other.code);
+    change((d) => {
+      const x = d.dx.find((r) => r.id === id);
+      if (!x) return;
+      if (norm(x.code) !== norm(code)) {
+        x.code = code;
+        x.desc = row ? row[3] : describe(code);
+        x.ev = [];
+      }
+      x.cls = cls;
+      d.dx = sequenceDx(d.dx, set);
+    });
     return '';
   };
   const savePcs = (row) => {
@@ -414,11 +460,34 @@ export default function WorkspacePage() {
   const entryBoxes = [
     set.hasLines && { key: 'cpt', label: 'CPT / HCPCS', sys: [2, 3], placeholder: 'e.g. 99214 or J1885', help: 'Type a procedure code and press Enter to save it as a charge line.', save: saveLine },
     set.hasPCS && { key: 'pcs', label: 'ICD-10-PCS', sys: [1], placeholder: 'e.g. 0DTJ4ZZ', help: 'Type a procedure code and press Enter to save it.', save: savePcs },
-    { key: 'icd', label: 'ICD-10-CM', sys: [0], placeholder: 'e.g. J18.9', help: 'Type a diagnosis code and press Enter to save it. The first one is the ' + (set.inpatient ? 'principal' : 'primary') + ' diagnosis.', save: saveDx },
+    {
+      key: 'icd',
+      label: 'ICD-10-CM',
+      sys: [0],
+      placeholder: 'e.g. J18.9',
+      help: `Choose the diagnosis type, type the code and press Enter. Only one ${firstTerm(set)} is allowed; it is always sequence 1.`,
+      save: saveDx,
+      button: 'Add diagnosis',
+      extra: (
+        <select className="inp dxtype" value={entryCls} aria-label="Diagnosis type" onChange={(e) => setDxCls(e.target.value)}>
+          {dxClassOptions(set).map(([v, l]) => (
+            <option key={v} value={v} disabled={v === P && hasFirst}>
+              {l}
+              {v === P && hasFirst ? ' — already set' : ''}
+            </option>
+          ))}
+        </select>
+      ),
+    },
   ].filter(Boolean);
   // Top-level tabs: one per code set (CPT first). Each shows its entry box; the sub-tabs below are shared.
   const codeSets = entryBoxes.map((b) => [b.key, b.label]);
   const activeSet = codeSets.some(([k]) => k === codeSet) ? codeSet : codeSets[0][0];
+  // Opening a code set also shows the list its codes land on: CPT -> charge lines, PCS -> procedures, ICD -> diagnoses.
+  const openCodeSet = (k) => {
+    setCodeSet(k);
+    setTab(k === 'cpt' ? 'lines' : k === 'pcs' ? 'pcs' : 'dx');
+  };
   const removeDx = (id) =>
     change((d) => {
       const x = d.dx.find((r) => r.id === id);
@@ -447,8 +516,10 @@ export default function WorkspacePage() {
         .sort((a, b) => (/^PDx$/i.test(b.type) ? 1 : 0) - (/^PDx$/i.test(a.type) ? 1 : 0))
         .forEach((c) => {
           if (has(d.dx, c.code) || d.dx.length >= set.maxDx) return;
-          const x = { id: uid('d'), code: c.code, desc: describe(c.code) || c.desc, poa: set.inpatient ? c.poa || '' : '', ev: [] };
-          if (/^PDx$/i.test(c.type) && !d.dx.length) d.dx.unshift(x);
+          // A previous record's PDx becomes the first-listed diagnosis only if this chart has none yet.
+          const first = /^PDx$/i.test(c.type) && !d.dx.some((r) => r.cls === set.firstListed);
+          const x = { id: uid('d'), code: c.code, desc: describe(c.code) || c.desc, poa: set.inpatient ? c.poa || '' : '', cls: first ? set.firstListed : 'secondary', ev: [] };
+          if (first) d.dx.unshift(x);
           else d.dx.push(x);
           added += 1;
         });
@@ -504,7 +575,15 @@ export default function WorkspacePage() {
   };
   const doSubmit = async () => {
     await saveNow();
-    const res = await submitChart(chart.id, { ...toSubmission(draftRef.current), draft: draftRef.current, timeSpent: elapsed() });
+    let res;
+    try {
+      res = await submitChart(chart.id, { ...toSubmission(draftRef.current), draft: draftRef.current, timeSpent: elapsed() });
+    } catch (e) {
+      // The server re-checks the diagnoses against the chart's encounter type (422 + the rules broken).
+      const details = (e && e.data && e.data.details) || [];
+      if (e && e.status === 422 && details.length) throw new Error(e.message + ': ' + details.map((x) => x.message).join(' '));
+      throw e;
+    }
     setResult({ ...res, time: elapsed() });
     setWork((w) => ({ ...(w || {}), status: 'done' }));
     setModal(null);
@@ -538,7 +617,7 @@ export default function WorkspacePage() {
 
   const codingBody = set.inpatient ? (
     tab === 'dx' ? (
-      <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} />
+      <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} editDx={editDx} />
     ) : tab === 'pcs' ? (
       <PcsSection draft={draft} change={change} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} />
     ) : tab === 'abs' ? (
@@ -552,7 +631,7 @@ export default function WorkspacePage() {
     ) : tab === 'lines' && set.hasLines ? (
       <LinesSection draft={draft} change={change} edits={edits} original={chart.workType === 'review' ? original : null} describe={describe} lists={lists} />
     ) : (
-      <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} />
+      <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} editDx={editDx} />
     )
   );
 
@@ -622,6 +701,7 @@ export default function WorkspacePage() {
             docs={docs}
             lists={lists}
             onFinish={doSubmit}
+            editDx={editDx}
             onAccept={async () => {
               await saveNow();
               const w = await post(MY_CHART_SESSION(dept, chartId));
@@ -652,7 +732,7 @@ export default function WorkspacePage() {
           />
           <div className="card panel">
             <div className="ph">
-              <h2>{set.inpatient && chart.workType === 'code' ? 'Inpatient coding' : type.panel}</h2>
+              <h2>{set.ip && chart.workType === 'code' ? (set.inpatient ? 'Inpatient coding' : 'Inpatient professional coding') : type.panel}</h2>
               <div className="r">
                 <span className={'pill ' + type.cls}>{type.badge}</span>
               </div>
@@ -668,13 +748,23 @@ export default function WorkspacePage() {
             {codeSets.length > 1 && (
               <div className="wsx-sets" role="tablist" aria-label="Code set">
                 {codeSets.map(([k, l]) => (
-                  <button key={k} type="button" role="tab" aria-selected={activeSet === k} className={activeSet === k ? 'on' : ''} onClick={() => setCodeSet(k)}>
+                  <button key={k} type="button" role="tab" aria-selected={activeSet === k} className={activeSet === k ? 'on' : ''} onClick={() => openCodeSet(k)}>
                     {l}
                   </button>
                 ))}
               </div>
             )}
-            <CodeEntry boxes={entryBoxes.filter((b) => b.key === activeSet)} codeDB={codeDB} dbStatus={dbStatus} />
+            <CodeEntry
+              boxes={entryBoxes.filter((b) => b.key === activeSet)}
+              allBoxes={entryBoxes}
+              codeDB={codeDB}
+              dbStatus={dbStatus}
+              prefill={entryPrefill}
+              onSwitch={(key, code) => {
+                setEntryPrefill((p) => ({ key, code, n: (p ? p.n : 0) + 1 }));
+                openCodeSet(key);
+              }}
+            />
             {codingTabs.length > 1 && (
               <div className="wsx-subtabs" role="tablist" aria-label="Coding sections">
                 {codingTabs.map(([k, l], i) => (

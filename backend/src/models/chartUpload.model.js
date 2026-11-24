@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { DIFFICULTIES } = require('./chart.model');
 const { WORK_TYPE_LIST, WORK_TYPES } = require('../config/workQueue');
+const { ENCOUNTER_TYPE_LIST, BILLING_TYPE_LIST } = require('../config/encounter');
 const { toJSON } = require('./plugins');
 
 const { ObjectId, Mixed } = mongoose.Schema.Types;
@@ -22,6 +23,7 @@ const uploadAnswerSchema = new mongoose.Schema(
     mods: { type: [String], default: undefined },
     units: { type: Number, default: undefined },
     ptrs: { type: [String], default: undefined },
+    uncertain: { type: Boolean, default: undefined },
   },
   { _id: false }
 );
@@ -48,6 +50,9 @@ const chartUploadSchema = new mongoose.Schema(
       sex: { type: String, enum: ['M', 'F'], default: 'F' },
       age: { type: Number, min: 0, default: 45 },
     },
+    // Encounter (copied into Chart on publish; same meaning as there). New uploads must set it.
+    encounterType: { type: String, enum: ENCOUNTER_TYPE_LIST, default: undefined },
+    billingType: { type: String, enum: BILLING_TYPE_LIST, default: undefined },
     // Work queue (copied into Chart on publish; same meaning as there).
     workType: { type: String, enum: WORK_TYPE_LIST, default: WORK_TYPES.CODE },
     documents: { type: [uploadDocumentSchema], default: undefined },

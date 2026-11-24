@@ -1,6 +1,7 @@
 const Joi = require('joi');
 const { CASE_LIMITS: L } = require('../config/chartUploads');
 const { DENIAL_DECISIONS, POA_VALUES, WORK_TYPE_LIST } = require('../config/workQueue');
+const { BILLING_TYPE_LIST, ENCOUNTER_TYPE_LIST } = require('../config/encounter');
 
 // The work-queue fields a chart can carry (same shape as the Chart model). Shared by the admin
 // upload (drafts may be incomplete; publishing checks completeness in the service).
@@ -125,9 +126,17 @@ const answerRow = Joi.object({
   mods,
   units: Joi.number().integer().min(1).max(9999).allow(null),
   ptrs: codeList(4),
+  uncertain: Joi.boolean(), // diagnosis documented as uncertain (probable / suspected) — see Chart model
 });
 
+// OP / IP, and for IP the billing type. Required on new uploads (createUpload); publishing checks
+// that an IP chart has its billing type (chartUpload.service checkPublishable).
+const encounterType = Joi.string().trim().uppercase().valid(...ENCOUNTER_TYPE_LIST);
+const billingType = Joi.string().trim().lowercase().valid(...BILLING_TYPE_LIST).allow('', null);
+
 const caseFields = {
+  encounterType,
+  billingType,
   workType: Joi.string().valid(...WORK_TYPE_LIST).default('code'),
   documents,
   encounter,
@@ -138,4 +147,4 @@ const caseFields = {
   cdiResponse: text(L.why),
 };
 
-module.exports = { caseFields, answerRow };
+module.exports = { caseFields, answerRow, encounterType };

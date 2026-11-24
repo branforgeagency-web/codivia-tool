@@ -1,10 +1,11 @@
 const path = require('path');
 const mammoth = require('mammoth');
 const WordExtractor = require('word-extractor');
-const { Chart, ChartResult, ChartUpload, Department } = require('../models');
+const { Chart, ChartResult, ChartUpload, ChartWork, Department } = require('../models');
 const { UPLOAD_STATUS } = require('../models/chartUpload.model');
 const { CHART_UPLOAD, UPLOAD_LIMITS } = require('../config/chartUploads');
-const { WORK_TYPES } = require('../config/workQueue');
+const { WORK_LIMITS, WORK_TYPES } = require('../config/workQueue');
+const { BILLING_TYPE_LABELS, DX_CLASSES, ENCOUNTER_TYPES, ENCOUNTER_TYPE_LIST, encounterProfile } = require('../config/encounter');
 const counterService = require('./counter.service');
 const { publicUrl, deleteFile } = require('./media.service');
 const ApiError = require('../utils/ApiError');
@@ -32,6 +33,8 @@ const toView = (u, deptName) => ({
   answerKey: u.answerKey,
   difficulty: u.difficulty,
   patient: u.patient,
+  encounterType: u.encounterType || null,
+  billingType: u.billingType || null,
   workType: u.workType || WORK_TYPES.CODE,
   documents: u.documents || [],
   encounter: u.encounter || null,
@@ -135,20 +138,25 @@ const extractFileText = async (file) => {
 
 // Publishing needs a complete answer key: every row with a code, type, description and rationale.
 const checkPublishable = (upload) => {
+  const bad = (msg, field) => {
+    throw new ApiError(httpStatus.BAD_REQUEST, msg, field ? [{ field, message: msg }] : undefined);
+  };
+  // Encounter type: OP or IP; an inpatient chart also says how it is billed (procedure code set).
+  if (!ENCOUNTER_TYPE_LIST.includes(upload.encounterType)) bad('Choose the encounter type (OP – Outpatient or IP – Inpatient)', 'encounterType');
+  if (upload.encounterType === ENCOUNTER_TYPES.IP && !upload.billingType) bad('Choose the billing type of this inpatient chart (hospital facility or professional)', 'billingType');
   const key = upload.answerKey || [];
-  if (!key.length) throw new ApiError(httpStatus.BAD_REQUEST, 'Add at least one code before publishing');
+  if (!key.length) bad('Add at least one code before publishing');
   const incomplete = key.filter((r) => !r.code || !r.type || !r.desc?.trim() || !r.why?.trim());
-  if (incomplete.length) {
-    throw new ApiError(httpStatus.BAD_REQUEST, `${incomplete.length} answer key row(s) need a code, type, description and rationale before publishing`);
-  }
-  // Same rule as the Upload form, so publishing a draft from the list can't skip it.
-  if (!key.some((r) => r.type === 'PDx')) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'One code must be marked PDx (principal diagnosis) before publishing');
+  if (incomplete.length) bad(`${incomplete.length} answer key row(s) need a code, type, description and rationale before publishing`);
+  // Same rules as the Upload form, so publishing a draft from the list can't skip them.
+  const term = upload.encounterType === ENCOUNTER_TYPES.IP ? 'principal diagnosis' : 'primary (first-listed) diagnosis';
+  const pdx = key.filter((r) => r.type === 'PDx');
+  if (!pdx.length) bad(`One code must be marked PDx (${term}) before publishing`);
+  if (pdx.length > 1) bad(`Only one code can be marked PDx (${term}); mark the others SDx`);
+  if (pdx[0].uncertain && upload.encounterType !== ENCOUNTER_TYPES.IP) {
+    bad('The primary diagnosis of an outpatient chart cannot be an uncertain diagnosis: outpatient coding reports the signs and symptoms instead');
   }
   // What each work type needs so the student workspace can show it.
-  const bad = (msg) => {
-    throw new ApiError(httpStatus.BAD_REQUEST, msg);
-  };
   const type = upload.workType || WORK_TYPES.CODE;
   const o = upload.original || {};
   if (type === WORK_TYPES.REVIEW && !(o.dx || []).length && !(o.lines || []).length) bad('A charge review needs the provider’s original diagnoses or charge lines');
@@ -163,8 +171,9 @@ const checkPublishable = (upload) => {
 
 // The answer key as Chart stores it: only the optional checks that were filled in.
 const toChartKey = (rows) =>
-  rows.map(({ code, type, desc, why, poa, mods, units, ptrs }) => {
+  rows.map(({ code, type, desc, why, poa, mods, units, ptrs, uncertain }) => {
     const row = { code, type, desc, why };
+    if (uncertain && ['PDx', 'SDx', 'Dx'].includes(type)) row.uncertain = true;
     if (poa) row.poa = poa;
     if (Array.isArray(mods)) row.mods = mods; // [] = the line must carry no modifier
     if (units) row.units = units;
@@ -176,7 +185,10 @@ const toChartKey = (rows) =>
 // department, position and source. Optional work-queue fields left out are cleared.
 const chartFields = (u) => {
   const type = u.workType || WORK_TYPES.CODE;
+  const encounterType = ENCOUNTER_TYPE_LIST.includes(u.encounterType) ? u.encounterType : undefined;
   return {
+    encounterType,
+    billingType: encounterType === ENCOUNTER_TYPES.IP ? u.billingType || undefined : undefined,
     difficulty: u.difficulty,
     title: u.title,
     patient: u.patient,
@@ -195,14 +207,73 @@ const chartFields = (u) => {
 
 // Edit form -> upload record. The form always sends the whole chart, so optional work-queue fields
 // that are missing were cleared by the admin. Patient fields are merged (blank = keep).
-const REQUIRED_EDITS = ['title', 'record', 'answerKey', 'difficulty', 'workType'];
-const OPTIONAL_EDITS = ['documents', 'encounter', 'original', 'denial', 'keyMeta', 'cdiResponse'];
+const REQUIRED_EDITS = ['title', 'record', 'answerKey', 'difficulty', 'workType', 'encounterType'];
+const OPTIONAL_EDITS = ['documents', 'encounter', 'original', 'denial', 'keyMeta', 'cdiResponse', 'billingType'];
 const KEPT_WHEN_ABSENT = ['previousRecords']; // the edit form may not send these yet
 const applyUploadEdits = (upload, body) => {
   REQUIRED_EDITS.forEach((k) => body[k] !== undefined && upload.set(k, body[k]));
   OPTIONAL_EDITS.forEach((k) => upload.set(k, body[k] === undefined || body[k] === '' ? undefined : body[k]));
   KEPT_WHEN_ABSENT.forEach((k) => body[k] !== undefined && upload.set(k, body[k] && body[k].length ? body[k] : undefined));
   if (body.patient) upload.set('patient', { ...(upload.toObject().patient || {}), ...body.patient });
+};
+
+// ---- changing the encounter / billing type of a live chart ----
+// Students' work on a chart was coded (and scored) for its encounter type. Changing it on a chart that
+// has submissions or saved drafts needs the admin to confirm (confirmEncounterChange); without it the
+// change is refused with 409 and the numbers involved. Scores already saved stay as they were graded.
+const ENCOUNTER_REVIEW_RULE = 'encounter.change.review';
+const describeProfile = (p) => p.encounterType + (p.billingType ? ` (${BILLING_TYPE_LABELS[p.billingType].toLowerCase()})` : '');
+
+const encounterChange = async (dept, before, next) => {
+  const department = await Department.findById(dept).select('elements').lean();
+  const elements = (department && department.elements) || [];
+  const from = encounterProfile(before, elements);
+  const to = encounterProfile(next, elements);
+  if (from.encounterType === to.encounterType && from.billingType === to.billingType) return null;
+  return { from, to, label: `${describeProfile(from)} → ${describeProfile(to)}` };
+};
+
+const assertEncounterChange = async (chartId, change, confirmed) => {
+  if (!change) return null;
+  const [submitted, inProgress] = await Promise.all([
+    ChartResult.countDocuments({ chart: chartId }),
+    ChartWork.countDocuments({ chart: chartId, draft: { $ne: null } }),
+  ]);
+  const impact = { submitted, inProgress };
+  if ((submitted || inProgress) && !confirmed) {
+    const parts = [submitted ? `${submitted} submitted score(s)` : '', inProgress ? `${inProgress} student draft(s)` : ''].filter(Boolean).join(' and ');
+    throw new ApiError(httpStatus.CONFLICT, `Changing the encounter type (${change.label}) affects ${parts} on this chart. Review the impact and confirm the change.`, [
+      { field: 'encounterType', rule: ENCOUNTER_REVIEW_RULE, message: 'Confirmation required', from: describeProfile(change.from), to: describeProfile(change.to), ...impact },
+    ]);
+  }
+  return impact;
+};
+
+// After a confirmed change: the students' drafts use the new first-listed term (primary <-> principal)
+// and their activity says why. Their codes and sequence are left for them to review.
+const relabelDrafts = async (chartId, change, actor) => {
+  const target = change.to.firstListed;
+  const other = target === DX_CLASSES.PRINCIPAL ? DX_CLASSES.PRIMARY : DX_CLASSES.PRINCIPAL;
+  const works = await ChartWork.find({ chart: chartId, draft: { $ne: null } }).select('draft').lean();
+  const text = `Encounter type changed by an administrator: ${change.label}. Review your diagnosis classifications and procedure codes.`;
+  for (const w of works) {
+    const dx = ((w.draft && w.draft.dx) || []).map((d) => (d.cls === other ? { ...d, cls: target } : d));
+    await ChartWork.updateOne(
+      { _id: w._id },
+      { $set: { 'draft.dx': dx }, $push: { activity: { $each: [{ at: new Date(), kind: 'admin', text, by: actor && actor._id }], $slice: -WORK_LIMITS.activity } } }
+    );
+  }
+};
+
+// Applies the chart fields to a live chart, guarding an encounter type change. Returns the change
+// (for the audit log) or null.
+const applyChartFields = async (chart, fields, { confirmed, actor } = {}) => {
+  const change = await encounterChange(chart.dept, chart.toObject(), fields);
+  const impact = await assertEncounterChange(chart._id, change, confirmed);
+  chart.set(fields);
+  await chart.save();
+  if (change && impact && impact.inProgress) await relabelDrafts(chart._id, change, actor);
+  return change ? { from: describeProfile(change.from), to: describeProfile(change.to), ...impact } : null;
 };
 
 // Adds the upload to the department's chart pool, after the last chart (allocations are by position).
@@ -308,7 +379,7 @@ const getUpload = async (id) => {
 // Edit an upload (Upload page -> Edit). A draft can move to another department. A published upload
 // must pass the publish checks, and its chart in the pool is updated too (same ID and position, so
 // allocations and earlier scores are untouched; later submissions are graded against the new key).
-const updateUpload = async (id, { dept: newDept, sourceName, sourceFile, ...body }) => {
+const updateUpload = async (id, { dept: newDept, sourceName, sourceFile, confirmEncounterChange, ...body }, actor) => {
   const upload = await findUpload(id);
   if (newDept && newDept !== upload.dept) {
     if (upload.status === UPLOAD_STATUS.PUBLISHED) {
@@ -326,17 +397,15 @@ const updateUpload = async (id, { dept: newDept, sourceName, sourceFile, ...body
   if (sourceFile !== undefined) upload.sourceFile = sourceFile || undefined;
   applyUploadEdits(upload, body);
   const dept = await findDepartment(upload.dept);
+  let changed = null;
   if (upload.status === UPLOAD_STATUS.PUBLISHED && upload.chart) {
     checkPublishable(upload);
     const chart = await Chart.findById(upload.chart);
-    if (chart) {
-      chart.set(chartFields(upload.toObject()));
-      await chart.save();
-    }
+    if (chart) changed = await applyChartFields(chart, chartFields(upload.toObject()), { confirmed: confirmEncounterChange, actor });
   }
   await upload.save();
   if (replacedKey) await deleteFile(replacedKey);
-  return toView(upload.toObject(), dept.name);
+  return { ...toView(upload.toObject(), dept.name), encounterChange: changed };
 };
 
 const deleteUpload = async (id) => {
@@ -346,4 +415,4 @@ const deleteUpload = async (id) => {
   if (upload.sourceFile && upload.sourceFile.key) await deleteFile(upload.sourceFile.key);
 };
 
-module.exports = { extractFileText, listUploads, createUpload, getUpload, updateUpload, setStatus, deleteUpload, chartFields, checkPublishable, applyUploadEdits };
+module.exports = { extractFileText, listUploads, createUpload, getUpload, updateUpload, setStatus, deleteUpload, chartFields, checkPublishable, applyUploadEdits, applyChartFields };

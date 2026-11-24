@@ -6,6 +6,7 @@ const ApiError = require('../utils/ApiError');
 const httpStatus = require('../utils/httpStatus');
 const { escapeRegex } = require('../utils/codeText');
 const { chartHeader, HEADER_FIELDS } = require('../utils/chartHeader');
+const { encounterProfile, isInpatientElements } = require('../config/encounter');
 
 // ---------- Student "My Charts" ----------
 // Only the signed-in student's own allocated departments and charts. Never returns answer keys.
@@ -196,7 +197,7 @@ const getMyQueue = async (student, deptKey, { search, status = 'todo', type = 'a
       .sort({ position: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .select('position handwritten difficulty record patient workType encounter original.rules original.lines denial.invoice')
+      .select('position handwritten difficulty record patient workType encounterType billingType encounter original.rules original.lines denial.invoice')
       .lean(),
     Chart.countDocuments(match),
   ]);
@@ -222,6 +223,7 @@ const getMyQueue = async (student, deptKey, { search, status = 'todo', type = 'a
         id: c._id,
         position: c.position,
         workType: c.workType || WORK_TYPES.CODE,
+        encounterType: encounterProfile(c, department.elements).encounterType,
         handwritten: !!c.handwritten,
         difficulty: c.difficulty,
         patient: c.patient ? c.patient.name : '',
@@ -243,7 +245,7 @@ const getMyQueue = async (student, deptKey, { search, status = 'todo', type = 'a
   };
 };
 
-const isInpatientDept = (elements) => (elements || []).some((e) => e === 'ICD10PCS' || e === 'DRG');
+const isInpatientDept = isInpatientElements;
 
 // One chart to work: documents, encounter, what arrived with it (review / denial), the student's
 // saved work and the option lists. Never the answer key. Only charts in the student's range.
@@ -268,6 +270,9 @@ const getMyChart = async (student, deptKey, chartId) => {
   ]);
   const { _id, source, ...rest } = chart;
   const usedRemits = new Set(((chart.original && chart.original.lines) || []).map((l) => l.remit).filter(Boolean));
+  // Encounter type and billing type come from the chart record (older charts: from the department).
+  // Read-only for the student; submitting checks against the same values on the server.
+  const profile = encounterProfile(chart, department.elements);
   return {
     id: _id,
     ...rest,
@@ -275,7 +280,11 @@ const getMyChart = async (student, deptKey, chartId) => {
     uploaded: source === 'upload',
     elements: department.elements,
     deptName: chart.deptName || department.name,
-    isInpatient: isInpatientDept(department.elements),
+    encounterType: profile.encounterType,
+    billingType: profile.billingType,
+    encounterTypeSet: profile.explicit,
+    // Inpatient hospital (facility) claim: POA, ICD-10-PCS, abstract, MS-DRG.
+    isInpatient: profile.facilityIP,
     position: { index: queue.findIndex((c) => c._id === _id) + 1, of: queue.length },
     work: chartWorkService.toClientWork(work),
     result: result || null,

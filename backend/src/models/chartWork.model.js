@@ -25,7 +25,8 @@ const querySchema = new mongoose.Schema(
 const activitySchema = new mongoose.Schema(
   {
     at: { type: Date, required: true },
-    kind: { type: String, required: true }, // opened, saved, comment, query, answer, defer, transfer, submit
+    kind: { type: String, required: true }, // opened, saved, comment, query, answer, defer, transfer, submit, dx
+    by: { type: ObjectId, ref: 'User', default: undefined }, // who made the change (dx entries: the student)
     text: { type: String, required: true },
   },
   { _id: false }

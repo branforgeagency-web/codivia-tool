@@ -1,6 +1,7 @@
 const Joi = require('joi');
 const { CHART_ID_PATTERN } = require('../config/certificates');
 const { DENIAL_DECISIONS, POA_VALUES, WORK_LIMITS: W } = require('../config/workQueue');
+const { DX_CLASS_LIST } = require('../config/encounter');
 const { objectId } = require('./custom.validation');
 const { draft } = require('./myChart.validation');
 
@@ -14,8 +15,10 @@ const submitChart = {
     chartId: Joi.string().pattern(CHART_ID_PATTERN).required().messages({ 'string.pattern.base': 'chartId is not a valid chart ID' }),
   }),
   body: Joi.object({
+    // In sequence order. cls = diagnosis classification; the server checks it against the chart's
+    // own encounter type (never one sent by the browser).
     dx: Joi.array()
-      .items(Joi.object({ code: code.required(), poa: Joi.string().valid('', ...POA_VALUES) }))
+      .items(Joi.object({ code: code.required(), poa: Joi.string().valid('', ...POA_VALUES), cls: Joi.string().valid('', ...DX_CLASS_LIST) }))
       .max(W.dx)
       .required(),
     lines: Joi.array()

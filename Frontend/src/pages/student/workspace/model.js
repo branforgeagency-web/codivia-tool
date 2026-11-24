@@ -14,20 +14,71 @@ export const norm = (s) => String(s || '').toUpperCase().replace(/[\s.]/g, '');
 let seq = 0;
 export const uid = (p = 'r') => p + Date.now().toString(36) + (seq++).toString(36);
 
-// ---- what the department codes ----
+// ---- how the chart is coded: encounter type (OP / IP) and billing type ----
+// The server sends the chart's encounterType / billingType (read-only for the student). Charts made
+// before encounter types existed (encounterTypeSet false) keep the department-derived setup.
+//   ip         - inpatient encounter: the first-listed diagnosis is the PRINCIPAL diagnosis
+//   inpatient  - inpatient hospital (facility) claim: POA, ICD-10-PCS, abstract, MS-DRG
+//   firstListed - 'principal' (IP) or 'primary' (OP)
 export function settingOf(chart) {
   const el = chart.elements || [];
-  const inpatient = !!chart.isInpatient || el.includes('ICD10PCS') || el.includes('DRG');
-  return {
-    inpatient,
-    hasLines: !inpatient && (el.includes('CPT') || el.includes('HCPCS') || el.includes('EM')),
-    hasEM: !inpatient && el.includes('EM'),
-    hasPCS: el.includes('ICD10PCS'),
-    hasDRG: el.includes('DRG'),
-    ed: /^ED/.test(chart.dept || ''),
-    maxDx: inpatient ? 25 : 12,
-  };
+  const ed = /^ED/.test(chart.dept || '');
+  const legacyIP = !!chart.isInpatient || el.includes('ICD10PCS') || el.includes('DRG');
+  const encounterType = chart.encounterType === 'IP' || chart.encounterType === 'OP' ? chart.encounterType : legacyIP ? 'IP' : 'OP';
+  const ip = encounterType === 'IP';
+  const billingType = ip ? chart.billingType || 'facility' : null;
+  const facility = ip && billingType === 'facility';
+  const base = { encounterType, billingType, ip, inpatient: facility, ed, firstListed: ip ? 'principal' : 'primary', maxDx: facility ? 25 : 12 };
+  if (!chart.encounterTypeSet) {
+    // Older chart: what its department codes, as before.
+    return {
+      ...base,
+      hasLines: !facility && (el.includes('CPT') || el.includes('HCPCS') || el.includes('EM')),
+      hasEM: !facility && el.includes('EM'),
+      hasPCS: el.includes('ICD10PCS'),
+      hasDRG: el.includes('DRG'),
+    };
+  }
+  // OP and IP professional: CPT / HCPCS charge lines. IP facility: ICD-10-PCS (+ MS-DRG when the department assigns DRGs).
+  return { ...base, hasLines: !facility, hasEM: !facility && el.includes('EM'), hasPCS: facility, hasDRG: facility && el.includes('DRG') };
 }
+
+export const ENCOUNTER_LABEL = { OP: 'Outpatient', IP: 'Inpatient' };
+export const BILLING_LABEL = { facility: 'Hospital facility', professional: 'Professional' };
+
+// ---- diagnosis classification (draft.dx[].cls); the sequence is the list order ----
+export const DX_CLASS_LABEL = { primary: 'Primary', principal: 'Principal', secondary: 'Secondary' };
+export const firstTerm = (set) => (set.firstListed === 'principal' ? 'principal diagnosis' : 'primary diagnosis');
+// The classifications offered for this encounter type: [value, label].
+export const dxClassOptions = (set) => [
+  [set.firstListed, set.firstListed === 'principal' ? 'Principal diagnosis' : 'Primary diagnosis (first-listed)'],
+  ['secondary', 'Secondary diagnosis'],
+];
+// Keeps the one first-listed diagnosis in row 1 (other rows keep their order).
+export function sequenceDx(dx, set) {
+  const firsts = dx.filter((x) => x.cls === set.firstListed);
+  if (firsts.length !== 1) return dx;
+  return [firsts[0], ...dx.filter((x) => x !== firsts[0])];
+}
+// Drafts saved before diagnoses were classified: row 1 was the first-listed diagnosis.
+export function classifyLegacyDx(dx, set) {
+  if (!dx.length || dx.some((x) => x.cls)) return dx;
+  return dx.map((x, i) => ({ ...x, cls: i === 0 ? set.firstListed : 'secondary' }));
+}
+
+// ICD-10-CM rows of the code DB by normalised code (a code can exist in two code sets).
+const icdCache = new WeakMap();
+export function icdRow(codeDB, code) {
+  if (!codeDB) return null;
+  let map = icdCache.get(codeDB);
+  if (!map) {
+    map = new Map();
+    for (const r of codeDB) if (r[0] === 0 && !map.has(norm(r[1]))) map.set(norm(r[1]), r);
+    icdCache.set(codeDB, map);
+  }
+  return map.get(norm(code)) || null;
+}
+export const isBillable = (row) => !!row && (row[4] === 1 || row[4] === '1' || row[4] === true);
 
 // ---- demographics (for the patient header) ----
 const DEMO_TAB = 'Demographics';
@@ -189,9 +240,12 @@ export function patientType(chart) {
 
 // Where a chart starts: the saved draft, else what arrived with it (review / DRG / denial), else empty.
 export function initialDraft(chart, describe) {
-  if (chart.work && chart.work.draft) return { ...blank(), ...chart.work.draft };
-  const d = blank();
   const set = settingOf(chart);
+  if (chart.work && chart.work.draft) {
+    const saved = { ...blank(), ...chart.work.draft };
+    return { ...saved, dx: classifyLegacyDx(saved.dx || [], set) };
+  }
+  const d = blank();
   d.ptGrid = set.ed ? 'ed' : patientType(chart) === 'new' ? 'new' : 'est';
   if (set.inpatient) {
     const e = chart.encounter || {};
@@ -202,7 +256,7 @@ export function initialDraft(chart, describe) {
   // chart starts empty: the student codes it; a review chart's original charges stay visible
   // under Charge lines → Original / Compare.
   if (o && chart.workType === 'denial') {
-    d.dx = (o.dx || []).map((x) => ({ id: uid('d'), code: x.code, desc: describe(x.code), poa: x.poa || '', ev: [] }));
+    d.dx = (o.dx || []).map((x, i) => ({ id: uid('d'), code: x.code, desc: describe(x.code), poa: x.poa || '', cls: i === 0 ? set.firstListed : 'secondary', ev: [] }));
     const idOf = (code) => (d.dx.find((x) => norm(x.code) === norm(code)) || {}).id;
     d.lines = (o.lines || []).map((l) => ({
       id: uid('l'),
@@ -223,7 +277,7 @@ export function initialDraft(chart, describe) {
 export function toSubmission(d) {
   const codeOf = (id) => (d.dx.find((x) => x.id === id) || {}).code;
   return {
-    dx: d.dx.map((x) => ({ code: x.code, poa: x.poa || '' })),
+    dx: d.dx.map((x) => ({ code: x.code, poa: x.poa || '', cls: x.cls || '' })),
     lines: d.lines.map((l) => ({ code: l.code, mods: l.mods.filter(Boolean), units: l.units || 1, ptrs: l.ptrs.map(codeOf).filter(Boolean) })),
     pcs: d.pcs.map((p) => p.code),
     drg: d.drg || '',

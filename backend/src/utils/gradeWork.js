@@ -2,12 +2,14 @@
 // Every check is one point; accuracy = checks passed / checks made.
 //
 // submission (already validated):
-//   { dx: [{ code, poa }], lines: [{ code, mods: [], units, ptrs: [dxCode] }], pcs: [code],
+//   { dx: [{ code, poa, cls }], lines: [{ code, mods: [], units, ptrs: [dxCode] }], pcs: [code],
 //     drg, disp, decision, comment, notified }
 //
 // The answer key's optional fields (poa, mods, units, ptrs) and the chart's keyMeta
 // ({ disp, decision }) add checks only where the chart's author set them, so plain charts are
 // graded on codes and sequencing alone.
+
+const { DX_CLASSES, encounterProfile } = require('../config/encounter');
 
 const norm = (s) => String(s || '').toUpperCase().replace(/[\s.]/g, '');
 const DX_TYPES = ['PDx', 'SDx', 'Dx'];
@@ -26,7 +28,8 @@ const list = (arr) => (arr.length ? arr.join(', ') : 'none');
 const gradeWork = (chart, sub) => {
   const key = chart.answerKey || [];
   const meta = chart.keyMeta || {};
-  const inpatient = !!(chart.isInpatient || key.some((k) => k.type === 'PCS' || k.type === 'DRG'));
+  // chart.profile = config/encounter encounterProfile(); built here for callers that don't pass one.
+  const profile = chart.profile || encounterProfile({}, chart.isInpatient || key.some((k) => k.type === 'PCS' || k.type === 'DRG') ? ['ICD10PCS'] : []);
   const checks = [];
   const add = (ok, title, why, kind) => checks.push({ ok: !!ok, title, why: why || '', kind });
 
@@ -48,26 +51,52 @@ const gradeWork = (chart, sub) => {
   }
 
   // ---- diagnoses ----
-  const pLabel = inpatient ? 'Principal diagnosis' : 'Primary diagnosis';
-  dxKey.forEach((k, i) => {
+  // One point for the first-listed (primary / principal) diagnosis: the right code, classified as
+  // first-listed and sequenced first. One point per secondary diagnosis reported; secondary order is
+  // not graded (the guidelines do not fix it). Uncertain diagnoses are expected only where they are
+  // coded as if established (inpatient facility); elsewhere reporting one is an error (OCG IV.H).
+  const pLabel = profile.firstListed === DX_CLASSES.PRINCIPAL ? 'Principal diagnosis' : 'Primary diagnosis';
+  const pTerm = pLabel.toLowerCase();
+  const pKey = dxKey.find((k) => k.type === 'PDx') || dxKey[0];
+  const uncertainKey = profile.uncertainAsConfirmed ? [] : dxKey.filter((k) => k.uncertain && k !== pKey);
+  const expectedDx = dxKey.filter((k) => !uncertainKey.includes(k));
+  // The student's first-listed row: the one classified primary / principal (older drafts: row 1).
+  const classified = dx.some((d) => d.cls);
+  const firstAt = classified ? dx.findIndex((d) => d.cls === profile.firstListed) : dx.length ? 0 : -1;
+  const pickedFirst = firstAt >= 0 ? dx[firstAt] : null;
+  expectedDx.forEach((k) => {
     const code = norm(k.code);
     const at = dxCodes.indexOf(code);
-    if (i === 0) {
-      const ok = at === 0;
-      const title = ok ? `${pLabel} ${k.code}` : at > 0 ? `${k.code} is coded but not sequenced first` : `${pLabel} ${dx[0] ? dx[0].code : '(none)'} → should be ${k.code}`;
+    if (k === pKey) {
+      const ok = at >= 0 && at === firstAt && firstAt === 0;
+      let title;
+      if (ok) title = `${pLabel} ${k.code}`;
+      else if (at >= 0 && at === firstAt) title = `${k.code} is the ${pTerm} but is not sequenced first`;
+      else if (at >= 0) title = `${k.code} is coded as a secondary diagnosis → it is the ${pTerm}` + (pickedFirst ? ` (not ${pickedFirst.code})` : '');
+      else title = `${pLabel} ${pickedFirst ? pickedFirst.code : '(none)'} → should be ${k.code}`;
       add(ok, title, k.why, 'dx');
     } else {
-      add(at >= 0, `Diagnosis ${k.code} ${at >= 0 ? 'reported' : 'missing'}`, k.why, 'dx');
+      const asFirst = at >= 0 && at === firstAt;
+      add(at >= 0, `Secondary diagnosis ${k.code} ${at >= 0 ? 'reported' + (asFirst ? ` (classified as ${pTerm} — it is a secondary diagnosis)` : '') : 'missing'}`, k.why, 'dx');
     }
-    if (k.poa && at >= 0) {
+    if (k.poa && profile.facilityIP && at >= 0) {
       const poa = dx[at].poa || '';
       add(poa === k.poa, `${k.code} POA: ${POA_LABEL[poa] || 'blank'}` + (poa === k.poa ? '' : ` → should be ${POA_LABEL[k.poa] || k.poa}`),
         k.poa === '1' ? 'This code is on the POA-exempt list — report 1 (exempt).' : 'POA describes whether the condition was present when the order to admit was written.', 'poa');
     }
   });
-  const dxKeyCodes = dxKey.map((k) => norm(k.code));
+  const dxKeyCodes = expectedDx.map((k) => norm(k.code));
+  const uncertainCodes = uncertainKey.map((k) => norm(k.code));
   const extraDx = dx.filter((d) => !dxKeyCodes.includes(norm(d.code)));
-  extraDx.forEach((d) => add(false, `Diagnosis ${d.code} should not be reported`, (meta.extraWhy || {})[d.code] || 'Not supported by the documentation and coding guidelines.', 'dx'));
+  extraDx.forEach((d) => {
+    const u = uncertainKey[uncertainCodes.indexOf(norm(d.code))];
+    if (u) {
+      add(false, `Uncertain diagnosis ${d.code} should not be reported on ${profile.encounterType === 'IP' ? 'a professional inpatient' : 'an outpatient'} claim`,
+        'Diagnoses documented as “probable”, “suspected”, “likely” or “rule out” are not coded for outpatient and professional services — code the signs, symptoms or findings instead (ICD-10-CM OCG IV.H). They are coded as if established only for inpatient admissions (OCG II.H).', 'dx');
+      return;
+    }
+    add(false, `Diagnosis ${d.code} should not be reported`, (meta.extraWhy || {})[d.code] || 'Not supported by the documentation and coding guidelines.', 'dx');
+  });
 
   // ---- charge lines ----
   lineKey.forEach((k) => {
@@ -133,7 +162,7 @@ const gradeWork = (chart, sub) => {
 
   // Missed audited codes, and "you coded X, the audited code is Y" pairs (same family first).
   const missed = [
-    ...dxKey.filter((k) => !dxCodes.includes(norm(k.code))),
+    ...expectedDx.filter((k) => !dxCodes.includes(norm(k.code))),
     ...lineKey.filter((k) => !lines.some((l) => norm(l.code) === norm(k.code))),
     ...pcsKey.filter((k) => !pcs.map(norm).includes(norm(k.code))),
   ];

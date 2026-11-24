@@ -2,6 +2,7 @@ const { chartUploadService, auditService: audit } = require('../services');
 const httpStatus = require('../utils/httpStatus');
 const ApiError = require('../utils/ApiError');
 const { keyDiff } = require('../utils/auditDiff');
+const { recordEncounterChange } = require('./adminChart.controller');
 
 // "EM-0042 — Chest pain (Emergency Medicine)"; a draft has no chart ID yet.
 const uploadTarget = (u) => ({ type: 'upload', id: u.id, label: `${[u.chart, u.title].filter(Boolean).join(' — ')} (${u.deptName})` });
@@ -32,8 +33,9 @@ const getUpload = async (req, res) => {
 
 const updateUpload = async (req, res) => {
   const before = await chartUploadService.getUpload(req.params.uploadId);
-  const out = await chartUploadService.updateUpload(req.params.uploadId, req.body);
-  const fields = Object.keys(req.body);
+  const out = await chartUploadService.updateUpload(req.params.uploadId, req.body, req.user);
+  if (out.encounterChange && out.chart) await recordEncounterChange(req.user, out.chart, out);
+  const fields = Object.keys(req.body).filter((f) => f !== 'confirmEncounterChange');
   const diff = req.body.answerKey ? keyDiff(before.answerKey, out.answerKey) : null;
   const moved = before.dept !== out.dept ? `moved ${before.dept} → ${out.dept}` : '';
   await audit.record(req.user, 'upload.update', {

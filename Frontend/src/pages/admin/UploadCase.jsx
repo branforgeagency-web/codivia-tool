@@ -11,7 +11,20 @@ import { validateCode } from '../../utils/codes.js';
 // through `lists` (useReference → GET /reference/work-queue).
 const opts = (lists, key) => (lists && lists[key]) || [];
 
+// Encounter type (required for every chart) and, for inpatient charts, the billing type, which decides
+// the procedure code set: OP → CPT / HCPCS; IP facility → ICD-10-PCS; IP professional → CPT / HCPCS.
+export const ENCOUNTER_TYPES = [
+  ['OP', 'OP – Outpatient'],
+  ['IP', 'IP – Inpatient'],
+];
+export const BILLING_TYPES = [
+  ['facility', 'Hospital facility (ICD-10-PCS, POA, MS-DRG)'],
+  ['professional', 'Professional (CPT / HCPCS)'],
+];
+
 export const emptyCase = () => ({
+  encounterType: '',
+  billingType: '',
   workType: 'code',
   difficulty: 'moderate',
   patient: { name: '', sex: 'F', age: '' },
@@ -32,6 +45,8 @@ export function fromCase(src = {}) {
   const km = src.keyMeta || {};
   return {
     ...base,
+    encounterType: src.encounterType || '',
+    billingType: src.billingType || '',
     workType: src.workType || 'code',
     difficulty: src.difficulty || 'moderate',
     patient: { name: str(src.patient && src.patient.name), sex: (src.patient && src.patient.sex) || 'F', age: str(src.patient && src.patient.age) },
@@ -87,6 +102,9 @@ export function toCasePayload(c, { inpatient }) {
   const enc = compact({ ...c.encounter, los: num(c.encounter.los) });
   const payload = {
     workType: type,
+    ...(c.encounterType ? { encounterType: c.encounterType } : {}),
+    // The form always sends the whole chart: a blank billing type clears it (OP charts have none).
+    billingType: c.encounterType === 'IP' ? c.billingType : '',
     difficulty: c.difficulty,
     // Blank name / age are left out, so the server's defaults apply.
     patient: compact({ name: c.patient.name.trim(), sex: c.patient.sex, age: num(c.patient.age) }),
@@ -145,8 +163,10 @@ export function caseIssues(c, { inpatient, publish }) {
   const add = (path, msg) => p.push({ path, msg });
   const type = c.workType;
   const o = c.original;
+  if (!c.encounterType) add('encounterType', 'Choose the encounter type: OP – Outpatient or IP – Inpatient.');
+  if (publish && c.encounterType === 'IP' && !c.billingType) add('billingType', 'Choose the billing type of this inpatient chart (hospital facility or professional).');
   if (c.patient.age.trim() && !wholeIn(c.patient.age, 0, 130)) add('patient.age', 'Patient age must be a whole number from 0 to 130.');
-  if (inpatient && c.encounter.los.trim() && !wholeIn(c.encounter.los, 0, 365)) add('encounter.los', 'LOS must be a whole number of days (0 to 365).');
+  if ((inpatient || c.encounterType === 'IP') && c.encounter.los.trim() && !wholeIn(c.encounter.los, 0, 365)) add('encounter.los', 'LOS must be a whole number of days (0 to 365).');
   c.documents.forEach((d, i) => {
     const t = d.title.trim();
     const b = d.body.trim();
@@ -207,7 +227,10 @@ function Field({ label, children, span }) {
   );
 }
 
-export function CaseFields({ value: c, onChange, inpatient, lists, onError, errors }) {
+// inpatient = inpatient hospital (facility) claim: POA, disposition, DRG validation work.
+// ip = inpatient encounter (facility or professional): admit / discharge / LOS banner fields.
+// encounterNote: shown under the encounter type (e.g. the chart has student work, so a change needs confirming).
+export function CaseFields({ value: c, onChange, inpatient, ip = inpatient, lists, onError, errors, encounterNote }) {
   const [busyDoc, setBusyDoc] = useState(false);
   // Fields with a problem (paths from caseIssues) get a red border; data-field lets the page jump to them.
   const flag = (path) => ({ 'data-field': path, 'aria-invalid': errors && errors.has(path) ? true : undefined });
@@ -256,6 +279,46 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError, erro
       {/* work type, difficulty, patient */}
       <div style={{ padding: '14px 20px' }}>
         <div style={grid(4)}>
+          <Field label="Encounter type (required)">
+            <select
+              value={c.encounterType}
+              {...flag('encounterType')}
+              onChange={(e) => set((n) => {
+                n.encounterType = e.target.value;
+                if (e.target.value !== 'IP') n.billingType = '';
+              })}
+              style={{ ...inp, ...badStyle('encounterType') }}
+            >
+              <option value="">Choose…</option>
+              {ENCOUNTER_TYPES.map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {c.encounterType === 'IP' ? (
+            <Field label="Billing type (procedure codes)">
+              <select value={c.billingType} {...flag('billingType')} onChange={(e) => set((n) => (n.billingType = e.target.value))} style={{ ...inp, ...badStyle('billingType') }}>
+                <option value="">Choose…</option>
+                {BILLING_TYPES.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <div />
+          )}
+          <div style={{ gridColumn: 'span 2', fontSize: 11.5, color: 'var(--muted)', alignSelf: 'end', lineHeight: 1.45 }}>
+            {c.encounterType === 'IP'
+              ? 'Students report a principal diagnosis (first) and secondary diagnoses. ' + (c.billingType === 'professional' ? 'Procedures: CPT / HCPCS.' : c.billingType === 'facility' ? 'Procedures: ICD-10-PCS, with POA and MS-DRG.' : '')
+              : c.encounterType === 'OP'
+                ? 'Students report a primary (first-listed) diagnosis and secondary diagnoses. Procedures: CPT / HCPCS.'
+                : 'Decides the diagnosis terms (primary vs principal), procedure code set and scrubber rules.'}
+            {encounterNote ? <div style={{ color: 'var(--tone-b4232a, #b4232a)', marginTop: 3 }}>{encounterNote}</div> : null}
+          </div>
           <Field label="Work type" span={2}>
             <select value={type} onChange={(e) => set((n) => (n.workType = e.target.value))} style={inp}>
               {opts(lists, 'workTypes')
@@ -296,16 +359,16 @@ export function CaseFields({ value: c, onChange, inpatient, lists, onError, erro
           <Field label="MRN">{text('encounter.mrn')}</Field>
           <Field label="Account">{text('encounter.acct')}</Field>
           <Field label="Encounter ID">{text('encounter.encounterId')}</Field>
-          {inpatient ? <Field label="LOS (days)">{text('encounter.los')}</Field> : <Field label="Date of service">{text('encounter.dos', 'MM/DD/YYYY')}</Field>}
-          {inpatient && (
+          {ip ? <Field label="LOS (days)">{text('encounter.los')}</Field> : <Field label="Date of service">{text('encounter.dos', 'MM/DD/YYYY')}</Field>}
+          {ip && (
             <>
               <Field label="Admit date">{text('encounter.admit', 'MM/DD/YYYY')}</Field>
               <Field label="Discharge date">{text('encounter.discharge', 'MM/DD/YYYY')}</Field>
             </>
           )}
-          <Field label={inpatient ? 'Attending' : 'Provider'}>{text('encounter.provider')}</Field>
+          <Field label={ip ? 'Attending' : 'Provider'}>{text('encounter.provider')}</Field>
           <Field label="Specialty">{text('encounter.specialty')}</Field>
-          {!inpatient && (
+          {!ip && (
             <>
               <Field label="Visit type">{text('encounter.visitType', 'Office visit')}</Field>
               <Field label="Place of service">{text('encounter.pos', '11 · Office')}</Field>

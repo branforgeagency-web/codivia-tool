@@ -4,7 +4,7 @@ const { UPLOAD_LIMITS: L } = require('../config/chartUploads');
 const { DIFFICULTIES } = require('../models/chart.model');
 const { UPLOAD_STATUS } = require('../models/chartUpload.model');
 const { objectId } = require('./custom.validation');
-const { answerRow, caseFields } = require('./chartCase.validation');
+const { answerRow, caseFields, encounterType } = require('./chartCase.validation');
 
 // A file stored by POST /media-upload (charts folder). Only the key is trusted; the URL is rebuilt
 // on the server, so a chart can't point at an outside link.
@@ -27,6 +27,8 @@ const createUpload = {
     answerKey: Joi.array().items(answerRow).max(L.rows).default([]),
     // work queue: work type, documents, encounter banner, original charges, denial, grading extras
     ...caseFields,
+    // Every new chart says whether it is outpatient or inpatient (drafts too).
+    encounterType: encounterType.required().messages({ 'any.required': 'Choose the encounter type (OP or IP)' }),
     difficulty: Joi.string().valid(...DIFFICULTIES).default('moderate'),
     patient: Joi.object({
       name: Joi.string().trim().min(1).max(L.patientName),
@@ -51,6 +53,9 @@ const chartEditFields = {
     sex: Joi.string().valid('M', 'F'),
     age: Joi.number().integer().min(0).max(130),
   }),
+  // Changing the encounter / billing type of a chart students have already worked is refused (409)
+  // until the admin confirms they reviewed the impact; the confirmation is written to the audit log.
+  confirmEncounterChange: Joi.boolean(),
 };
 
 const getUpload = { params: uploadId };

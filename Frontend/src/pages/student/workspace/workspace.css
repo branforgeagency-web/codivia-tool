@@ -373,3 +373,23 @@ table.wsx-simple{width:100%;border-collapse:collapse;font-size:14px}
 .wsx-subtabs .tab:hover{color:var(--w-ink);border-color:#cfcac3}
 .wsx-subtabs .tab.on{background:var(--w-brand-lt);border-color:var(--w-brand);color:var(--w-brand-d)}
 .wsx-subtabs .tab .pill{font-size:10.5px;line-height:16px}
+/* diagnoses table (sequence · ICD-10-CM · description · diagnosis type · POA · actions) */
+.wsx-dxt td.ln{white-space:nowrap;width:64px}
+.wsx-dxt .grip{cursor:grab;color:#B0AAA2;font-size:16px;line-height:1;user-select:none;margin-right:4px;vertical-align:middle}
+.wsx-dxt .grip.off{visibility:hidden}
+.wsx-dxt .seqb{display:inline-block;min-width:26px;text-align:center;font-weight:800;color:var(--w-muted);font-size:13px;padding:2px 4px;border-radius:7px;vertical-align:middle}
+.wsx-dxt .seqb.p{background:var(--w-brand);color:#fff}
+.wsx-dxt td.code{font-family:var(--w-mono);font-weight:700;white-space:nowrap}
+.wsx-dxt td.dsx{font-size:13.5px;min-width:160px}
+.wsx-dxt .act{text-align:right;white-space:nowrap}
+.wsx-dxt tr.dragging{opacity:.45}
+.wsx-dxt tr.over td{box-shadow:inset 0 2px 0 var(--w-brand)}
+.wsx-dxt tr.edit td{background:#FCFBFA}
+.wsx-dxedit{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.wsx-dxedit .inp.code{width:120px;height:34px;font-family:var(--w-mono);font-weight:700;text-transform:uppercase}
+.wsx-dxedit select.inp{width:auto;height:34px}
+.wsx-dxedit .btn.sm{height:34px}
+.wsx-dxedit .err{color:var(--w-err);font-size:12.5px;font-weight:600}
+.wsx-entry .dxtype{height:36px;width:auto;max-width:210px;flex:none;font-size:13px}
+.wsx-banner .btag.enc{background:#fff;color:var(--w-navy);border-color:#fff}
+@media (max-width:720px){.wsx-dxt td.dsx{min-width:110px}.wsx-entry .row{flex-wrap:wrap}.wsx-entry .dxtype{max-width:none;width:100%}}

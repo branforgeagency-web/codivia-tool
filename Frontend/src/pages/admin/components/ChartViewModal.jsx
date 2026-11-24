@@ -29,7 +29,10 @@ export function AdminChartView({ chart, onClose }) {
                 chart.patient.sex +
                 ' ' +
                 chart.patient.age +
-                'y)'}
+                'y) · ' +
+                (chart.encounterType
+                  ? (chart.encounterType === 'IP' ? 'IP – Inpatient' : 'OP – Outpatient') + (chart.billingType ? ' (' + chart.billingType + ')' : '')
+                  : 'Encounter type not set')}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -104,7 +107,8 @@ export function AdminChartView({ chart, onClose }) {
                   <td>{a.desc}</td>
                   <td>
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>
-                      {a.type}
+                      {a.type === 'PDx' ? (chart.encounterType === 'IP' ? 'PDx · Principal' : chart.encounterType === 'OP' ? 'PDx · Primary' : 'PDx') : a.type}
+                      {a.uncertain ? ' · uncertain' : ''}
                     </span>
                   </td>
                 </tr>

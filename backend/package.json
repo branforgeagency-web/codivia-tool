@@ -15,7 +15,8 @@
     "seed:codes": "node src/scripts/seedCodes.js",
     "seed:guidelines": "node src/scripts/seedCodingGuidelines.js",
     "seed:resume-templates": "node src/scripts/seedResumeTemplates.js",
-    "seed:reference": "node src/scripts/seedReference.js"
+    "seed:reference": "node src/scripts/seedReference.js",
+    "migrate:encounter-types": "node src/scripts/migrateEncounterTypes.js"
   },
   "private": true,
   "engines": {

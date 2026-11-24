@@ -1,7 +1,7 @@
 /* CODIVIA — workspace edits (claim scrubber). Runs live on every change.
    Generic rules for any chart, plus Excludes1 / "use additional code" checks from the ICD-10-CM
    tabular notes in the database (GET /codes/notes/:code, fetched per diagnosis). */
-import { isEM, LETTERS, norm, settingOf } from './model.js';
+import { isBillable, isEM, LETTERS, norm, settingOf } from './model.js';
 
 // Code references inside a note line, e.g. "(E11.22, E13.22)" or "(N18.1-N18.6)" → ['E1122', 'E1322', 'N181', 'N186'].
 const refsIn = (line) => {
@@ -14,16 +14,34 @@ const refsIn = (line) => {
 
 const isProcedureLine = (c) => !isEM(c) && !/^[JGT]/.test(c) && !/F$/.test(c) && !/^G2211$/.test(c);
 
-export function runEdits({ chart, draft: d, notes = {}, describe = () => '' }) {
+// lookupIcd(code) -> code DB row for an ICD-10-CM code, or null; omitted while the code DB is not loaded.
+export function runEdits({ chart, draft: d, notes = {}, describe = () => '', lookupIcd = null }) {
   const set = settingOf(chart);
   const out = [];
   const add = (sev, tab, title, msg, src, line) =>
     out.push({ sev, tab, title, msg, src, line, key: (tab + '|' + title + '|' + msg).slice(0, 280) });
   const codes = d.dx.map((x) => norm(x.code));
-  const P = set.inpatient ? 'principal' : 'primary';
+  const P = set.firstListed; // 'principal' (IP) or 'primary' (OP)
+  const PT = P === 'principal' ? 'Principal' : 'Primary';
+  const other = P === 'principal' ? 'primary' : 'principal';
+  const OCG = set.ip ? 'OCG Section II' : 'OCG Section IV';
 
-  // ---------- diagnoses ----------
+  // ---------- diagnoses: classification and sequence (OP primary / IP principal) ----------
   if (!d.dx.length) add('err', 'dx', 'No diagnosis', `Add the ${P} diagnosis first.`, 'Claim edit');
+  const firsts = d.dx.filter((x) => x.cls === P);
+  if (d.dx.length && !firsts.length) add('err', 'dx', `Missing ${P} diagnosis`, `Classify one diagnosis as the ${P} diagnosis — ${set.ip ? 'the condition established after study to be chiefly responsible for the admission' : 'the reason chiefly responsible for the outpatient services'}.`, OCG);
+  if (firsts.length > 1) add('err', 'dx', `Multiple ${P} diagnoses`, `Only one ${P} diagnosis is allowed: ${firsts.map((x) => x.code).join(', ')}. Classify the others as secondary.`, OCG);
+  if (firsts.length === 1 && d.dx[0] !== firsts[0]) add('err', 'dx', 'Incorrect diagnosis sequence', `The ${P} diagnosis (${firsts[0].code}) must be sequenced first.`, OCG);
+  d.dx.forEach((x) => {
+    if (!x.cls) add('err', 'dx', 'Diagnosis type missing', `${x.code}: choose ${P} or secondary diagnosis.`, 'Claim edit');
+    else if (x.cls === other)
+      add('err', 'dx', 'Incorrect diagnosis classification', `${x.code} is classified as ${other} diagnosis — ${set.ip ? 'inpatient' : 'outpatient'} charts use “${P} diagnosis”. Edit it.`, OCG);
+    if (lookupIcd) {
+      const row = lookupIcd(x.code);
+      if (!row) add('err', 'dx', 'Invalid ICD-10-CM code', `${x.code} is not a valid code in the current ICD-10-CM code set.`, 'ICD-10-CM code set');
+      else if (!isBillable(row)) add('err', 'dx', 'Header code', `${x.code} is not billable — code to the highest specificity.`, 'ICD-10-CM code set');
+    }
+  });
   const seen = {};
   d.dx.forEach((x, i) => {
     const c = norm(x.code);
@@ -38,7 +56,7 @@ export function runEdits({ chart, draft: d, notes = {}, describe = () => '' }) {
   const definitive = codes.some((c) => !/^[RZ]/.test(c));
   d.dx.forEach((x, i) => {
     if (!/^R/.test(norm(x.code)) || !definitive) return;
-    add('warn', 'dx', i === 0 ? `${set.inpatient ? 'Principal' : 'Primary'} diagnosis is a symptom code` : 'Sign/symptom with a confirmed diagnosis',
+    add('warn', 'dx', i === 0 ? `${PT} diagnosis is a symptom code` : 'Sign/symptom with a confirmed diagnosis',
       i === 0 ? `${x.code} is a symptom. A confirmed diagnosis that explains the encounter should be listed first.` : `${x.code} may be integral to a confirmed diagnosis and not coded separately.`, 'OCG I.B.5');
   });
 

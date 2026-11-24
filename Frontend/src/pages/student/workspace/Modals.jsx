@@ -1,6 +1,6 @@
 /* CODIVIA workspace — modals: defer, transfer, physician query, submit, accept correction. */
 import { useEffect, useState } from 'react';
-import { LETTERS } from './model.js';
+import { DX_CLASS_LABEL } from './model.js';
 
 function Modal({ title, onClose, children, footer, wide }) {
   useEffect(() => {
@@ -210,7 +210,8 @@ export function SubmitModal({ draft, set, workType, onClose, onSubmit }) {
       }
     >
       <div>
-        <b>Diagnoses:</b> {draft.dx.map((x, i) => (set.inpatient ? `${x.code} (${x.poa || '?'})` : `${LETTERS[i]} ${x.code}`)).join(' · ') || '—'}
+        <b>Diagnoses ({set.encounterType}):</b>{' '}
+        {draft.dx.map((x, i) => `${i + 1}. ${x.code} ${DX_CLASS_LABEL[x.cls] || '?'}` + (set.inpatient ? ` · POA ${x.poa || '?'}` : '')).join(' · ') || '—'}
       </div>
       {set.hasLines && (
         <div>

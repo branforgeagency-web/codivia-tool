@@ -161,7 +161,7 @@ export function DenialLeft({ chart, docs, lists }) {
   );
 }
 
-export function DenialRight({ chart, draft, change, set, describe, edits, onFinish, onAccept, evidence, docs, lists }) {
+export function DenialRight({ chart, draft, change, set, describe, edits, onFinish, onAccept, evidence, docs, lists, editDx }) {
   const [accepting, setAccepting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -254,7 +254,7 @@ export function DenialRight({ chart, draft, change, set, describe, edits, onFini
       {step === 2 && draft.decision === 'correct' && (
         <>
           <div className="pb">
-            <DxSection draft={draft} change={change} set={set} lists={lists} evidence={evidence} docs={docs} onGoEvidence={() => {}} onInfo={() => {}} removeDx={(id) => change((d) => {
+            <DxSection draft={draft} change={change} set={set} lists={lists} evidence={evidence} docs={docs} onGoEvidence={() => {}} onInfo={() => {}} editDx={editDx} removeDx={(id) => change((d) => {
               d.dx = d.dx.filter((x) => x.id !== id);
               d.lines.forEach((l) => (l.ptrs = l.ptrs.filter((p) => p !== id)));
             })} />

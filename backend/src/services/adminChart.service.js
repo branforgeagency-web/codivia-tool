@@ -1,5 +1,5 @@
 const { Chart, ChartUpload, Department } = require('../models');
-const { applyUploadEdits, chartFields, checkPublishable } = require('./chartUpload.service');
+const { applyChartFields, applyUploadEdits, chartFields, checkPublishable } = require('./chartUpload.service');
 const { DIFFICULTIES } = require('../models/chart.model');
 const { DEPARTMENT_GROUPS } = require('../config/departments');
 const { DEPARTMENT_FILTERS } = require('../config/adminDepartments');
@@ -150,11 +150,15 @@ const getChart = async (chartId) => {
 // Edit a chart in the pool (Browse Charts -> Edit), whether it was uploaded or built in. It keeps its
 // ID, department and position, so allocations and earlier scores are untouched; submissions after
 // the edit are graded against the new answer key. An uploaded chart's upload record is kept in step.
-const updateChart = async (chartId, body) => {
+// Changing the encounter / billing type of a chart students have worked needs confirmEncounterChange
+// (see chartUpload.service applyChartFields); the change is returned for the audit log.
+const updateChart = async (chartId, { confirmEncounterChange, ...body }, actor) => {
   const chart = await Chart.findById(chartId);
   if (!chart) throw new ApiError(httpStatus.NOT_FOUND, 'Chart not found');
   const cur = chart.toObject();
   const next = {
+    encounterType: body.encounterType ?? cur.encounterType,
+    billingType: body.billingType !== undefined ? body.billingType : cur.billingType,
     title: body.title ?? cur.title,
     record: body.record ?? cur.record,
     answerKey: body.answerKey ?? cur.answerKey,
@@ -170,15 +174,14 @@ const updateChart = async (chartId, body) => {
     cdiResponse: body.cdiResponse,
   };
   checkPublishable(next);
-  chart.set(chartFields(next));
-  await chart.save();
+  const encounterChange = await applyChartFields(chart, chartFields(next), { confirmed: confirmEncounterChange, actor });
 
   const upload = await ChartUpload.findOne({ chart: chartId });
   if (upload) {
     applyUploadEdits(upload, body);
     await upload.save();
   }
-  return toChart(chart.toObject());
+  return { ...toChart(chart.toObject()), encounterChange };
 };
 
 module.exports = { queryDepartments, queryCharts, getChart, updateChart };

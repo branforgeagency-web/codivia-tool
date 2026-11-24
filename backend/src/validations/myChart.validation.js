@@ -2,6 +2,7 @@ const Joi = require('joi');
 const { DEPARTMENT_KEY_PATTERN } = require('../config/departments');
 const { CHART_ID_PATTERN } = require('../config/certificates');
 const { DENIAL_DECISIONS, WORK_LIMITS: W, WORK_TYPE_LIST } = require('../config/workQueue');
+const { DX_CLASS_LIST } = require('../config/encounter');
 
 const page = Joi.number().integer().min(1).default(1);
 const limit = Joi.number().integer().min(1).max(100).default(10);
@@ -19,7 +20,9 @@ const timeSpent = Joi.number().integer().min(0).max(24 * 60 * 60);
 const draft = Joi.object({
   v: Joi.number().integer().min(1).max(99),
   dx: Joi.array()
-    .items(Joi.object({ id: id.required(), code: code.required(), desc: str(W.desc), poa: str(6), ev: Joi.array().items(id).max(W.evidence) }))
+    // cls: diagnosis classification (primary / principal / secondary); the sequence is the list order.
+    // Drafts may be incomplete (no first-listed diagnosis yet); submitting checks them (utils/diagnosis.js).
+    .items(Joi.object({ id: id.required(), code: code.required(), desc: str(W.desc), poa: str(6), cls: Joi.string().valid('', ...DX_CLASS_LIST), ev: Joi.array().items(id).max(W.evidence) }))
     .max(W.dx),
   lines: Joi.array()
     .items(

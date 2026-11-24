@@ -1,5 +1,8 @@
-const { Allocation, Chart, ChartResult, ChartWork, Department } = require('../models');
+const { Allocation, Chart, ChartResult, ChartWork, Code, Department } = require('../models');
 const { CHARGE_SESSION, WORK_LIMITS, WORK_STATUS, WORK_TYPES } = require('../config/workQueue');
+const { CODE_SYSTEMS } = require('../config/codes');
+const { DX_CLASS_LABELS, encounterProfile } = require('../config/encounter');
+const { checkDiagnoses, norm: normCode } = require('../utils/diagnosis');
 const referenceService = require('./reference.service');
 const counterService = require('./counter.service');
 const ApiError = require('../utils/ApiError');
@@ -90,18 +93,50 @@ const getWork = async (student, deptKey, chartId) => {
   return toClientWork(await ChartWork.findOne({ student: student._id, chart: chartId }).lean());
 };
 
+// ---- diagnosis activity: what changed in the diagnosis list between two autosaves ----
+const DX_ACTIVITY_MAX = 6; // entries per save; more changes are summarised in one entry
+const clsName = (c) => (DX_CLASS_LABELS[c] || 'Unclassified').replace(' diagnosis', '').toLowerCase();
+const dxChanges = (before = [], after = []) => {
+  const prev = new Map(before.filter((d) => d && d.id).map((d) => [d.id, d]));
+  const next = new Map(after.filter((d) => d && d.id).map((d) => [d.id, d]));
+  const out = [];
+  after.forEach((d, i) => {
+    const p = prev.get(d.id);
+    if (!p) out.push(`Diagnosis added: ${d.code} (${clsName(d.cls)}, #${i + 1})`);
+    else {
+      if (p.code !== d.code) out.push(`Diagnosis updated: ${p.code} → ${d.code}`);
+      if ((p.cls || '') !== (d.cls || '')) out.push(`Diagnosis classification changed: ${d.code} ${clsName(p.cls)} → ${clsName(d.cls)}`);
+    }
+  });
+  before.forEach((p) => !next.has(p.id) && out.push(`Diagnosis deleted: ${p.code}`));
+  const keptBefore = before.filter((d) => next.has(d.id)).map((d) => d.id);
+  const keptAfter = after.filter((d) => prev.has(d.id)).map((d) => d.id);
+  if (keptBefore.join('|') !== keptAfter.join('|')) out.push(`Diagnosis sequence changed: ${after.map((d, i) => `${i + 1}. ${d.code}`).join(', ')}`);
+  return out;
+};
+const dxActivity = (student, before, after) => {
+  const changes = dxChanges(before || [], after || []);
+  if (!changes.length) return [];
+  const entries = changes.length > DX_ACTIVITY_MAX ? [`${changes.length} diagnosis changes: ${changes.join('; ')}`] : changes;
+  return entries.map((text) => ({ ...activity('dx', text), by: student._id }));
+};
+
 // Autosave. Opening a deferred or transferred chart and changing it puts it back in progress.
+// Diagnosis changes (added, updated, deleted, reclassified, re-sequenced) go into the activity log.
 const saveDraft = async (student, deptKey, chartId, { draft, timeSpent }) => {
   const chart = await findChart(student, deptKey, chartId);
-  const existing = await ChartWork.findOne({ student: student._id, chart: chartId }).select('status timeSpent').lean();
+  const existing = await ChartWork.findOne({ student: student._id, chart: chartId }).select('status timeSpent draft.dx').lean();
   const set = { draft };
   if (timeSpent != null) set.timeSpent = Math.min(MAX_TIME_SPENT, Math.max(existing ? existing.timeSpent || 0 : 0, timeSpent));
   const update = { $set: set };
-  if (!existing) Object.assign(update, pushActivity(activity('opened', 'Started working this chart')));
+  const entries = [];
+  if (!existing) entries.push(activity('opened', 'Started working this chart'));
   else if (existing.status === WORK_STATUS.DEFERRED || existing.status === WORK_STATUS.TRANSFERRED) {
     set.status = WORK_STATUS.IN_PROGRESS;
-    Object.assign(update, pushActivity(activity('resume', 'Resumed from ' + existing.status)));
+    entries.push(activity('resume', 'Resumed from ' + existing.status));
   }
+  entries.push(...dxActivity(student, existing && existing.draft && existing.draft.dx, draft.dx));
+  if (entries.length) update.$push = { activity: { $each: entries, $slice: -WORK_LIMITS.activity } };
   const work = await upsertWork(student, chart, update);
   return { status: work.status, timeSpent: work.timeSpent, savedAt: work.updatedAt };
 };
@@ -157,16 +192,36 @@ const addComment = async (student, deptKey, chartId, { text }) => {
 
 // Submit: the server grades the work against the answer key (the browser never has it),
 // saves the score (one per student and chart), marks the work done and issues a certificate if earned.
+// The ICD-10-CM codes of a diagnosis list found in the code set: Map(normalised code -> { billable }).
+const lookupDxCodes = async (dx) => {
+  const codes = [...new Set((dx || []).map((d) => normCode(d.code)).filter(Boolean))];
+  if (!codes.length) return new Map();
+  const rows = await Code.find({ system: CODE_SYSTEMS.ICD10CM, code: { $in: codes } }).select('code billable').lean();
+  return new Map(rows.map((r) => [normCode(r.code), { billable: r.billable }]));
+};
+
+// Diagnosis rules a submission must pass (utils/diagnosis.js), against the chart's own encounter type.
+// A denial that is appealed or written off sends the billed claim as it is, so it is not re-checked.
+const assertDiagnoses = async (chart, profile, submission) => {
+  if (chart.workType === WORK_TYPES.DENIAL && submission.decision !== 'correct') return;
+  const issues = checkDiagnoses(submission.dx, { encounterType: profile.encounterType, lookup: await lookupDxCodes(submission.dx) });
+  if (issues.length) {
+    throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, 'Fix the diagnosis errors before submitting', issues.map((i) => ({ field: 'dx', rule: i.rule, code: i.code, message: i.message })));
+  }
+};
+
 const submitWork = async (student, chartId, submission) => {
-  const chart = await Chart.findById(chartId).select('dept deptName position answerKey keyMeta workType').lean();
+  const chart = await Chart.findById(chartId).select('dept deptName position answerKey keyMeta workType encounterType billingType').lean();
   if (!chart) throw new ApiError(httpStatus.NOT_FOUND, 'Chart not found');
   await findChart(student, chart.dept, chartId);
   const work = await ChartWork.findOne({ student: student._id, chart: chartId }).select('queries').lean();
   if (hasPendingQuery(work)) throw new ApiError(httpStatus.CONFLICT, 'A physician query is still pending on this chart');
 
   const department = await Department.findById(chart.dept).select('elements').lean();
-  const isInpatient = ((department && department.elements) || []).some((e) => e === 'ICD10PCS' || e === 'DRG');
-  const result = gradeWork({ ...chart, isInpatient, workType: chart.workType || WORK_TYPES.CODE }, submission);
+  // Encounter type from the chart record (or, for older charts, its department) — never from the request.
+  const profile = encounterProfile(chart, (department && department.elements) || []);
+  await assertDiagnoses(chart, profile, submission);
+  const result = gradeWork({ ...chart, profile, isInpatient: profile.facilityIP, workType: chart.workType || WORK_TYPES.CODE }, submission);
   const saved = toSaved(result, chart.dept, Date.now());
 
   const filter = { student: student._id, chart: chart._id };
@@ -186,4 +241,4 @@ const submitWork = async (student, chartId, submission) => {
   return { result, saved, certificate };
 };
 
-module.exports = { answeredAtOf, hasPendingQuery, toClientWork, getWork, saveDraft, deferChart, transferChart, sendQuery, openSession, addComment, submitWork, findChart };
+module.exports = { dxChanges, answeredAtOf, hasPendingQuery, toClientWork, getWork, saveDraft, deferChart, transferChart, sendQuery, openSession, addComment, submitWork, findChart };

@@ -49,6 +49,7 @@ const KIND_ICON = {
   session: 'bi-receipt',
   submit: 'bi-check2-circle',
   admin: 'bi-person-badge',
+  dx: 'bi-clipboard2-pulse', // diagnosis added, edited, deleted, reclassified or re-sequenced
 };
 
 const EMPTY = {
