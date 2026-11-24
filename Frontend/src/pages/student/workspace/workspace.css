@@ -393,3 +393,10 @@ table.wsx-simple{width:100%;border-collapse:collapse;font-size:14px}
 .wsx-entry .dxtype{height:36px;width:auto;max-width:210px;flex:none;font-size:13px}
 .wsx-banner .btag.enc{background:#fff;color:var(--w-navy);border-color:#fff}
 @media (max-width:720px){.wsx-dxt td.dsx{min-width:110px}.wsx-entry .row{flex-wrap:wrap}.wsx-entry .dxtype{max-width:none;width:100%}}
+
+/* Code Search popup below its button (the student stays on the chart) */
+.wsx-cs{position:relative}
+.wsx-cs-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:60;width:min(980px,calc(100vw - 40px));max-height:min(78vh,820px);display:flex;flex-direction:column;background:#fff;border:1px solid var(--w-line);border-radius:12px;box-shadow:0 18px 48px rgba(15,23,42,.22);overflow:hidden}
+.wsx-cs-pop[hidden]{display:none}
+.wsx-cs-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-bottom:1px solid var(--w-line);background:var(--w-line2)}
+.wsx-cs-body{overflow:auto;flex:1}

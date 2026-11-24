@@ -4,13 +4,14 @@
    The work autosaves (PUT …/work). Defer / transfer / physician query / comments are server
    actions on the student's own work. Submitting is scored on the server (PUT /chart-results/:id). */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Header } from '../../../components/layout/Header.jsx';
 import { ErrorState } from '../../../components/ui/ErrorState.jsx';
 import { PageLoader } from '../../../components/ui/PageLoader.jsx';
 import { useSession } from '../../../context/SessionContext.jsx';
 import { useStudent } from '../../../context/StudentContext.jsx';
-import { coderPath, deptQueuePath, PATHS } from '../../../routes/paths.js';
+import { CodeSearchButton } from './CodeSearchPopup.jsx';
+import { coderPath, deptQueuePath } from '../../../routes/paths.js';
 import { get, post, put } from '../../../services/apiHelper.js';
 import { MY_CHART, MY_CHART_COMMENTS, MY_CHART_DEFER, MY_CHART_QUERIES, MY_CHART_SESSION, MY_CHART_TRANSFER, MY_CHART_WORK, MY_DEPT_CHARTS } from '../../../services/endpoints.js';
 import { useReference, workTypeInfo } from '../../../hooks/useReference.js';
@@ -135,7 +136,6 @@ function Banner({ chart, set }) {
 // route: /charts/:dept/:chartId
 export default function WorkspacePage() {
   const { dept, chartId } = useParams();
-  const { pathname } = useLocation();
   const navigate = useNavigate();
   const { logout, retryCodeDB } = useSession();
   const { session, stu, codeDB, dbStatus, submitChart } = useStudent();
@@ -663,17 +663,7 @@ export default function WorkspacePage() {
         <span className="timer" title="Time on this chart (all sessions)">
           ⏱ {fmtTime(result ? result.time : elapsed())}
         </span>
-        <button
-          type="button"
-          className="btn sm"
-          title="Open CODIVIA Code Search — your work is saved and you can come back"
-          onClick={async () => {
-            await saveNow();
-            navigate(PATHS.codeSearch, { state: { returnTo: pathname } });
-          }}
-        >
-          ⌕ Code Search
-        </button>
+        <CodeSearchButton codeDB={codeDB} dbStatus={dbStatus} />
       </div>
       <Banner chart={chart} set={set} />
 
