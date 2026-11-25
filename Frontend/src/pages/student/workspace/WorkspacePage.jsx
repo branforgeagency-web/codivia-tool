@@ -21,9 +21,9 @@ import { fetchNotes } from './Encoder.jsx';
 import { CodeEntry } from './CodeEntry.jsx';
 import { runEdits } from './edits.js';
 import { DeferModal, QueryModal, SubmitModal, TransferModal } from './Modals.jsx';
-import { BILLING_LABEL, codeDescriber, demographicsOf, documentsOf, dxClassOptions, ENCOUNTER_LABEL, firstTerm, fmtTime, icdRow, initialDraft, isBillable, isEM, norm, sequenceDx, settingOf, toSubmission, uid } from './model.js';
+import { BILLING_LABEL, CODING_STEPS, codeDescriber, demographicsOf, documentsOf, dxClassOptions, ENCOUNTER_LABEL, firstTerm, fmtTime, icdRow, initialDraft, isBillable, isEM, lineStep, norm, sequenceDx, settingOf, toSubmission, uid, usesSteps } from './model.js';
 import { ResultView } from './Result.jsx';
-import { AbstractSection, DrgSection, DxSection, EmSection, LinesSection, PcsSection } from './Sections.jsx';
+import { AbstractSection, ChargeList, DrgSection, DxSection, EmSection, LinesSection, PcsSection } from './Sections.jsx';
 import { Sidebar } from './Sidebar.jsx';
 import './workspace.css';
 
@@ -34,12 +34,14 @@ const IP_TABS = [
   ['drg', 'MS-DRG'],
 ];
 const TAB_NAMES = { em: 'Level of service', dx: 'Diagnoses', lines: 'Charge lines', pcs: 'Procedures', abs: 'Abstract', drg: 'MS-DRG' };
-// The coding tabs of a chart: inpatient as above; outpatient CPT first (level of service, charge
-// lines), then ICD (diagnoses).
-const tabsOf = (set) =>
-  set.inpatient
-    ? IP_TABS
-    : [set.hasEM && ['em', 'Level of service'], set.hasLines && ['lines', 'Charge lines'], ['dx', 'Diagnoses']].filter(Boolean);
+// Names of the coding steps, for the edits sidebar ("Go to …"). Charge-line edits belong to step 5.
+const STEP_NAMES = { em: 'Step 1 · E/M', cpt: 'Step 2 · CPT', hcpcs: 'Step 3 · HCPCS', dx: 'Step 4 · ICD-10-CM', lines: 'Step 5 · Modifiers & Dx link', mods: 'Step 5 · Modifiers & Dx link' };
+// The coding tabs of a chart: inpatient facility as above; charts with charge lines (OP and IP
+// professional) are coded in 5 steps — CPT, E/M, HCPCS, ICD-10-CM, then modifiers & Dx links.
+const tabsOf = (set) => (set.inpatient ? IP_TABS : usesSteps(set) ? CODING_STEPS : [['dx', 'Diagnoses']]);
+// The entry box shown on each step, and the step each entry box (or the E/M box) belongs to.
+const STEP_BOX = { cpt: 'cpt', hcpcs: 'hcpcs', dx: 'icd' };
+const BOX_STEP = { cpt: 'cpt', hcpcs: 'hcpcs', icd: 'dx', pcs: 'pcs', em: 'em' };
 const SAVE_DELAY = 1200;
 
 function Banner({ chart, set }) {
@@ -199,8 +201,10 @@ export default function WorkspacePage() {
         setWork(c.work);
         baseTime.current = (c.work && c.work.timeSpent) || 0;
         startedAt.current = Date.now();
-        setTab(tabsOf(settingOf(c))[0][0]);
-        setCodeSet(settingOf(c).hasLines ? 'cpt' : 'icd');
+        // Start on the first step; skip the E/M step where this department does not offer it.
+        const s0 = settingOf(c);
+        setTab(usesSteps(s0) && !s0.hasEM ? 'cpt' : tabsOf(s0)[0][0]);
+        setCodeSet('icd');
         setFind('');
         setEncQ('');
         setEncSel(null);
@@ -315,7 +319,7 @@ export default function WorkspacePage() {
             findRef.current.select();
           }
         }, 0);
-      } else if (e.altKey && /^[1-4]$/.test(e.key) && chart && tabsOf(settingOf(chart))[+e.key - 1]) {
+      } else if (e.altKey && /^[1-5]$/.test(e.key) && chart && tabsOf(settingOf(chart))[+e.key - 1]) {
         e.preventDefault();
         setTab(tabsOf(settingOf(chart))[+e.key - 1][0]);
       }
@@ -339,6 +343,7 @@ export default function WorkspacePage() {
 
   // ---------------------------------------------------------------- derived
   const set = settingOf(chart);
+  const stepMode = usesSteps(set); // coded in 5 steps (CPT, E/M, HCPCS, ICD-10-CM, modifiers & Dx link)
   const type = workTypeInfo(lists, chart.workType || 'code');
   const queries = (work && work.queries) || [];
   const docs = documentsOf(chart, queries);
@@ -447,18 +452,38 @@ export default function WorkspacePage() {
     setTab('pcs');
     return '';
   };
+  // A charge line is added without modifiers or diagnosis links — those are step 5.
   const saveLine = (row) => {
     change((d) => {
       const line = { id: uid('l'), code: row[2], desc: row[3], mods: ['', '', '', ''], units: 1, ptrs: [] };
       if (isEM(norm(row[2]))) d.lines.unshift(line);
       else d.lines.push(line);
     });
-    setTab('lines');
+    if (!stepMode) setTab('lines');
+    toast(`${row[2]} added as charge line — add modifiers and diagnosis links in step 5`);
     return '';
   };
-  // Entry boxes, always visible (CPT / HCPCS first, then PCS, then ICD). Saving opens the tab the code lands on.
+  // The CPT step takes procedure codes; where the E/M step is offered, E/M codes are sent there.
+  const saveCpt = (row) =>
+    set.hasEM && isEM(norm(row[2])) ? { msg: `${row[2]} is an E/M level code. Enter it in step 1 (E/M).`, move: { key: 'em', label: 'step 1 (E/M)', code: row[2] } } : saveLine(row);
+  // Entry boxes: CPT, HCPCS (charge-line charts), PCS (inpatient facility), ICD-10-CM.
   const entryBoxes = [
-    set.hasLines && { key: 'cpt', label: 'CPT / HCPCS', sys: [2, 3], placeholder: 'e.g. 99214 or J1885', help: 'Type a procedure code and press Enter to save it as a charge line.', save: saveLine },
+    set.hasLines && {
+      key: 'cpt',
+      label: 'CPT',
+      sys: [2],
+      placeholder: set.hasEM ? 'e.g. 20610' : 'e.g. 99214 or 20610',
+      help: 'Type a CPT procedure code and press Enter. Units are set below; modifiers and diagnosis links in step 5.',
+      save: saveCpt,
+    },
+    set.hasLines && {
+      key: 'hcpcs',
+      label: 'HCPCS Level II',
+      sys: [3],
+      placeholder: 'e.g. J1885',
+      help: 'Drugs (J-codes), supplies and G-codes. Set the units below — J-code units follow the dose given.',
+      save: saveLine,
+    },
     set.hasPCS && { key: 'pcs', label: 'ICD-10-PCS', sys: [1], placeholder: 'e.g. 0DTJ4ZZ', help: 'Type a procedure code and press Enter to save it.', save: savePcs },
     {
       key: 'icd',
@@ -480,7 +505,7 @@ export default function WorkspacePage() {
       ),
     },
   ].filter(Boolean);
-  // Top-level tabs: one per code set (CPT first). Each shows its entry box; the sub-tabs below are shared.
+  // Inpatient facility: top-level tabs, one per code set. Each shows its entry box; the sub-tabs below are shared.
   const codeSets = entryBoxes.map((b) => [b.key, b.label]);
   const activeSet = codeSets.some(([k]) => k === codeSet) ? codeSet : codeSets[0][0];
   // Opening a code set also shows the list its codes land on: CPT -> charge lines, PCS -> procedures, ICD -> diagnoses.
@@ -614,8 +639,65 @@ export default function WorkspacePage() {
   ];
   const codingTabs = tabsOf(set);
   const errTab = (t) => edits.some((e) => e.sev === 'err' && e.tab === t);
+  // Steps: the charge-line edits are fixed in step 5; the sidebar names steps, not tabs.
+  const editTab = (t) => (stepMode && t === 'lines' ? 'mods' : t);
+  const stepCount = (k) =>
+    k === 'dx' ? draft.dx.length : k === 'mods' ? draft.lines.length : draft.lines.filter((l) => lineStep(l, set) === k).length;
+  const stepIdx = codingTabs.findIndex(([k]) => k === tab);
+  const prevStep = stepIdx > 0 ? codingTabs[stepIdx - 1] : null;
+  const nextStep = stepIdx > -1 && stepIdx < codingTabs.length - 1 ? codingTabs[stepIdx + 1] : null;
+  const dxSection = (
+    <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} editDx={editDx} letters={stepMode} />
+  );
+  const stepBody =
+    tab === 'cpt' ? (
+      <ChargeList
+        draft={draft}
+        change={change}
+        edits={edits}
+        filter={(l) => lineStep(l, set) === 'cpt'}
+        title="CPT procedures"
+        hint={set.hasEM ? 'Procedures and services. The E/M level is step 1.' : 'Procedures, services and any E/M level.'}
+        empty="No CPT codes yet. Type a CPT code in the box above and press Enter."
+      />
+    ) : tab === 'em' ? (
+      set.hasEM ? (
+        <EmSection
+          key={'em' + (entryPrefill && entryPrefill.key === 'em' ? entryPrefill.n : '')}
+          initial={entryPrefill && entryPrefill.key === 'em' ? entryPrefill.code : ''}
+          draft={draft}
+          change={change}
+          chart={chart}
+          describe={describe}
+          lists={lists}
+        />
+      ) : (
+        <div className="sec">
+          <div className="sh">
+            <h3>Level of service (E/M)</h3>
+          </div>
+          <div className="empty">The E/M level is not a separate step in this department. If the visit has an E/M service, enter its code in step 2 (CPT).</div>
+        </div>
+      )
+    ) : tab === 'hcpcs' ? (
+      <ChargeList
+        draft={draft}
+        change={change}
+        edits={edits}
+        filter={(l) => lineStep(l, set) === 'hcpcs'}
+        title="HCPCS Level II"
+        hint="Drugs, supplies and G-codes."
+        empty="No HCPCS codes yet. Type a HCPCS code (e.g. J1885) in the box above and press Enter — or go on if the visit has none."
+      />
+    ) : tab === 'mods' ? (
+      <LinesSection draft={draft} change={change} edits={edits} original={chart.workType === 'review' ? original : null} describe={describe} lists={lists} grid />
+    ) : (
+      dxSection
+    );
 
-  const codingBody = set.inpatient ? (
+  const codingBody = stepMode ? (
+    stepBody
+  ) : set.inpatient ? (
     tab === 'dx' ? (
       <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} editDx={editDx} />
     ) : tab === 'pcs' ? (
@@ -735,7 +817,37 @@ export default function WorkspacePage() {
                 </button>
               </div>
             )}
-            {codeSets.length > 1 && (
+            {stepMode && (
+              <ol className="wsx-steps" role="tablist" aria-label="Coding steps">
+                {codingTabs.map(([k, l], i) => {
+                  const n = stepCount(k);
+                  const off = k === 'em' && !set.hasEM;
+                  const bad = errTab(k === 'mods' ? 'lines' : k);
+                  return (
+                    <li key={k}>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === k}
+                        className={'st' + (tab === k ? ' on' : '') + (off ? ' off' : '') + (n && !off ? ' done' : '') + (bad ? ' bad' : '')}
+                        title={'Alt+' + (i + 1) + (off ? ' — not a separate step in this department' : '')}
+                        onClick={() => setTab(k)}
+                      >
+                        <span className="n">{i + 1}</span>
+                        <span className="l">{l}</span>
+                        {!off && n > 0 && <span className="c">{n}</span>}
+                        {bad && (
+                          <span className="c err" aria-label="has errors">
+                            !
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+            {!stepMode && codeSets.length > 1 && (
               <div className="wsx-sets" role="tablist" aria-label="Code set">
                 {codeSets.map(([k, l]) => (
                   <button key={k} type="button" role="tab" aria-selected={activeSet === k} className={activeSet === k ? 'on' : ''} onClick={() => openCodeSet(k)}>
@@ -745,17 +857,18 @@ export default function WorkspacePage() {
               </div>
             )}
             <CodeEntry
-              boxes={entryBoxes.filter((b) => b.key === activeSet)}
+              boxes={entryBoxes.filter((b) => b.key === (stepMode ? STEP_BOX[tab] : activeSet))}
               allBoxes={entryBoxes}
               codeDB={codeDB}
               dbStatus={dbStatus}
               prefill={entryPrefill}
               onSwitch={(key, code) => {
                 setEntryPrefill((p) => ({ key, code, n: (p ? p.n : 0) + 1 }));
-                openCodeSet(key);
+                if (stepMode) setTab(BOX_STEP[key] || 'cpt');
+                else openCodeSet(key);
               }}
             />
-            {codingTabs.length > 1 && (
+            {!stepMode && codingTabs.length > 1 && (
               <div className="wsx-subtabs" role="tablist" aria-label="Coding sections">
                 {codingTabs.map(([k, l], i) => (
                   <button key={k} type="button" role="tab" aria-selected={tab === k} className={'tab' + (tab === k ? ' on' : '')} title={'Alt+' + (i + 1)} onClick={() => setTab(k)}>
@@ -773,7 +886,24 @@ export default function WorkspacePage() {
                 ))}
               </div>
             )}
-            <div className="pb">{codingBody}</div>
+            <div className="pb">
+              {codingBody}
+              {stepMode && (
+                <div className="wsx-stepnav">
+                  {prevStep && (
+                    <button type="button" className="btn sm" onClick={() => setTab(prevStep[0])}>
+                      ‹ Back: {prevStep[1]}
+                    </button>
+                  )}
+                  <div className="sp" />
+                  {nextStep && (
+                    <button type="button" className="btn sm" onClick={() => setTab(nextStep[0])}>
+                      Next: {nextStep[1]} ›
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="abar">
               <span className={'status ' + statusText[0]}>{statusText[1]}</span>
               <div className="sp" />
@@ -797,9 +927,9 @@ export default function WorkspacePage() {
             edits={edits}
             acks={draft.acks}
             toggleAck={(k) => change((d) => (d.acks = d.acks.includes(k) ? d.acks.filter((x) => x !== k) : [...d.acks, k].slice(-100)))}
-            tabName={(t) => TAB_NAMES[t] || t}
-            currentTab={tab}
-            goTab={(t) => setTab(codingTabs.some(([k]) => k === t) ? t : codingTabs[0][0])}
+            tabName={(t) => (stepMode ? STEP_NAMES[t] : TAB_NAMES[t]) || t}
+            currentTab={stepMode && tab === 'mods' ? 'lines' : tab}
+            goTab={(t) => setTab(codingTabs.some(([k]) => k === editTab(t)) ? editTab(t) : codingTabs[0][0])}
             queries={queries}
             notes={draft.notes}
             setNotes={(v) => change((d) => (d.notes = v))}

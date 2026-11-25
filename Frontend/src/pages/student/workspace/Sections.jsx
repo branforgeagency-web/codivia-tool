@@ -1,4 +1,5 @@
-/* CODIVIA workspace — coding sections: diagnoses, E/M level, charge lines, procedures, abstract, MS-DRG. */
+/* CODIVIA workspace — coding sections: diagnoses, E/M level, CPT / HCPCS lists, charge lines (claim grid),
+   procedures, abstract, MS-DRG. */
 import { useMemo, useState } from 'react';
 import { DX_CLASS_LABEL, dxClassOptions, firstTerm, isEM, LETTERS, norm, uid } from './model.js';
 
@@ -80,7 +81,8 @@ function DxEditRow({ x, set, editDx, onDone, colSpan }) {
   );
 }
 
-export function DxSection({ draft, change, set, lists, readOnly, evidence, docs, onGoEvidence, onInfo, removeDx, editDx }) {
+// letters: show each diagnosis's pointer letter (A, B, C …), the letter charge lines link to.
+export function DxSection({ draft, change, set, lists, readOnly, evidence, docs, onGoEvidence, onInfo, removeDx, editDx, letters }) {
   const [dragId, setDragId] = useState(null);
   const [over, setOver] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -109,7 +111,7 @@ export function DxSection({ draft, change, set, lists, readOnly, evidence, docs,
         <span className="hint">
           {readOnly
             ? 'As billed.'
-            : `Sequence 1 is the ${firstTerm(set)}${set.ip ? '' : ' (first-listed)'}. Drag ⣿ or use ▲▼ to re-sequence secondary diagnoses.`}
+            : `Sequence 1 is the ${firstTerm(set)}${set.ip ? '' : ' (first-listed)'}. Drag ⣿ or use ▲▼ to re-sequence secondary diagnoses.${letters ? ' Letters A, B, C… are linked to charge lines in step 5.' : ''}`}
         </span>
         <span className="r">
           {draft.dx.length} of {set.maxDx}
@@ -166,7 +168,14 @@ export function DxSection({ draft, change, set, lists, readOnly, evidence, docs,
                     )}
                     <span className={'seqb' + (x.cls === P ? ' p' : '')}>{i + 1}</span>
                   </td>
-                  <td className="code">{x.code}</td>
+                  <td className="code">
+                    {letters && (
+                      <span className="wsx-dxl" title={`Pointer ${LETTERS[i]} — link it to charge lines in step 5`}>
+                        {LETTERS[i]}
+                      </span>
+                    )}
+                    {x.code}
+                  </td>
                   <td className="dsx">
                     {x.desc || '—'}
                     {set.inpatient && (
@@ -231,9 +240,10 @@ export function DxSection({ draft, change, set, lists, readOnly, evidence, docs,
 
 // ---------- E/M level of service ----------
 // The student types the E/M level code themselves: no level grid, no MDM / time suggestions.
-// The saved level sits on charge line 1.
-export function EmSection({ draft, change, chart, describe, lists }) {
-  const [val, setVal] = useState('');
+// The saved level is a charge line (added as line 1; the line order is set in step 5).
+// initial: an E/M code moved here from the CPT box.
+export function EmSection({ draft, change, chart, describe, lists, initial }) {
+  const [val, setVal] = useState(initial || '');
   const [msg, setMsg] = useState('');
   const em = draft.lines.find((l) => isEM(norm(l.code)));
   const e = chart.encounter || {};
@@ -254,7 +264,7 @@ export function EmSection({ draft, change, chart, describe, lists }) {
     <div className="sec">
       <div className="sh">
         <h3>Level of service (E/M)</h3>
-        <span className="hint">Type the E/M code. It goes on charge line 1.</span>
+        <span className="hint">Type the E/M code. Its modifiers (e.g. 25) and diagnosis links are added in step 5.</span>
       </div>
       <div className="wsx-los">
         <span className="lbl">Patient</span>
@@ -398,7 +408,157 @@ function CompareTable({ original, draft, describe }) {
   );
 }
 
-export function LinesSection({ draft, change, edits, original, describe, lists, readOnly, remits, noAdd, children }) {
+const clampUnits = (v) => Math.max(1, Math.min(9999, parseInt(v, 10) || 1));
+
+// ---------- steps 2 (CPT) and 3 (HCPCS): the charge lines entered in that step ----------
+// Code, description and units only — modifiers and diagnosis links are step 5.
+export function ChargeList({ draft, change, edits, filter, title, hint, empty }) {
+  const rows = draft.lines.map((l, i) => [l, i]).filter(([l]) => filter(l));
+  const errLines = new Set(edits.filter((e) => e.sev === 'err' && e.line).map((e) => e.line));
+  return (
+    <div className="sec">
+      <div className="sh">
+        <h3>{title}</h3>
+        <span className="hint">{hint}</span>
+        <span className="r">{rows.length}</span>
+      </div>
+      {rows.length ? (
+        <table className="wsx-lines">
+          <thead>
+            <tr>
+              <th title="Line number on the claim">Line</th>
+              <th>Code</th>
+              <th>Description</th>
+              <th>Units</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([l, i]) => (
+              <tr key={l.id} className={errLines.has(i + 1) ? 'flag' : ''}>
+                <td className="ln">{i + 1}</td>
+                <td className="code">{l.code}</td>
+                <td className="dsx">{l.desc || '—'}</td>
+                <td>
+                  <input className="wsx-units" type="number" min={1} max={9999} value={l.units} aria-label={`${l.code} units`} onChange={(e) => change((d) => (d.lines[i].units = clampUnits(e.target.value)))} />
+                </td>
+                <td className="act">
+                  <button type="button" className="ibtn x" title="Remove" aria-label={'Remove ' + l.code} onClick={() => change((d) => d.lines.splice(i, 1))}>
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div className="empty">{empty}</div>
+      )}
+    </div>
+  );
+}
+
+// ---------- step 5: the claim (CMS-1500 box 24) — line order, modifiers, Dx pointers, units ----------
+// Each line links up to 4 diagnoses (ICD → CPT). Pointer 1 is the main reason for that service.
+function ClaimTable({ draft, change, edits }) {
+  const errLines = new Set(edits.filter((e) => e.sev === 'err' && e.line).map((e) => e.line));
+  const warnLines = new Set(edits.filter((e) => e.sev === 'warn' && e.line).map((e) => e.line));
+  const setLine = (i, fn) => change((d) => fn(d.lines[i]));
+  const moveLine = (from, to) => change((d) => (d.lines = move(d.lines, from, to)));
+  const setPtr = (i, k, id) =>
+    setLine(i, (line) => {
+      const p = [...line.ptrs, '', '', '', ''].slice(0, 4);
+      p[k] = id;
+      line.ptrs = p.filter(Boolean);
+    });
+  if (!draft.lines.length) return <div className="empty">No charge lines yet. Add codes in steps 1–3 (E/M, CPT, HCPCS) first.</div>;
+  return (
+    <table className="wsx-lines wsx-claim">
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Code</th>
+          <th>Modifiers 1–4</th>
+          <th>Dx pointers (link ICD)</th>
+          <th>Units</th>
+        </tr>
+      </thead>
+      <tbody>
+        {draft.lines.map((l, i) => (
+          <tr key={l.id} className={errLines.has(i + 1) ? 'flag' : warnLines.has(i + 1) ? 'wflag' : ''}>
+            <td className="ln">
+              <div className="wsx-lnord">
+                <button type="button" className="ibtn" disabled={i === 0} title="Move line up" aria-label={'Move ' + l.code + ' up'} onClick={() => moveLine(i, i - 1)}>
+                  ▲
+                </button>
+                <span>{i + 1}</span>
+                <button type="button" className="ibtn" disabled={i === draft.lines.length - 1} title="Move line down" aria-label={'Move ' + l.code + ' down'} onClick={() => moveLine(i, i + 1)}>
+                  ▼
+                </button>
+              </div>
+            </td>
+            <td>
+              <span className="code">{l.code}</span>
+              <div className="ds" title={l.desc}>
+                {l.desc}
+              </div>
+            </td>
+            <td>
+              <div className="wsx-mods">
+                {l.mods.map((m, k) => (
+                  <input
+                    key={k}
+                    className={'wsx-mod' + (m ? ' f' : '')}
+                    maxLength={2}
+                    list="wsx-modlist"
+                    value={m}
+                    aria-label={`Line ${i + 1} modifier ${k + 1}`}
+                    onChange={(e) => setLine(i, (x) => (x.mods[k] = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 2)))}
+                  />
+                ))}
+              </div>
+            </td>
+            <td>
+              {draft.dx.length ? (
+                <div className="wsx-ptrsel">
+                  {[0, 1, 2, 3].map((k) => {
+                    const cur = l.ptrs[k] || '';
+                    return (
+                      <select
+                        key={k}
+                        className={'inp' + (cur ? ' f' : '')}
+                        value={cur}
+                        disabled={k > l.ptrs.length}
+                        aria-label={`Line ${i + 1} diagnosis pointer ${k + 1}`}
+                        title={k === 0 ? 'Pointer 1 — the main reason for this service' : `Pointer ${k + 1}`}
+                        onChange={(e) => setPtr(i, k, e.target.value)}
+                      >
+                        <option value="">{k + 1} —</option>
+                        {draft.dx.map((x, j) => (
+                          <option key={x.id} value={x.id} disabled={x.id !== cur && l.ptrs.includes(x.id)}>
+                            {LETTERS[j]} · {x.code}
+                          </option>
+                        ))}
+                      </select>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="muted">Add diagnoses in step 4</span>
+              )}
+            </td>
+            <td>
+              <input className="wsx-units" type="number" min={1} max={9999} value={l.units} aria-label={`Line ${i + 1} units`} onChange={(e) => setLine(i, (x) => (x.units = clampUnits(e.target.value)))} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// grid: the step-5 claim grid (line order ▲▼, Dx pointer dropdowns) in place of the letter-button table.
+export function LinesSection({ draft, change, edits, original, describe, lists, readOnly, remits, noAdd, children, grid }) {
   const [mode, setMode] = useState('current');
   const errLines = new Set(edits.filter((e) => e.sev === 'err' && e.line).map((e) => e.line));
   const warnLines = new Set(edits.filter((e) => e.sev === 'warn' && e.line).map((e) => e.line));
@@ -406,8 +566,14 @@ export function LinesSection({ draft, change, edits, original, describe, lists, 
   return (
     <div className="sec">
       <div className="sh">
-        <h3>Charge lines</h3>
-        <span className="hint">{mode === 'current' && !readOnly ? 'Click letters to link diagnoses — first = main reason' : ''}</span>
+        <h3>{grid ? 'Modifiers & diagnosis links' : 'Charge lines'}</h3>
+        <span className="hint">
+          {mode !== 'current' || readOnly
+            ? ''
+            : grid
+              ? 'Link each line to its diagnoses (pointer 1 = main reason) and add modifiers. Put the highest-paying service on line 1 with ▲▼ — later procedures are usually paid at a reduced rate.'
+              : 'Click letters to link diagnoses — first = main reason'}
+        </span>
         {original && (
           <span className="r">
             <div className="seg">
@@ -453,6 +619,8 @@ export function LinesSection({ draft, change, edits, original, describe, lists, 
         </>
       ) : mode === 'compare' && original ? (
         <CompareTable original={original} draft={draft} describe={describe} />
+      ) : grid ? (
+        <ClaimTable draft={draft} change={change} edits={edits} />
       ) : draft.lines.length ? (
         <table className="wsx-lines">
           <thead>
@@ -493,7 +661,7 @@ export function LinesSection({ draft, change, edits, original, describe, lists, 
                   </div>
                 </td>
                 <td>
-                  <input className="wsx-units" type="number" min={1} max={9999} value={l.units} disabled={readOnly} aria-label={`Line ${i + 1} units`} onChange={(e) => setLine(i, (x) => (x.units = Math.max(1, Math.min(9999, parseInt(e.target.value, 10) || 1))))} />
+                  <input className="wsx-units" type="number" min={1} max={9999} value={l.units} disabled={readOnly} aria-label={`Line ${i + 1} units`} onChange={(e) => setLine(i, (x) => (x.units = clampUnits(e.target.value)))} />
                 </td>
                 <td>
                   <div className="wsx-ptrs">

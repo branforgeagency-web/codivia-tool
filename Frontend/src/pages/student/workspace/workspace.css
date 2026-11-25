@@ -400,3 +400,28 @@ table.wsx-simple{width:100%;border-collapse:collapse;font-size:14px}
 .wsx-cs-pop[hidden]{display:none}
 .wsx-cs-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-bottom:1px solid var(--w-line);background:var(--w-line2)}
 .wsx-cs-body{overflow:auto;flex:1}
+
+/* 5-step coding flow (E/M → CPT → HCPCS → ICD-10-CM → modifiers & Dx link) */
+.wsx-steps{list-style:none;display:flex;gap:0;margin:0;padding:10px 15px;border-bottom:1px solid var(--w-line);overflow-x:auto}
+.wsx-steps li{display:flex;align-items:center;flex:none}
+.wsx-steps li+li::before{content:"";width:18px;height:2px;background:var(--w-line);margin:0 4px}
+.wsx-steps .st{display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;background:none;padding:4px 10px 4px 4px;border-radius:999px;font-weight:700;font-size:12.5px;color:var(--w-muted);white-space:nowrap;transition:background .2s,color .2s,border-color .2s}
+.wsx-steps .st:hover{color:var(--w-ink);background:var(--w-line2)}
+.wsx-steps .st .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1.5px solid #cfcac3;background:#fff;font-size:11.5px;font-weight:800}
+.wsx-steps .st.done .n{background:var(--w-navy);border-color:var(--w-navy);color:#fff}
+.wsx-steps .st.on{background:var(--w-brand-lt);border-color:var(--w-brand);color:var(--w-brand-d)}
+.wsx-steps .st.on .n{background:var(--w-brand);border-color:var(--w-brand);color:#fff}
+.wsx-steps .st.off{opacity:.5}
+.wsx-steps .st .c{font-size:10.5px;line-height:16px;padding:0 6px;border-radius:999px;background:var(--w-line2);color:var(--w-muted)}
+.wsx-steps .st .c.err{background:var(--w-err-lt);color:var(--w-err)}
+.wsx-steps .st.bad .n{border-color:var(--w-err)}
+.wsx-stepnav{display:flex;align-items:center;gap:8px;margin-top:14px;padding-top:12px;border-top:1px dashed var(--w-line)}
+.wsx-lines td.dsx{font-size:13px;color:var(--w-muted)}
+.wsx-lines td.act{text-align:right;white-space:nowrap}
+.wsx-dxl{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-right:6px;border-radius:6px;background:var(--w-navy);color:#fff;font-size:11.5px;font-weight:800;vertical-align:1px}
+.wsx-lnord{display:flex;flex-direction:column;align-items:center;gap:0}
+.wsx-lnord .ibtn{width:24px;height:18px;font-size:10px;line-height:1;padding:0}
+.wsx-claim td{vertical-align:middle}
+.wsx-ptrsel{display:grid;grid-template-columns:repeat(2,minmax(86px,1fr));gap:4px;max-width:220px}
+.wsx-ptrsel select{height:30px;padding:0 4px;font-family:var(--w-mono);font-size:12.5px;font-weight:700;border-radius:7px}
+.wsx-ptrsel select.f{background:var(--w-navy-lt);border-color:var(--w-navy-ln);color:var(--w-navy)}

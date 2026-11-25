@@ -11,6 +11,21 @@ export const isEM = (c) => /^99(2[0-1][1-5]|20[2-5]|28[1-5])$/.test(String(c || 
 
 export const LETTERS = 'ABCDEFGHIJKL';
 export const norm = (s) => String(s || '').toUpperCase().replace(/[\s.]/g, '');
+// HCPCS Level II: one letter + four digits (J1885, G2211). CPT is numeric (Category II/III end in F/T).
+export const isHcpcs = (c) => /^[A-Z]\d{4}$/.test(norm(c));
+
+// ---- outpatient / professional coding steps (E/M → CPT → HCPCS → ICD-10-CM → modifiers & Dx link) ----
+export const CODING_STEPS = [
+  ['em', 'E/M'],
+  ['cpt', 'CPT'],
+  ['hcpcs', 'HCPCS'],
+  ['dx', 'ICD-10-CM'],
+  ['mods', 'Modifiers & Dx link'],
+];
+// Charts coded in steps: everything with CPT / HCPCS charge lines (OP and IP professional).
+export const usesSteps = (set) => !set.inpatient && set.hasLines;
+// The step a charge line was entered in. E/M lines belong to the CPT step where the E/M step is not offered.
+export const lineStep = (l, set) => (isHcpcs(l.code) ? 'hcpcs' : set.hasEM && isEM(norm(l.code)) ? 'em' : 'cpt');
 let seq = 0;
 export const uid = (p = 'r') => p + Date.now().toString(36) + (seq++).toString(36);
 
@@ -20,8 +35,12 @@ export const uid = (p = 'r') => p + Date.now().toString(36) + (seq++).toString(3
 //   ip         - inpatient encounter: the first-listed diagnosis is the PRINCIPAL diagnosis
 //   inpatient  - inpatient hospital (facility) claim: POA, ICD-10-PCS, abstract, MS-DRG
 //   firstListed - 'principal' (IP) or 'primary' (OP)
+// The Level of service (E/M) tab is offered only in these departments (a training choice). E/M codes
+// typed in the CPT / HCPCS box are still accepted as charge lines in every department.
+export const EM_DEPTS = ['EM', 'ED_PRO', 'ED_FAC'];
 export function settingOf(chart) {
   const el = chart.elements || [];
+  const emDept = EM_DEPTS.includes(chart.dept);
   const ed = /^ED/.test(chart.dept || '');
   const legacyIP = !!chart.isInpatient || el.includes('ICD10PCS') || el.includes('DRG');
   const encounterType = chart.encounterType === 'IP' || chart.encounterType === 'OP' ? chart.encounterType : legacyIP ? 'IP' : 'OP';
@@ -34,13 +53,13 @@ export function settingOf(chart) {
     return {
       ...base,
       hasLines: !facility && (el.includes('CPT') || el.includes('HCPCS') || el.includes('EM')),
-      hasEM: !facility && el.includes('EM'),
+      hasEM: !facility && emDept && el.includes('EM'),
       hasPCS: el.includes('ICD10PCS'),
       hasDRG: el.includes('DRG'),
     };
   }
   // OP and IP professional: CPT / HCPCS charge lines. IP facility: ICD-10-PCS (+ MS-DRG when the department assigns DRGs).
-  return { ...base, hasLines: !facility, hasEM: !facility && el.includes('EM'), hasPCS: facility, hasDRG: facility && el.includes('DRG') };
+  return { ...base, hasLines: !facility, hasEM: !facility && emDept && el.includes('EM'), hasPCS: facility, hasDRG: facility && el.includes('DRG') };
 }
 
 export const ENCOUNTER_LABEL = { OP: 'Outpatient', IP: 'Inpatient' };

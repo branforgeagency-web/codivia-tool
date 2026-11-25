@@ -1,5 +1,5 @@
 /* CODIVIA workspace — direct code entry: the student types each code (no search dropdown) and saves
-   it. One box per code set, CPT / HCPCS first, then ICD-10-PCS (inpatient), then ICD-10-CM. */
+   it. One box per code set: CPT, HCPCS, ICD-10-PCS (inpatient facility), ICD-10-CM. */
 import { useMemo, useState } from 'react';
 import { norm } from './model.js';
 
@@ -54,13 +54,18 @@ function EntryBox({ box, boxes, codeDB, dbStatus, onSave, initial, onSwitch }) {
       const other = wrongBox(codeDB, typed, box, boxes || []);
       if (other && other.target) {
         setMove({ key: other.target.key, label: other.target.label, code: other.row[2] });
-        return setMsg(`${other.row[2]} is an ${other.set} code, not ${box.label}. Enter it in the ${other.target.label} tab.`);
+        return setMsg(`${other.row[2]} is an ${other.set} code, not ${box.label}. Enter it under ${other.target.label}.`);
       }
       if (other) return setMsg(`${other.row[2]} is an ${other.set} code. This chart does not code ${other.set}.`);
       return setMsg(`${val.trim().toUpperCase()} is not a valid ${box.label} code.`);
     }
     if (!billable) return setMsg(`${row[2]} is a header code — code to the highest specificity.`);
+    // A save returns '' (added), an error message, or { msg, move } when the code belongs somewhere else.
     const err = onSave(row);
+    if (err && typeof err === 'object') {
+      setMove(err.move || null);
+      return setMsg(err.msg);
+    }
     if (err) return setMsg(err);
     setVal('');
     setMsg('');
@@ -107,7 +112,7 @@ function EntryBox({ box, boxes, codeDB, dbStatus, onSave, initial, onSwitch }) {
   );
 }
 
-// boxes: [{ key, label, sys: [codeDB set numbers], placeholder, help, save(row) -> error | '',
+// boxes: [{ key, label, sys: [codeDB set numbers], placeholder, help, save(row) -> '' | error | { msg, move },
 //          extra (optional control before the input, e.g. the diagnosis type), button (label) }]
 // allBoxes: every box on this chart (to point a wrong-box code at the right one); onSwitch(key, code)
 // opens that box with the code filled in; prefill: { key, code } for the box being opened.
