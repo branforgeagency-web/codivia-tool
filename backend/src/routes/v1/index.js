@@ -21,6 +21,7 @@ const auditRoute = require('./audit.route');
 const chartUploadRoute = require('./chartUpload.route');
 const referenceRoute = require('./reference.route');
 const mediaRoute = require('./media.route');
+const feeRoute = require('./fee.route');
 
 const router = express.Router();
 
@@ -41,6 +42,7 @@ const routes = [
   { path: '/media-upload', route: mediaRoute },
   { path: '/reference', route: referenceRoute },
   { path: '/codes', route: codeRoute },
+  { path: '/fees', route: feeRoute },
   { path: '/guidelines', route: codingGuidelineRoute },
   { path: '/resumes', route: resumeRoute },
   { path: '/chart-results', route: chartResultRoute },

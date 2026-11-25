@@ -13,7 +13,7 @@ import { useStudent } from '../../../context/StudentContext.jsx';
 import { CodeSearchButton } from './CodeSearchPopup.jsx';
 import { coderPath, deptQueuePath } from '../../../routes/paths.js';
 import { get, post, put } from '../../../services/apiHelper.js';
-import { MY_CHART, MY_CHART_COMMENTS, MY_CHART_DEFER, MY_CHART_QUERIES, MY_CHART_SESSION, MY_CHART_TRANSFER, MY_CHART_WORK, MY_DEPT_CHARTS } from '../../../services/endpoints.js';
+import { FEE_RVU, MY_CHART, MY_CHART_COMMENTS, MY_CHART_DEFER, MY_CHART_QUERIES, MY_CHART_SESSION, MY_CHART_TRANSFER, MY_CHART_WORK, MY_DEPT_CHARTS } from '../../../services/endpoints.js';
 import { useReference, workTypeInfo } from '../../../hooks/useReference.js';
 import { DenialLeft, DenialRight } from './Denial.jsx';
 import { DocumentsPanel } from './Documents.jsx';
@@ -21,7 +21,7 @@ import { fetchNotes } from './Encoder.jsx';
 import { CodeEntry } from './CodeEntry.jsx';
 import { runEdits } from './edits.js';
 import { DeferModal, QueryModal, SubmitModal, TransferModal } from './Modals.jsx';
-import { BILLING_LABEL, CODING_STEPS, codeDescriber, demographicsOf, documentsOf, dxClassOptions, ENCOUNTER_LABEL, firstTerm, fmtTime, icdRow, initialDraft, isBillable, isEM, lineStep, norm, sequenceDx, settingOf, toSubmission, uid, usesSteps } from './model.js';
+import { BILLING_LABEL, CODING_STEPS, codeDescriber, demographicsOf, documentsOf, dxClassOptions, ENCOUNTER_LABEL, facilityRate, firstTerm, fmtTime, icdRow, initialDraft, isBillable, isEM, lineStep, lineValues, norm, sequenceDx, settingOf, toSubmission, uid, usesSteps } from './model.js';
 import { ResultView } from './Result.jsx';
 import { AbstractSection, ChargeList, DrgSection, DxSection, EmSection, LinesSection, PcsSection } from './Sections.jsx';
 import { Sidebar } from './Sidebar.jsx';
@@ -164,6 +164,8 @@ export default function WorkspacePage() {
   const [modal, setModal] = useState(null);
   const [dxCls, setDxCls] = useState(''); // diagnosis type picked next to the ICD-10-CM box ('' = automatic)
   const [notes, setNotes] = useState({});
+  // Medicare fee schedule prices of the codes on the claim (GET /fees/rvu); off = not available.
+  const [fees, setFees] = useState({ state: 'loading', release: null, codes: {} });
   const [result, setResult] = useState(null);
   const [toastMsg, setToastMsg] = useState('');
   const [, tick] = useState(0);
@@ -300,6 +302,22 @@ export default function WorkspacePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dxKey]);
 
+  // ---- fee schedule prices for the charge-line codes (fetched once per code) ----
+  const lineKey = draft ? [...new Set(draft.lines.map((l) => norm(l.code)))].sort().join(',') : '';
+  useEffect(() => {
+    if (!lineKey || fees.state === 'off') return undefined;
+    const need = lineKey.split(',').filter((c) => !(c in fees.codes));
+    if (!need.length) return undefined;
+    let live = true;
+    get(FEE_RVU, { params: { codes: need.join(',') } })
+      .then((r) => live && setFees((f) => ({ state: r.release ? 'ready' : 'off', release: r.release, codes: { ...f.codes, ...r.codes } })))
+      .catch(() => live && setFees((f) => ({ ...f, state: 'off' })));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineKey, fees.state]);
+
   // ---- keyboard ----
   useEffect(() => {
     const onKey = (e) => {
@@ -347,7 +365,9 @@ export default function WorkspacePage() {
   const type = workTypeInfo(lists, chart.workType || 'code');
   const queries = (work && work.queries) || [];
   const docs = documentsOf(chart, queries);
-  const edits = runEdits({ chart, draft, notes, describe, lookupIcd: codeDB ? (c) => icdRow(codeDB, c) : null });
+  const facility = facilityRate(chart, set);
+  const lineVals = usesSteps(set) ? lineValues(draft.lines, fees, facility) : null;
+  const edits = runEdits({ chart, draft, notes, describe, lookupIcd: codeDB ? (c) => icdRow(codeDB, c) : null, lineVals });
   const errs = edits.filter((e) => e.sev === 'err').length;
   const openWarns = edits.filter((e) => e.sev === 'warn' && !draft.acks.includes(e.key)).length;
   const ready = !errs && !openWarns && !pending;
@@ -690,7 +710,7 @@ export default function WorkspacePage() {
         empty="No HCPCS codes yet. Type a HCPCS code (e.g. J1885) in the box above and press Enter — or go on if the visit has none."
       />
     ) : tab === 'mods' ? (
-      <LinesSection draft={draft} change={change} edits={edits} original={chart.workType === 'review' ? original : null} describe={describe} lists={lists} grid />
+      <LinesSection draft={draft} change={change} edits={edits} original={chart.workType === 'review' ? original : null} describe={describe} lists={lists} grid values={lineVals} fee={{ state: fees.state, release: fees.release, facility }} />
     ) : (
       dxSection
     );

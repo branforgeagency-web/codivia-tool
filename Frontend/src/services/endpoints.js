@@ -42,6 +42,7 @@ export const MY_CHART_SESSION = (deptKey, chartId) => `${MY_CHART(deptKey, chart
 export const REFERENCE_WORK_QUEUE = '/reference/work-queue';
 // ICD-10-CM tabular notes for a code and its parents (Excludes1, Use additional code …)
 export const CODE_NOTES = (code) => `/codes/notes/${encodeURIComponent(code)}`;
+export const FEE_RVU = '/fees/rvu'; // GET ?codes=99214,20610 — Medicare fee schedule (active CMS release)
 // Public (no sign-in): active departments with charts, for the sign-in page
 export const PUBLIC_DEPARTMENTS = '/departments/public';
 // Admin Departments page + Manage allocation (admin only)

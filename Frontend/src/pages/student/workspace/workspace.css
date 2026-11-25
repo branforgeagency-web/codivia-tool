@@ -65,9 +65,9 @@
 .wsx-banner .btag.alert{background:#7a1f15;border-color:#b5483b}
 .wsx-banner .bf{padding:10px 15px;border-left:1px solid rgba(255,255,255,.14)}
 .wsx-banner .bf span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--w-navy-mut)}
-.wsx-banner .bf b{display:block;font-size:14px;margin-top:2px;font-weight:700}
+.wsx-banner .bf b{display:block;font-size:14px;margin-top:2px;font-weight:400}
 .wsx-banner .bf b.m{font-family:var(--w-mono);font-size:13.5px}
-.wsx-banner .bf.note b{font-weight:600}
+.wsx-banner .bf.note b{font-weight:400}
 /* one row of every demographic field; scrolls sideways when it doesn't fit */
 .wsx-banner{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.35) transparent}
 .wsx-banner::-webkit-scrollbar{height:6px}
@@ -425,3 +425,7 @@ table.wsx-simple{width:100%;border-collapse:collapse;font-size:14px}
 .wsx-ptrsel{display:grid;grid-template-columns:repeat(2,minmax(86px,1fr));gap:4px;max-width:220px}
 .wsx-ptrsel select{height:30px;padding:0 4px;font-family:var(--w-mono);font-size:12.5px;font-weight:700;border-radius:7px}
 .wsx-ptrsel select.f{background:var(--w-navy-lt);border-color:var(--w-navy-ln);color:var(--w-navy)}
+/* step 5: Medicare value + Primary / Secondary label per charge line */
+.wsx-val{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:118px}
+.wsx-val .amt{font-family:var(--w-mono);font-size:13.5px}
+.wsx-val .pill{font-size:11px;padding:1px 8px}

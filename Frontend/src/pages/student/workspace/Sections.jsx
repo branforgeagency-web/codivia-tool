@@ -1,7 +1,7 @@
 /* CODIVIA workspace — coding sections: diagnoses, E/M level, CPT / HCPCS lists, charge lines (claim grid),
    procedures, abstract, MS-DRG. */
 import { useMemo, useState } from 'react';
-import { DX_CLASS_LABEL, dxClassOptions, firstTerm, isEM, LETTERS, norm, uid } from './model.js';
+import { DX_CLASS_LABEL, dxClassOptions, firstTerm, isEM, LETTERS, money, norm, uid, valueLabel } from './model.js';
 
 // `lists` = the reference lists from GET /reference/work-queue (useReference).
 const opts = (lists, key) => (lists && lists[key]) || [];
@@ -460,7 +460,29 @@ export function ChargeList({ draft, change, edits, filter, title, hint, empty })
 
 // ---------- step 5: the claim (CMS-1500 box 24) — line order, modifiers, Dx pointers, units ----------
 // Each line links up to 4 diagnoses (ICD → CPT). Pointer 1 is the main reason for that service.
-function ClaimTable({ draft, change, edits }) {
+// values: lineValues() per line (Medicare price + Primary / Secondary label); fee: { state, release, facility }.
+function ValueCell({ v, fee }) {
+  const label = valueLabel(v);
+  if (!label) return <span className="muted">—</span>;
+  const rate = fee.facility ? 'facility' : 'non-facility';
+  const title =
+    v.kind === 'priced' && fee.release
+      ? `Medicare ${rate} price, ${fee.release.id}: total RVU ${fee.facility ? v.info.rvu.facility : v.info.rvu.nonFacility} × $${fee.release.conversionFactor}`
+      : v.info
+        ? v.info.statusLabel
+        : v.kind === 'drug'
+          ? 'Drugs are paid from the ASP drug price file, not the physician fee schedule'
+          : '';
+  return (
+    <div className="wsx-val" title={title}>
+      {v.kind === 'priced' && <b className="amt">{money(v.amount)}</b>}
+      <span className={'pill ' + label[1]}>{label[0]}</span>
+    </div>
+  );
+}
+
+function ClaimTable({ draft, change, edits, values, fee }) {
+  const showValue = !!values && fee && fee.state !== 'off';
   const errLines = new Set(edits.filter((e) => e.sev === 'err' && e.line).map((e) => e.line));
   const warnLines = new Set(edits.filter((e) => e.sev === 'warn' && e.line).map((e) => e.line));
   const setLine = (i, fn) => change((d) => fn(d.lines[i]));
@@ -478,6 +500,7 @@ function ClaimTable({ draft, change, edits }) {
         <tr>
           <th>Line</th>
           <th>Code</th>
+          {showValue && <th title="Medicare physician fee schedule price">Value</th>}
           <th>Modifiers 1–4</th>
           <th>Dx pointers (link ICD)</th>
           <th>Units</th>
@@ -503,6 +526,11 @@ function ClaimTable({ draft, change, edits }) {
                 {l.desc}
               </div>
             </td>
+            {showValue && (
+              <td>
+                <ValueCell v={values[i]} fee={fee} />
+              </td>
+            )}
             <td>
               <div className="wsx-mods">
                 {l.mods.map((m, k) => (
@@ -558,7 +586,8 @@ function ClaimTable({ draft, change, edits }) {
 }
 
 // grid: the step-5 claim grid (line order ▲▼, Dx pointer dropdowns) in place of the letter-button table.
-export function LinesSection({ draft, change, edits, original, describe, lists, readOnly, remits, noAdd, children, grid }) {
+// values / fee: Medicare prices for the grid (see ClaimTable).
+export function LinesSection({ draft, change, edits, original, describe, lists, readOnly, remits, noAdd, children, grid, values, fee }) {
   const [mode, setMode] = useState('current');
   const errLines = new Set(edits.filter((e) => e.sev === 'err' && e.line).map((e) => e.line));
   const warnLines = new Set(edits.filter((e) => e.sev === 'warn' && e.line).map((e) => e.line));
@@ -571,7 +600,7 @@ export function LinesSection({ draft, change, edits, original, describe, lists, 
           {mode !== 'current' || readOnly
             ? ''
             : grid
-              ? 'Link each line to its diagnoses (pointer 1 = main reason) and add modifiers. Put the highest-paying service on line 1 with ▲▼ — later procedures are usually paid at a reduced rate.'
+              ? `Link each line to its diagnoses (pointer 1 = main reason) and add modifiers. High dollar value = Primary: put the highest-paying service on line 1 with ▲▼.${fee && fee.state === 'off' ? ' (Fee-schedule prices are not available right now.)' : ''}`
               : 'Click letters to link diagnoses — first = main reason'}
         </span>
         {original && (
@@ -620,7 +649,7 @@ export function LinesSection({ draft, change, edits, original, describe, lists, 
       ) : mode === 'compare' && original ? (
         <CompareTable original={original} draft={draft} describe={describe} />
       ) : grid ? (
-        <ClaimTable draft={draft} change={change} edits={edits} />
+        <ClaimTable draft={draft} change={change} edits={edits} values={values} fee={fee} />
       ) : draft.lines.length ? (
         <table className="wsx-lines">
           <thead>

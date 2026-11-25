@@ -19,3 +19,4 @@ module.exports.adminQueryController = require('./adminQuery.controller');
 module.exports.adminWorkController = require('./adminWork.controller');
 module.exports.auditController = require('./audit.controller');
 module.exports.mediaController = require('./media.controller');
+module.exports.feeController = require('./fee.controller');

@@ -18,3 +18,10 @@ module.exports.Certificate = require('./certificate.model');
 module.exports.Allocation = require('./allocation.model');
 module.exports.ChartUpload = require('./chartUpload.model');
 module.exports.AuditLog = require('./auditLog.model');
+// Medicare Physician Fee Schedule (npm run seed:fees) — separate from the code DB.
+module.exports.FeeRelease = require('./feeRelease.model');
+module.exports.FeeRvu = require('./feeRvu.model');
+module.exports.FeeGpci = require('./feeGpci.model');
+module.exports.FeeLocality = require('./feeLocality.model');
+module.exports.FeeAnesthesia = require('./feeAnesthesia.model');
+module.exports.FeeOppsCap = require('./feeOppsCap.model');

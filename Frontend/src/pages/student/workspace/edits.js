@@ -1,7 +1,7 @@
 /* CODIVIA — workspace edits (claim scrubber). Runs live on every change.
    Generic rules for any chart, plus Excludes1 / "use additional code" checks from the ICD-10-CM
    tabular notes in the database (GET /codes/notes/:code, fetched per diagnosis). */
-import { isBillable, isEM, LETTERS, norm, settingOf } from './model.js';
+import { isBillable, isEM, LETTERS, money, norm, settingOf } from './model.js';
 
 // Code references inside a note line, e.g. "(E11.22, E13.22)" or "(N18.1-N18.6)" → ['E1122', 'E1322', 'N181', 'N186'].
 const refsIn = (line) => {
@@ -15,7 +15,8 @@ const refsIn = (line) => {
 const isProcedureLine = (c) => !isEM(c) && !/^[JGT]/.test(c) && !/F$/.test(c) && !/^G2211$/.test(c);
 
 // lookupIcd(code) -> code DB row for an ICD-10-CM code, or null; omitted while the code DB is not loaded.
-export function runEdits({ chart, draft: d, notes = {}, describe = () => '', lookupIcd = null }) {
+// lineVals: lineValues() of the charge lines (Medicare fee schedule), or null when prices are not available.
+export function runEdits({ chart, draft: d, notes = {}, describe = () => '', lookupIcd = null, lineVals = null }) {
   const set = settingOf(chart);
   const out = [];
   const add = (sev, tab, title, msg, src, line) =>
@@ -109,6 +110,16 @@ export function runEdits({ chart, draft: d, notes = {}, describe = () => '', loo
       add('warn', 'lines', 'E/M review for 25/59 modifier', 'An E/M is billed with a procedure on the same day. Review whether modifier 25 (or 57) is needed.', 'NCCI', emIdx + 1);
     if (d.lines.some((l) => /^9637[2-4]$/.test(norm(l.code))) && !d.lines.some((l) => /^J/.test(norm(l.code))))
       add('warn', 'lines', 'Injection without drug supply code', 'An injection administration code is billed with no drug (J-code) line.', 'Claim edit');
+    // High dollar value = primary: the highest-paying service goes on line 1 (Medicare fee schedule).
+    const top = lineVals ? lineVals.findIndex((v) => v.primary) : -1;
+    if (top > 0) {
+      const t = d.lines[top];
+      const first = lineVals[0];
+      const firstText = first.kind === 'priced' ? money(first.amount) : 'no fee-schedule price';
+      add('warn', 'lines', 'Highest-value service is not on line 1',
+        `${t.code} (${money(lineVals[top].amount)}) pays more than line 1 ${d.lines[0].code} (${firstText}). High dollar value is primary: move ${t.code} to line 1 with ▲▼ — the first service is paid in full, later procedures are often paid at a reduced rate.`,
+        'CMS fee schedule · multiple procedure rule', top + 1);
+    }
     if (d.lines.length)
       d.dx.forEach((x, k) => {
         if (!d.lines.some((l) => l.ptrs.includes(x.id))) add('warn', 'lines', 'Diagnosis not linked to a charge', `${LETTERS[k] || k + 1} · ${x.code} is not pointed to by any charge line.`, 'Claim edit');

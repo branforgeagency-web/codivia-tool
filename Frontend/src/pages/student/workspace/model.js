@@ -62,6 +62,42 @@ export function settingOf(chart) {
   return { ...base, hasLines: !facility, hasEM: !facility && emDept && el.includes('EM'), hasPCS: facility, hasDRG: facility && el.includes('DRG') };
 }
 
+// ---- Medicare fee schedule (GET /fees/rvu): "high dollar value = primary" ----
+// fees: { state: 'loading' | 'ready' | 'off', release, codes: { CODE: info | null } } (off = no fee data).
+// Facility settings are paid at the facility rate; offices (POS 11 …) at the non-facility rate.
+const FACILITY_POS = ['19', '21', '22', '23', '24', '26', '31', '34', '51', '52', '56', '61'];
+export const facilityRate = (chart, set) => set.ip || FACILITY_POS.includes(String((chart.encounter || {}).pos || '').trim());
+// One entry per charge line: { kind, amount, info, primary }.
+//   kind: priced | drug (J-codes, priced from the ASP drug file) | unpriced (bundled, carrier priced …)
+//         | none (not on the fee schedule) | loading | off
+// The highest-priced line is the primary one (line 1 wins a tie).
+export function lineValues(lines, fees, facility) {
+  const vals = lines.map((l) => {
+    const c = norm(l.code);
+    if (!fees || fees.state === 'off') return { kind: 'off' };
+    if (!(c in fees.codes)) return { kind: 'loading' };
+    const info = fees.codes[c];
+    if (/^J/.test(c)) return { kind: 'drug', info };
+    if (!info) return { kind: 'none' };
+    if (!info.priced) return { kind: 'unpriced', info };
+    return { kind: 'priced', info, amount: facility ? info.price.facility : info.price.nonFacility };
+  });
+  let top = -1;
+  vals.forEach((v, i) => {
+    if (v.kind === 'priced' && (top < 0 || v.amount > vals[top].amount)) top = i;
+  });
+  return vals.map((v, i) => ({ ...v, primary: i === top }));
+}
+// The status label shown next to a line's value.
+export function valueLabel(v) {
+  if (v.kind === 'priced') return v.primary ? ['Primary · high $', 'brand'] : ['Secondary · lower $', 'gray'];
+  if (v.kind === 'drug') return ['Drug · priced separately', 'gray'];
+  if (v.kind === 'unpriced') return [v.info.status === 'B' ? 'Bundled · not paid separately' : v.info.status === 'C' ? 'Carrier priced' : 'Not on fee schedule', 'gray'];
+  if (v.kind === 'none') return ['Not on fee schedule', 'gray'];
+  if (v.kind === 'loading') return ['Loading…', 'gray'];
+  return null;
+}
+
 export const ENCOUNTER_LABEL = { OP: 'Outpatient', IP: 'Inpatient' };
 export const BILLING_LABEL = { facility: 'Hospital facility', professional: 'Professional' };
 
