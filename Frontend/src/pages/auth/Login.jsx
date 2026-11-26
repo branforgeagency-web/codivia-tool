@@ -6,6 +6,7 @@ import { get } from '../../services/apiHelper.js';
 import { PUBLIC_DEPARTMENTS } from '../../services/endpoints.js';
 import { useSession } from '../../context/SessionContext.jsx';
 import * as authApi from '../../services/auth.service.js';
+import { cleanPhoneInput, phoneError } from '../../utils/phone.js';
 
 export const CVX_IMG = {
   '01': '/assets/departments/01.webp',
@@ -64,6 +65,8 @@ const ICON = {
   user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   mail: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM3.5 6.5l8.5 6 8.5-6',
   key: 'M7.5 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM11 12h10M18 12v3M21 12v2',
+  phone: 'M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z',
+  building: 'M3 21h18M5 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M16 9h3a2 2 0 0 1 2 2v10M9 7h3M9 11h3M9 15h3',
 };
 
 export function cvxParams() {
@@ -103,6 +106,9 @@ export function Login() {
   const [mode, setMode] = useState(start.signup ? 'register' : 'login'); // login | register
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phoneTouched, setPhoneTouched] = useState(false); // show the field error after the box is left once
+  const [org, setOrg] = useState('');
   const [pw, setPw] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState('');
@@ -153,6 +159,17 @@ export function Login() {
       setErr('Please enter your full name.');
       return;
     }
+    if (mode === 'register') {
+      if (phoneError(phone)) {
+        setPhoneTouched(true);
+        setErr('Please check your contact number.');
+        return;
+      }
+      if (org.trim().length < 2) {
+        setErr('Please enter your company or college.');
+        return;
+      }
+    }
     if (!email || !pw) {
       setErr('Please enter your email and password.');
       return;
@@ -165,7 +182,7 @@ export function Login() {
     try {
       if (mode === 'register') {
         // Create the account, then send the student to Sign in (email kept, password cleared).
-        const { user } = await authApi.register(name.trim(), email.trim(), pw);
+        const { user } = await authApi.register(name.trim(), email.trim(), pw, phone.trim(), org.trim());
         switchMode('login');
         setPw('');
         setShowPw(false);
@@ -323,6 +340,44 @@ export function Login() {
               />
             </div>
           </label>
+          {reg && (
+            <label className="cvx-f">
+              <span>Contact number</span>
+              <div className={'cvx-in' + (phoneTouched && phoneError(phone) ? ' is-bad' : '')}>
+                <CvxIcon d={ICON.phone} />
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={phone}
+                  onChange={(ev) => setPhone(cleanPhoneInput(ev.target.value))}
+                  onBlur={() => phone && setPhoneTouched(true)}
+                  placeholder="e.g. 98765 43210"
+                  autoComplete="tel"
+                  maxLength={20}
+                  aria-invalid={phoneTouched && !!phoneError(phone)}
+                  aria-describedby="cvx-phone-msg"
+                />
+              </div>
+              <small id="cvx-phone-msg" className={'cvx-fmsg' + (phoneTouched && phoneError(phone) ? ' bad' : '')} aria-live="polite">
+                {phoneTouched && phoneError(phone) ? phoneError(phone) : 'Indian mobile number, 10 digits. +91 is optional.'}
+              </small>
+            </label>
+          )}
+          {reg && (
+            <label className="cvx-f">
+              <span>Company / College</span>
+              <div className="cvx-in">
+                <CvxIcon d={ICON.building} />
+                <input
+                  value={org}
+                  onChange={(ev) => setOrg(ev.target.value)}
+                  placeholder="e.g. ABC College of Allied Health"
+                  autoComplete="organization"
+                  maxLength={120}
+                />
+              </div>
+            </label>
+          )}
           <label className="cvx-f">
             <span>
               Password

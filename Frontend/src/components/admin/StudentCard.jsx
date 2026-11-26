@@ -58,6 +58,11 @@ export function StudentCard({ student, onPerf, onAllocate, onEdit, onToggleStatu
           <span className="dc-meta" title={student.email}>
             {student.id + (student.email ? ' · ' + student.email : '')}
           </span>
+          {(student.phone || student.organization) && (
+            <span className="dc-meta" title={[student.phone, student.organization].filter(Boolean).join(' · ')}>
+              {[student.phone, student.organization].filter(Boolean).join(' · ')}
+            </span>
+          )}
         </div>
         <span className={'dc-badge ' + badge.tone}>{badge.label}</span>
         {(onEdit || onToggleStatus) && (

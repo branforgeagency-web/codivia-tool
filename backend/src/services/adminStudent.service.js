@@ -11,7 +11,7 @@ const { USER_STATUS } = require('../config/userStatus');
 // Students the admin manages: every account not deleted, including disabled ones (so they can be
 // enabled again). LIVE_STUDENT (active only) is still used for allocation overlaps and bulk allocate.
 const LISTED_STUDENT = Object.freeze({ role: ROLES.STUDENT, deletedAt: null });
-const STUDENT_FIELDS = 'name email studentId status createdAt lastLoginAt';
+const STUDENT_FIELDS = 'name email phone organization studentId status createdAt lastLoginAt';
 
 // ---------- Admin Students page ----------
 
@@ -43,6 +43,8 @@ const studentView = (s) => ({
   id: s.studentId || String(s._id),
   name: s.name || s.email,
   email: s.email,
+  phone: s.phone || '',
+  organization: s.organization || '',
   accountStatus: s.status === USER_STATUS.DISABLED ? USER_STATUS.DISABLED : USER_STATUS.ACTIVE,
   createdAt: s.createdAt,
   lastLoginAt: s.lastLoginAt,
@@ -96,7 +98,7 @@ const buildCards = async () => {
 const queryStudents = async ({ search, status = 'all', page = 1, limit = 10 }) => {
   const all = await buildCards();
   const term = (search || '').toLowerCase();
-  const searched = term ? all.filter((s) => `${s.name} ${s.id} ${s.email}`.toLowerCase().includes(term)) : all;
+  const searched = term ? all.filter((s) => `${s.name} ${s.id} ${s.email} ${s.phone} ${s.organization}`.toLowerCase().includes(term)) : all;
   const matched = status === 'all' ? searched : searched.filter((s) => s.status === status);
   const countOf = (key) => (key === 'all' ? all.length : all.filter((s) => s.status === key).length);
 

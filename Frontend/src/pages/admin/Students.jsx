@@ -82,7 +82,7 @@ export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk
         <label className="ad-search">
           <Svg d={ICON.search} size={16} />
           <span className="sr-only">Search students</span>
-          <input type="search" value={query} onChange={(ev) => setQuery(ev.target.value)} placeholder="Search name, ID or email…" />
+          <input type="search" value={query} onChange={(ev) => setQuery(ev.target.value)} placeholder="Search name, ID, email or college…" />
         </label>
       </div>
 

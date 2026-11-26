@@ -5081,3 +5081,43 @@ tbody tr:hover {
 .up-issues button:hover{color:var(--tone-b4232a,#b4232a)}
 .up-save-err{margin:4px 0 12px;padding:10px 14px;border:1px solid var(--tone-fca5a5,#fca5a5);border-radius:10px;background:var(--tone-fef2f2,#fef2f2);color:var(--tone-b4232a,#b4232a);font-size:12.5px;font-weight:700;display:flex;gap:8px;align-items:flex-start}
 [data-field][aria-invalid="true"]{border-color:var(--tone-dc2626,#dc2626)!important;box-shadow:0 0 0 3px rgba(220,38,38,.12)}
+
+/* Admin Departments: alternating cards — project theme (orange, .dc-brand) / current plain white. */
+.dc-card.dc-brand {
+  border-color: rgba(242, 103, 34, 0.6);
+  background: linear-gradient(160deg, #ffd6b8 0%, #ffb886 100%);
+  box-shadow: 0 2px 6px rgba(242, 103, 34, 0.22);
+}
+.dc-card.dc-brand:hover {
+  border-color: #f26722;
+}
+.dc-card.dc-brand .dc-ico {
+  color: #fff;
+  background: linear-gradient(135deg, #ff8a3d, #f26722 60%, #d9540f);
+}
+.dc-card.dc-brand .dc-metrics {
+  background: rgba(255, 255, 255, 0.85);
+}
+.dc-card.dc-brand .dc-meta {
+  color: #7a3510;
+}
+
+/* Sign-up: field hint / error under an input (contact number). */
+.cvx-fmsg {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #8a837b;
+}
+.cvx-fmsg.bad {
+  color: #c2412d;
+}
+.cvx-f .cvx-in.is-bad input,
+.cvx-f .cvx-in.is-bad input:focus {
+  border-color: #c2412d;
+  box-shadow: 0 0 0 4px rgba(194, 65, 45, 0.12);
+}
+.cvx-in.is-bad > svg {
+  color: #c2412d;
+}

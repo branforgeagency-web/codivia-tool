@@ -96,8 +96,8 @@ export function AdminDepartments({ reloadKey, onManage, onAdd, onEdit, onDelete 
       {list.results.length ? (
         <>
           <div className="ad-grid">
-            {list.results.map((d) => (
-              <AdminDeptCard key={d.key} deptKey={d.key} dept={d} pool={d.pool} allocated={d.allocated} students={d.students} onManage={onManage} onEdit={onEdit} onDelete={onDelete} />
+            {list.results.map((d, i) => (
+              <AdminDeptCard key={d.key} deptKey={d.key} dept={d} brand={i % 2 === 0} pool={d.pool} allocated={d.allocated} students={d.students} onManage={onManage} onEdit={onEdit} onDelete={onDelete} />
             ))}
           </div>
           <Pagination {...list.pagerProps} itemLabel="departments" />

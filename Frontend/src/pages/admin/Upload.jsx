@@ -207,6 +207,8 @@ export function AdminUpload() {
     }
   };
 
+  // Not connected: the "Suggest codes with Claude" button was removed (answer keys are entered by the admin).
+  // eslint-disable-next-line no-unused-vars
   const suggest = async () => {
     setErr('');
     setBusy('Asking Claude for a suggested answer key\u2026');
@@ -480,7 +482,7 @@ export function AdminUpload() {
         <p>
           {editing
             ? 'Change the record, chart setup or answer key, then save.'
-            : 'Upload a de-identified record, review the suggested codes, then publish it to a department.'}
+            : 'Upload a de-identified record, enter the answer key codes, then publish it to a department.'}
         </p>
       </div>
       {editing && (
@@ -628,9 +630,6 @@ export function AdminUpload() {
             </div>
           )}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button className="btn btn-teal" disabled={!text || !!busy} onClick={suggest}>
-              Suggest codes with Claude
-            </button>
             <button
               className="btn"
               style={{ background: 'var(--color-white)', border: '1px solid var(--line)', color: 'var(--ink)' }}
@@ -665,9 +664,9 @@ export function AdminUpload() {
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-h">
             <div>
-              <h3>{editing ? 'Answer key' : 'Suggested answer key \u2014 review before publishing'}</h3>
+              <h3>{editing ? 'Answer key' : 'Answer key \u2014 review before publishing'}</h3>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                AI-suggested. You are responsible for correctness. Codes are checked against the
+                Entered by you. You are responsible for correctness. Codes are checked against the
                 live code database.
               </div>
             </div>
@@ -682,7 +681,7 @@ export function AdminUpload() {
           <div style={{ padding: '12px 16px' }}>
             {!key.length && (
               <div {...flag('key')} tabIndex={-1} style={{ fontSize: 12.5, color: badFields.has('key') ? 'var(--tone-b4232a)' : 'var(--muted)', marginBottom: 12 }}>
-                No codes yet. Use <b>Suggest codes with Claude</b> or <b>+ Row</b> to add them. You can save a draft
+                No codes yet. Use <b>Add code manually</b> or <b>+ Row</b> to add them. You can save a draft
                 now; publishing needs at least one code, with one marked PDx.
               </div>
             )}

@@ -11,6 +11,9 @@ const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: USER_LIMITS.name },
     email: { type: String, required: true, trim: true, lowercase: true, maxlength: USER_LIMITS.email },
+    // From self sign-up (contact number and company / college); null for older and admin-created accounts.
+    phone: { type: String, trim: true, maxlength: USER_LIMITS.phone, default: null },
+    organization: { type: String, trim: true, maxlength: USER_LIMITS.organization, default: null },
     password: { type: String, required: true, select: false, private: true },
     role: { type: String, enum: ALL_ROLES, default: ROLES.STUDENT },
     studentId: { type: String, default: null }, // STU-00001, set for students only

@@ -12,8 +12,8 @@ export async function login(email, password) {
 
 // Sign-up only creates the student account ({ user }); they sign in afterwards.
 // result.user.studentId is their Student ID.
-export function register(name, email, password) {
-  return post(REGISTER, { name, email, password }, { auth: false });
+export function register(name, email, password, phone, organization) {
+  return post(REGISTER, { name, email, password, phone, organization }, { auth: false });
 }
 
 // The signed-in user, or null when there is no session (or it can't be renewed).

@@ -20,12 +20,14 @@ function usageBadge(allocated, pool, isActive) {
   return { label: 'Available', tone: 'ok' };
 }
 
-export function AdminDeptCard({ deptKey, dept, pool, allocated, students, onManage, onEdit, onDelete }) {
+// brand: true = the orange project-theme look (the Departments grid alternates brand / plain cards).
+export function AdminDeptCard({ deptKey, dept, pool, allocated, students, brand = false, onManage, onEdit, onDelete }) {
   const available = Math.max(0, pool - allocated);
   const used = pool ? Math.min(100, Math.round((allocated / pool) * 100)) : 0;
 
   return (
     <DeptCard
+      className={brand ? 'dc-brand' : ''}
       deptKey={deptKey}
       icon={dept.icon}
       name={dept.name}

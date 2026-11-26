@@ -1,7 +1,7 @@
 const Joi = require('joi');
 const { USER_LIMITS } = require('../config/users');
 const { PASSWORD_POLICY } = require('../config/passwordPolicy');
-const { strongPassword } = require('./custom.validation');
+const { strongPassword, phoneNumber } = require('./custom.validation');
 
 const refreshToken = Joi.string().trim().max(2048).required();
 
@@ -11,6 +11,10 @@ const register = {
     name: Joi.string().trim().min(1).max(USER_LIMITS.name).required(),
     email: Joi.string().trim().lowercase().email().max(USER_LIMITS.email).required(),
     password: Joi.string().custom(strongPassword).required(),
+    phone: Joi.string().trim().max(USER_LIMITS.phone).custom(phoneNumber).required()
+      .messages({ 'string.empty': 'Enter your contact number', 'any.required': 'Enter your contact number' }),
+    organization: Joi.string().trim().min(2).max(USER_LIMITS.organization).required()
+      .messages({ 'string.empty': 'Enter your company or college', 'any.required': 'Enter your company or college', 'string.min': 'Enter your company or college' }),
   }),
 };
 

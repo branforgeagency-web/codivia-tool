@@ -370,7 +370,8 @@ export default function WorkspacePage() {
   const edits = runEdits({ chart, draft, notes, describe, lookupIcd: codeDB ? (c) => icdRow(codeDB, c) : null, lineVals });
   const errs = edits.filter((e) => e.sev === 'err').length;
   const openWarns = edits.filter((e) => e.sev === 'warn' && !draft.acks.includes(e.key)).length;
-  const ready = !errs && !openWarns && !pending;
+  // Students may submit with open errors or warnings (they cost marks); only a pending physician query blocks.
+  const ready = !pending;
   const original = chart.original ? { dx: chart.original.dx || [], lines: chart.original.lines || [], drg: chart.original.drg, enteredBy: chart.original.enteredBy } : null;
 
   const systems = [{ key: 'CM', label: 'ICD-10-CM', sys: [0] }];
@@ -647,7 +648,7 @@ export default function WorkspacePage() {
 
   // ---------------------------------------------------------------- render
   const statusText = errs
-    ? ['err', `⛔ ${errs} error${errs > 1 ? 's' : ''} must be fixed`]
+    ? ['err', `⛔ ${errs} error${errs > 1 ? 's' : ''} to fix`]
     : pending
       ? ['warn', '⏸ On hold — waiting for the query response']
       : openWarns
@@ -936,7 +937,7 @@ export default function WorkspacePage() {
               <button type="button" className="btn" onClick={() => setModal('transfer')}>
                 Transfer
               </button>
-              <button type="button" className="btn primary" disabled={!ready} title={ready ? '' : 'Fix errors, review warnings and wait for open queries first'} onClick={() => setModal('submit')}>
+              <button type="button" className="btn primary" disabled={!ready} title={ready ? '' : 'Wait for the answer to your physician query first'} onClick={() => setModal('submit')}>
                 {set.inpatient ? 'Submit for audit ▸' : chart.workType === 'review' ? 'Resubmit charges ▸' : 'Submit for scoring ▸'}
               </button>
             </div>
@@ -993,7 +994,7 @@ export default function WorkspacePage() {
           }}
         />
       )}
-      {modal === 'submit' && <SubmitModal draft={draft} set={set} workType={chart.workType} onClose={() => setModal(null)} onSubmit={doSubmit} />}
+      {modal === 'submit' && <SubmitModal draft={draft} set={set} workType={chart.workType} errs={errs} warns={openWarns} onClose={() => setModal(null)} onSubmit={doSubmit} />}
       {toastMsg && (
         <div className="wsx-toast" role="status">
           {toastMsg}

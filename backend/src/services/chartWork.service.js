@@ -202,6 +202,7 @@ const lookupDxCodes = async (dx) => {
 
 // Diagnosis rules a submission must pass (utils/diagnosis.js), against the chart's own encounter type.
 // A denial that is appealed or written off sends the billed claim as it is, so it is not re-checked.
+// eslint-disable-next-line no-unused-vars
 const assertDiagnoses = async (chart, profile, submission) => {
   if (chart.workType === WORK_TYPES.DENIAL && submission.decision !== 'correct') return;
   const issues = checkDiagnoses(submission.dx, { encounterType: profile.encounterType, lookup: await lookupDxCodes(submission.dx) });
@@ -220,7 +221,8 @@ const submitWork = async (student, chartId, submission) => {
   const department = await Department.findById(chart.dept).select('elements').lean();
   // Encounter type from the chart record (or, for older charts, its department) — never from the request.
   const profile = encounterProfile(chart, (department && department.elements) || []);
-  await assertDiagnoses(chart, profile, submission);
+  // Students may submit with open errors: wrong or missing codes cost marks in gradeWork instead of blocking.
+  // assertDiagnoses is kept but no longer called (only a pending physician query blocks a submit).
   const result = gradeWork({ ...chart, profile, isInpatient: profile.facilityIP, workType: chart.workType || WORK_TYPES.CODE }, submission);
   const saved = toSaved(result, chart.dept, Date.now());
 

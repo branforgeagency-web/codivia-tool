@@ -191,8 +191,10 @@ export function QueryModal({ chart, standardOptions = [], onClose, onSend }) {
   );
 }
 
-export function SubmitModal({ draft, set, workType, onClose, onSubmit }) {
+export function SubmitModal({ draft, set, workType, errs = 0, warns = 0, onClose, onSubmit }) {
   const a = useAction(onSubmit);
+  const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  const open = [errs && plural(errs, 'error'), warns && plural(warns, 'warning')].filter(Boolean).join(' and ');
   const fmtLine = (l) => l.code + (l.mods.filter(Boolean).length ? '-' + l.mods.filter(Boolean).join('-') : '') + ' ×' + l.units;
   return (
     <Modal
@@ -227,6 +229,11 @@ export function SubmitModal({ draft, set, workType, onClose, onSubmit }) {
             <b>Disposition:</b> {draft.abs.disp || '—'} · <b>MS-DRG:</b> {draft.drg || '—'}
           </div>
         </>
+      )}
+      {open && (
+        <div className="wsx-err" role="note">
+          {open} {errs + warns === 1 ? 'is' : 'are'} still open in the edits panel. They may cost marks. Submit anyway?
+        </div>
       )}
       <div className="muted">After this the work is scored against the audited coding. You can review it and submit again later.</div>
       {a.error && <div className="wsx-err">{a.error}</div>}

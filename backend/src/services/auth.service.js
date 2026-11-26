@@ -24,8 +24,8 @@ const login = async (email, password, meta) => {
 };
 
 // Public sign-up ("Sign up"): always a student. No tokens: the student signs in afterwards.
-const register = async ({ name, email, password }) => {
-  const user = await userService.createUser({ name, email, password, role: ROLES.STUDENT });
+const register = async ({ name, email, password, phone, organization }) => {
+  const user = await userService.createUser({ name, email, password, phone, organization, role: ROLES.STUDENT });
   return { user };
 };
 
