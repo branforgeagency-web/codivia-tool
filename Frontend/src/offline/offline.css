@@ -1,0 +1,26 @@
+/* CODIVIA offline — save status, offline banner and recovery prompt (src/offline/*). */
+
+.ofl-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; color: var(--muted); white-space: nowrap; }
+.ofl-status.ok { color: #0e7a5b; }
+.ofl-status.busy { color: #6e6a63; }
+.ofl-status.warn { color: #9a6b12; }
+.ofl-status.err { color: #b23a23; }
+.ofl-spin { animation: ofl-spin 0.9s linear infinite; }
+@keyframes ofl-spin { to { transform: rotate(360deg); } }
+.ofl-retry { margin-left: 4px; padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; background: none; color: inherit; font: inherit; font-size: 11px; cursor: pointer; }
+
+.ofl-banner { display: flex; align-items: center; gap: 10px; margin: 8px 16px 0; padding: 9px 14px; border: 1px solid #f0d48a; border-radius: 10px; background: #fff7e0; color: #7a5410; font-size: 13px; font-weight: 600; }
+.ofl-banner i { font-size: 16px; }
+
+.ofl-recover { display: flex; align-items: center; gap: 12px; margin: 10px 16px 0; padding: 12px 14px; border: 1px solid #c9d6f5; border-radius: 12px; background: #f5f8ff; color: #24407f; font-size: 13px; }
+.ofl-recover > i { font-size: 20px; }
+.ofl-recover-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.ofl-recover-text span { color: #3d5288; }
+.ofl-recover-acts { display: flex; gap: 8px; flex: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ofl-spin { animation: none; }
+}
+@media (max-width: 760px) {
+  .ofl-recover { flex-wrap: wrap; }
+}

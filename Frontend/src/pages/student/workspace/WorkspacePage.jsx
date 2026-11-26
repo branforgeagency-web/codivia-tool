@@ -26,6 +26,7 @@ import { ResultView } from './Result.jsx';
 import { AuditFeedback } from './AuditFeedback.jsx';
 import { AbstractSection, ChargeList, DrgSection, DxSection, EmSection, LinesSection, PcsSection } from './Sections.jsx';
 import { Sidebar } from './Sidebar.jsx';
+import { clearLocalDraft, loadLocalDraft, OfflineBanner, RecoveryPrompt, shouldOfferRecovery, SyncStatus, useDraftSync, useUnsavedGuard } from '../../../offline/index.js';
 import './workspace.css';
 
 const IP_TABS = [
@@ -43,7 +44,6 @@ const tabsOf = (set) => (set.inpatient ? IP_TABS : usesSteps(set) ? CODING_STEPS
 // The entry box shown on each step, and the step each entry box (or the E/M box) belongs to.
 const STEP_BOX = { cpt: 'cpt', hcpcs: 'hcpcs', dx: 'icd' };
 const BOX_STEP = { cpt: 'cpt', hcpcs: 'hcpcs', icd: 'dx', pcs: 'pcs', em: 'em' };
-const SAVE_DELAY = 1200;
 
 function Banner({ chart, set }) {
   const p = chart.patient || {};
@@ -142,6 +142,7 @@ export default function WorkspacePage() {
   const navigate = useNavigate();
   const { logout, retryCodeDB } = useSession();
   const { session, stu, codeDB, dbStatus, submitChart } = useStudent();
+  const userId = session && session.user ? session.user.uid : ''; // device copies are kept per user
   const { ref: lists, error: refError, retry: retryRef } = useReference(); // option lists from the database
   const [loadError, setLoadError] = useState(''); // chart could not be loaded (not a 404)
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -150,8 +151,7 @@ export default function WorkspacePage() {
   const [missing, setMissing] = useState(false);
   const [draft, setDraft] = useState(null);
   const [work, setWork] = useState(null); // { status, queries, activity, ... }
-  const [saveState, setSaveState] = useState(''); // '' | saving | saved | error
-  const [savedAt, setSavedAt] = useState(null);
+  const [recovery, setRecovery] = useState(null); // device copy newer than the server's draft (offline/offline)
   const [tab, setTab] = useState('dx');
   const [codeSet, setCodeSet] = useState('icd'); // top-level coding tab: cpt | pcs | icd
   const [entryPrefill, setEntryPrefill] = useState(null); // { key, code, n }: code moved from the wrong entry box
@@ -173,7 +173,6 @@ export default function WorkspacePage() {
 
   const encRef = useRef(null);
   const findRef = useRef(null);
-  const dirty = useRef(false);
   const loaded = useRef(false);
   const startedAt = useRef(Date.now());
   const baseTime = useRef(0);
@@ -196,12 +195,19 @@ export default function WorkspacePage() {
     setResult(null);
     setMissing(false);
     setLoadError('');
+    setRecovery(null);
     loaded.current = false;
     get(MY_CHART(dept, chartId))
       .then((c) => {
         if (!live) return;
         setChart(c);
         setWork(c.work);
+        // Work saved on this device that never reached the server (power cut, offline close)?
+        loadLocalDraft(userId, c.id).then((local) => {
+          if (!live || !local) return;
+          if (shouldOfferRecovery(local, c.work)) setRecovery(local);
+          else clearLocalDraft(userId, c.id); // the server already has it (or newer)
+        });
         baseTime.current = (c.work && c.work.timeSpent) || 0;
         startedAt.current = Date.now();
         // Start on the first step; skip the E/M step where this department does not offer it.
@@ -222,7 +228,7 @@ export default function WorkspacePage() {
     return () => {
       live = false;
     };
-  }, [dept, chartId, loadAttempt]);
+  }, [dept, chartId, loadAttempt, userId]);
 
   // The draft needs code descriptions for what arrived with the chart, so wait for the code DB (or give up waiting).
   useEffect(() => {
@@ -240,30 +246,42 @@ export default function WorkspacePage() {
     return () => clearInterval(t);
   }, []);
 
-  // ---- autosave ----
-  const saveNow = useCallback(async () => {
-    const d = draftRef.current;
-    if (!d || !dirty.current) return;
-    dirty.current = false;
-    setSaveState('saving');
-    try {
-      const r = await put(MY_CHART_WORK(dept, chartId), { draft: d, timeSpent: elapsed() });
-      setSaveState('saved');
-      setSavedAt(r.savedAt ? new Date(r.savedAt) : new Date());
-      setWork((w) => ({ ...(w || {}), status: r.status }));
-    } catch (e) {
-      dirty.current = true;
-      setSaveState('error');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dept, chartId]);
-  useEffect(() => {
-    if (!draft || !loaded.current) return undefined;
-    dirty.current = true;
-    const t = setTimeout(saveNow, SAVE_DELAY);
-    return () => clearTimeout(t);
-  }, [draft, saveNow]);
-  useEffect(() => () => saveNow(), [saveNow]); // flush when leaving the page
+  // ---- autosave (offline-safe: src/offline) ----
+  // Every change is kept on this device at once, then sent to the server (PUT …/work); failed sends
+  // retry, and resume when the connection is back. Timing and wording: chart.draftSync (server config).
+  const syncLabels = (chart && chart.draftSync && chart.draftSync.labels) || {};
+  const sendDraft = useCallback(
+    (d, timeSpent, fetchOptions) =>
+      put(MY_CHART_WORK(dept, chartId), { draft: d, timeSpent }, fetchOptions).then((r) => {
+        setWork((w) => ({ ...(w || {}), status: r.status }));
+        return r;
+      }),
+    [dept, chartId],
+  );
+  const sync = useDraftSync({
+    userId,
+    chartId: chart ? chart.id : chartId,
+    deptKey: dept,
+    draft,
+    enabled: loaded.current,
+    settings: chart && chart.draftSync,
+    getTimeSpent: elapsed,
+    serverSavedAt: chart && chart.work ? chart.work.savedAt : null,
+    send: sendDraft,
+  });
+  const saveNow = sync.flush;
+  // Closing the tab only needs a warning when the last changes could not be sent.
+  useUnsavedGuard(sync.unsynced && ['offline', 'retrying', 'failed'].includes(sync.state), syncLabels.leaveWarning);
+
+  const restoreLocal = async () => {
+    baseTime.current = Math.max(baseTime.current, recovery.timeSpent || 0);
+    setDraft(recovery.draft); // the change itself syncs it to the server
+    setRecovery(null);
+  };
+  const discardLocalCopy = async () => {
+    await clearLocalDraft(userId, chart.id);
+    setRecovery(null);
+  };
 
   const change = useCallback((fn) => {
     setDraft((d) => {
@@ -621,6 +639,8 @@ export default function WorkspacePage() {
     return w;
   };
   const doSubmit = async () => {
+    // Scoring happens on the server: no submitting while offline (the work stays saved on the device).
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error(syncLabels.submitOffline);
     await saveNow();
     let res;
     try {
@@ -631,6 +651,7 @@ export default function WorkspacePage() {
       if (e && e.status === 422 && details.length) throw new Error(e.message + ': ' + details.map((x) => x.message).join(' '));
       throw e;
     }
+    await sync.discardLocal(); // submitted: the device copy is no longer needed
     setResult({ ...res, time: elapsed() });
     setWork((w) => ({ ...(w || {}), status: 'done' }));
     setModal(null);
@@ -761,15 +782,15 @@ export default function WorkspacePage() {
         {chart.result && !result && <span className="pill navy">{chart.result.audit ? 'Audited score' : 'Last score'} {chart.result.accuracy}%</span>}
         {pending && <span className="pill warn">⏸ On hold — query pending</span>}
         <div className="sp" />
-        <span className={'saved' + (saveState === 'saved' ? ' ok' : saveState === 'error' ? ' err' : '')} role="status">
-          {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Not saved — check connection' : savedAt ? 'Draft saved ' + savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Autosave on'}
-        </span>
+        <SyncStatus sync={sync} labels={syncLabels} onRetry={saveNow} />
         <span className="timer" title="Time on this chart (all sessions)">
           ⏱ {fmtTime(result ? result.time : elapsed())}
         </span>
         <CodeSearchButton codeDB={codeDB} dbStatus={dbStatus} />
       </div>
       <Banner chart={chart} set={set} />
+      <OfflineBanner text={syncLabels.offlineBanner} />
+      {recovery && draft && !result && <RecoveryPrompt local={recovery} labels={syncLabels} onRestore={restoreLocal} onDiscard={discardLocalCopy} />}
       {chart.result && chart.result.audit && !result && <AuditFeedback audit={chart.result.audit} />}
 
       {result ? (

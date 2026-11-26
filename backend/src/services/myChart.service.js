@@ -7,6 +7,7 @@ const httpStatus = require('../utils/httpStatus');
 const { escapeRegex } = require('../utils/codeText');
 const { chartHeader, HEADER_FIELDS } = require('../utils/chartHeader');
 const { encounterProfile, isInpatientElements } = require('../config/encounter');
+const { DRAFT_SYNC } = require('../config/drafts');
 
 // ---------- Student "My Charts" ----------
 // Only the signed-in student's own allocated departments and charts. Never returns answer keys.
@@ -291,6 +292,8 @@ const getMyChart = async (student, deptKey, chartId) => {
     result: result || null,
     // Option lists (defer reasons, remit descriptions …) come from GET /reference/work-queue.
     remits: [...usedRemits],
+    // Offline-safe saving: timing and wording for the workspace (config/drafts.js).
+    draftSync: DRAFT_SYNC,
   };
 };
 

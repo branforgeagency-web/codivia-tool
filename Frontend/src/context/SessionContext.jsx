@@ -5,6 +5,7 @@ import { PATHS } from '../routes/paths.js';
 import { get, SESSION_EXPIRED_EVENT } from '../services/apiHelper.js';
 import { CHART_RESULTS, DEPARTMENTS, MY_CHARTS } from '../services/endpoints.js';
 import * as authApi from '../services/auth.service.js';
+import { clearLocalDrafts } from '../offline/draftStore.js';
 
 const SessionContext = createContext(null);
 
@@ -155,6 +156,8 @@ export function SessionProvider({ children }) {
   const retryCodeDB = useCallback(() => setDbStatus('idle'), []);
 
   const logout = () => {
+    // Shared lab PCs: signing out removes this user's unsynced workspace drafts from the device.
+    if (session && session.user && session.user.uid) clearLocalDrafts(session.user.uid);
     navigate(PATHS.signIn);
     setSession(null);
     authApi.logout();

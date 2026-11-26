@@ -64,6 +64,7 @@ const toClientWork = (work) => {
   return {
     status: work.status,
     draft: work.draft || null,
+    savedAt: work.updatedAt || null, // when the server last stored the draft (device-copy recovery compares against it)
     timeSpent: work.timeSpent || 0,
     defer: work.defer && work.defer.reason ? work.defer : null,
     transfer: work.transfer && work.transfer.queue ? work.transfer : null,
