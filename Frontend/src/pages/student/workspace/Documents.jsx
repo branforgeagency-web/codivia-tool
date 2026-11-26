@@ -204,15 +204,13 @@ function DocumentsOpen({ collapsed, docs, active, onOpen: openDoc, evidence, lin
   const viewKey = cat ? cat.key : doc.key;
   const bodyRef = useRef(null);
   const [pop, setPop] = useState(null); // { x, y, text }
-  const evid = !doc || isPrev ? [] : evidence.filter((e) => e.doc === doc.key);
+  const evid = []; // evidence linking removed (2026-11-26); highlights off
   const chartDocs = docs.filter((d) => groupOf(d) === 'chart');
 
   const navButton = (key, title, sub, extra) => {
-    const n = evidence.filter((e) => e.doc === key).length;
     const on = key === viewKey || (parentCat && parentCat.key === key);
     return (
       <button key={key} type="button" className={'d' + (on ? ' on' : '') + (extra || '')} onClick={() => onOpen(key)} aria-current={on}>
-        {n ? <span className="evn" title="Evidence links">{n}</span> : null}
         <b>{title}</b>
         {sub ? <small>{sub}</small> : null}
       </button>
@@ -249,7 +247,7 @@ function DocumentsOpen({ collapsed, docs, active, onOpen: openDoc, evidence, lin
   const onMouseUp = () => {
     const sel = window.getSelection();
     const text = sel ? sel.toString().trim() : '';
-    if (!text || text.length < 3 || !bodyRef.current || !bodyRef.current.contains(sel.anchorNode)) return;
+    if (!onSearchText || !text || text.length < 3 || !bodyRef.current || !bodyRef.current.contains(sel.anchorNode)) return;
     const r = sel.getRangeAt(0).getBoundingClientRect();
     setPop({ x: Math.max(8, Math.min(r.left, window.innerWidth - 330)), y: Math.min(r.bottom + 6, window.innerHeight - 220), text: text.slice(0, 400) });
   };
@@ -296,30 +294,8 @@ function DocumentsOpen({ collapsed, docs, active, onOpen: openDoc, evidence, lin
         </div>
         )}
       </div>
-      <div className="wsx-tip">Tip: select text in a document to link it as evidence for a code.</div>
       {pop && (
         <div className="wsx-selpop" style={{ left: pop.x, top: pop.y }} role="menu">
-          <div className="h">
-            Link “{pop.text.slice(0, 40)}
-            {pop.text.length > 40 ? '…' : ''}” as evidence for
-          </div>
-          {linkTargets.length ? (
-            linkTargets.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => {
-                  onLink(doc.key, pop.text, t);
-                  window.getSelection().removeAllRanges();
-                  setPop(null);
-                }}
-              >
-                <span className="code">{t.code}</span> {String(t.desc || '').slice(0, 40)}
-              </button>
-            ))
-          ) : (
-            <div className="h">Add a diagnosis or procedure first.</div>
-          )}
           {onSearchText && (
           <button
             type="button"

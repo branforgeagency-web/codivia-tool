@@ -178,11 +178,6 @@ export function DxSection({ draft, change, set, lists, readOnly, evidence, docs,
                   </td>
                   <td className="dsx">
                     {x.desc || '—'}
-                    {set.inpatient && (
-                      <div>
-                        <EvidenceChips row={x} evidence={evidence} docs={docs} onGo={onGoEvidence} />
-                      </div>
-                    )}
                   </td>
                   <td>{typeLabel(x)}</td>
                   {set.inpatient && (
@@ -792,9 +787,6 @@ export function PcsSection({ draft, change, evidence, docs, onGoEvidence, readOn
                 </td>
                 <td style={{ fontSize: 13 }}>
                   {p.desc}
-                  <div>
-                    <EvidenceChips row={p} evidence={evidence} docs={docs} onGo={onGoEvidence} />
-                  </div>
                 </td>
                 <td>
                   <input className="inp" style={{ height: 32, width: 112 }} placeholder="MM/DD/YYYY" value={p.date} disabled={readOnly} onChange={(e) => change((d) => (d.pcs[i].date = e.target.value.slice(0, 20)))} aria-label="Procedure date" />
