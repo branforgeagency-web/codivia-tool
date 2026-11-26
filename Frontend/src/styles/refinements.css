@@ -1430,18 +1430,20 @@ tbody tr:hover {
   }
 }
 
-/* ---- Workspace background: cool clinical gradient, a faint ECG pulse line along the top,
-   on a very light ECG-paper grid (fine 10px squares inside 50px squares). Stays put while the page scrolls. ---- */
+/* ---- Workspace background: warm cream gradient with soft orange corner glows, a very light
+   graph-paper grid (fine 10px squares inside 50px squares), and a faint stack of code manuals in the
+   top-right corner — ICD-10-CM, CPT and HCPCS books standing on a shelf (the coder's bookshelf).
+   Layers, top to bottom: glows, code books, grid, base gradient. Stays put while the page scrolls. ---- */
 .dashboard-layout .main {
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='120' viewBox='0 0 1600 120'%3E%3Cpath d='M0 70H520l18-34 22 68 20-92 18 58h160l12-22 14 40 12-18H1600' fill='none' stroke='%23f26722' stroke-opacity='.18' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E")
-      top 18px center / 1600px 120px no-repeat,
+    radial-gradient(1100px 600px at 85% -10%, rgba(242, 103, 34, 0.1), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(255, 157, 92, 0.08), transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='260' viewBox='0 0 300 260'%3E%3Cg stroke='%23f26722' stroke-opacity='.24' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='%23fff' fill-opacity='.5'%3E%3Crect x='52' y='36' width='62' height='204' rx='5'/%3E%3Crect x='120' y='66' width='54' height='174' rx='5'/%3E%3Cg transform='rotate(14 182 240)'%3E%3Crect x='182' y='92' width='50' height='148' rx='5'/%3E%3Cpath d='M182 112h50M182 220h50' fill='none'/%3E%3C/g%3E%3Cpath d='M52 58h62M52 218h62M120 86h54M120 220h54' fill='none'/%3E%3Cpath d='M24 241h262' fill='none' stroke-width='2.4'/%3E%3C/g%3E%3Cg fill='%23f26722' fill-opacity='.4' font-family='ui-monospace,Consolas,Menlo,monospace' font-weight='800' font-size='15' letter-spacing='2' text-anchor='middle'%3E%3Ctext transform='translate(88 138) rotate(-90)'%3EICD-10-CM%3C/text%3E%3Ctext transform='translate(152 153) rotate(-90)'%3ECPT%3C/text%3E%3Ctext transform='rotate(14 182 240) translate(212 166) rotate(-90)'%3EHCPCS%3C/text%3E%3C/g%3E%3C/svg%3E")
+      top 12px right 40px / 300px 260px no-repeat,
     linear-gradient(rgba(242, 103, 34, 0.07) 1px, transparent 1px) 0 0 / 50px 50px,
     linear-gradient(90deg, rgba(242, 103, 34, 0.07) 1px, transparent 1px) 0 0 / 50px 50px,
     linear-gradient(rgba(242, 103, 34, 0.035) 1px, transparent 1px) 0 0 / 10px 10px,
     linear-gradient(90deg, rgba(242, 103, 34, 0.035) 1px, transparent 1px) 0 0 / 10px 10px,
-    radial-gradient(1100px 600px at 85% -10%, rgba(242, 103, 34, 0.1), transparent 60%),
-    radial-gradient(900px 600px at -10% 110%, rgba(255, 157, 92, 0.08), transparent 60%),
     linear-gradient(160deg, #fcfaf8 0%, #f9f5f1 55%, #f6f1ec 100%);
 }
 .dashboard-layout .main .card,
