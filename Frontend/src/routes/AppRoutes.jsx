@@ -8,6 +8,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useSession } from '../context/SessionContext.jsx';
 import { StudentProvider } from '../context/StudentContext.jsx';
 import { AdminLayout } from '../layouts/AdminLayout.jsx';
+import { AuditorLayout } from '../layouts/AuditorLayout.jsx';
 import { StudentLayout } from '../layouts/StudentLayout.jsx';
 import { PATHS, deptQueuePath } from './paths.js';
 
@@ -32,6 +33,12 @@ const AdminUpload = lazy(() => import('../pages/admin/Upload.jsx'));
 const AdminQueries = lazy(() => import('../pages/admin/Queries.jsx'));
 const AdminActivity = lazy(() => import('../pages/admin/Activity.jsx'));
 const AdminAudit = lazy(() => import('../pages/admin/AuditLog.jsx'));
+
+// auditor pages (code search / guidelines / drug reference are the students' pages)
+const AuditorDashboard = lazy(() => import('../pages/auditor/AuditStation.jsx'));
+const AuditQueue = lazy(() => import('../pages/auditor/AuditQueue.jsx'));
+const AuditorStudents = lazy(() => import('../pages/auditor/AuditorStudents.jsx'));
+const AuditReview = lazy(() => import('../pages/auditor/AuditReview.jsx'));
 
 // Where a student lands on "/" (or an old /app.html link). Old query links still work:
 //   ?view=findcode -> Code Search,  ?dept=CARDIO -> that department's chart queue
@@ -90,6 +97,23 @@ function AdminRoutes() {
   );
 }
 
+function AuditorRoutes() {
+  return (
+    <Routes>
+      <Route element={<AuditorLayout />}>
+        <Route path={PATHS.auditorDashboard} element={<AuditorDashboard />} />
+        <Route path={PATHS.auditorQueue} element={<AuditQueue />} />
+        <Route path={PATHS.auditorStudents} element={<AuditorStudents />} />
+        <Route path="/auditor/review/:studentId/:chartId" element={<AuditReview />} />
+        <Route path={PATHS.codeSearch} element={<CodeSearch />} />
+        <Route path={PATHS.guidelines} element={<CodingGuidelines />} />
+        <Route path={PATHS.drugReference} element={<DrugReference />} />
+      </Route>
+      <Route path="*" element={<Navigate to={PATHS.auditorDashboard} replace />} />
+    </Routes>
+  );
+}
+
 // A crash or a failed page download is contained to the page: the error boundary resets when the
 // user opens another page, so the rest of the app keeps working.
 export function AppRoutes() {
@@ -100,7 +124,8 @@ export function AppRoutes() {
       <Suspense fallback={<RouteLoading />}>
         {session.role === 'student' && <StudentRoutes />}
         {session.role === 'admin' && <AdminRoutes />}
-        {!['student', 'admin'].includes(session.role) && (
+        {session.role === 'auditor' && <AuditorRoutes />}
+        {!['student', 'admin', 'auditor'].includes(session.role) && (
           <ErrorState title="No workspace for this account" message={`Your account role (${session.role}) has no pages yet. Contact your administrator.`} />
         )}
       </Suspense>

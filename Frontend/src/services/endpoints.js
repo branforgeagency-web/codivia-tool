@@ -80,3 +80,17 @@ export const ADMIN_UPLOAD_STATUS = (uploadId) => `${ADMIN_UPLOAD(uploadId)}/stat
 // S3 media storage. POST multipart/form-data: file=<file>, folder=charts
 // -> { key, url, name, size, mimeType, folder }. Use uploadMedia() in services/media.service.js.
 export const MEDIA_UPLOAD = '/media-upload';
+
+// Admin Users → Auditors tab (admin only): auditor accounts + which students they audit, per department
+export const ADMIN_AUDITORS = '/admin/auditors'; // GET ?status=all|assigned|unassigned|disabled&search=&page= · POST { name, email, password }
+export const ADMIN_AUDITOR = (userId) => `${ADMIN_AUDITORS}/${encodeURIComponent(userId)}`; // PATCH { name?, email?, password? } · DELETE
+export const ADMIN_AUDITOR_STATUS = (userId) => `${ADMIN_AUDITOR(userId)}/status`; // PATCH { status }
+export const ADMIN_AUDITOR_ASSIGNMENTS = (userId) => `${ADMIN_AUDITOR(userId)}/assignments`; // GET ?dept= · PUT { dept, students: [uid] }
+
+// Coding audit (auditor only): assigned students' submitted charts
+export const AUDITS = '/audits';
+export const AUDIT_META = `${AUDITS}/meta`; // GET labels, options, thresholds and limits (statuses, findingTypes, keyGroups …)
+export const AUDIT_SUMMARY = `${AUDITS}/summary`; // GET dashboard tiles
+export const AUDIT_STUDENTS = `${AUDITS}/students`; // GET ?search=&dept=&page=
+export const AUDIT_QUEUE = `${AUDITS}/queue`; // GET ?status=pending|draft|completed|all&student=&dept=&priority=&search=&page=
+export const AUDIT = (studentId, chartId) => `${AUDITS}/${encodeURIComponent(studentId)}/${encodeURIComponent(chartId)}`; // GET · PUT { resultAt, verdict, finalAccuracy, findings, feedback, complete }

@@ -18,6 +18,13 @@ const chartResultSchema = new mongoose.Schema(
     drgOk: Boolean,
     miss: { type: [String], default: undefined }, // codes missed
     wrong: { type: [Mixed], default: undefined }, // [entered code, audited code] pairs
+    // What was graded, kept for the auditor (not sent in the students' results map: see RESULT_LIST_FIELDS).
+    submission: { type: Mixed, default: undefined }, // the submitted coding sheet (dx, lines, pcs, drg …)
+    checks: { type: [Mixed], default: undefined }, // gradeWork checklist: [{ ok, title, why, kind }]
+    // Set when an auditor completes an audit of THIS submission (a new submission replaces the row).
+    // `accuracy` then holds the audited score and autoAccuracy the automatic one.
+    autoAccuracy: { type: Number, min: 0, max: 100, default: undefined },
+    audit: { type: Mixed, default: undefined }, // { verdict, finalAccuracy, autoAccuracy, findings, feedback, auditorName, at }
   },
   { versionKey: false }
 );
@@ -27,3 +34,5 @@ chartResultSchema.index({ student: 1, dept: 1 });
 chartResultSchema.plugin(toJSON);
 
 module.exports = mongoose.model('ChartResult', chartResultSchema);
+// Fields left out when many results are listed at once (they are large and only the auditor needs them).
+module.exports.RESULT_LIST_FIELDS = '-_id -student -submission -checks';

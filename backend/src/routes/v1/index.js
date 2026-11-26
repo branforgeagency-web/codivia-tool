@@ -22,6 +22,8 @@ const chartUploadRoute = require('./chartUpload.route');
 const referenceRoute = require('./reference.route');
 const mediaRoute = require('./media.route');
 const feeRoute = require('./fee.route');
+const adminAuditorRoute = require('./adminAuditor.route');
+const chartAuditRoute = require('./chartAudit.route');
 
 const router = express.Router();
 
@@ -39,6 +41,8 @@ const routes = [
   { path: '/admin/queries', route: adminQueryRoute },
   { path: '/admin/work', route: adminWorkRoute },
   { path: '/admin/audit', route: auditRoute },
+  { path: '/admin/auditors', route: adminAuditorRoute },
+  { path: '/audits', route: chartAuditRoute },
   { path: '/media-upload', route: mediaRoute },
   { path: '/reference', route: referenceRoute },
   { path: '/codes', route: codeRoute },

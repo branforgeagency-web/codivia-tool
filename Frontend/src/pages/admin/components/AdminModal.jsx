@@ -1,6 +1,7 @@
 import { useAdmin } from '../../../context/AdminContext.jsx';
 import { useSession } from '../../../context/SessionContext.jsx';
 import { AddStudentForm } from './AddStudentForm.jsx';
+import { AssignStudentsForm } from './AssignStudentsForm.jsx';
 import { AllocateForm } from './AllocateForm.jsx';
 import { BulkAllocateForm } from './BulkAllocateForm.jsx';
 import { DeleteDepartmentForm } from './DeleteDepartmentForm.jsx';
@@ -10,7 +11,7 @@ import { StudentStatusForm } from './StudentStatusForm.jsx';
 import { DeptAllocateForm } from './DeptAllocateForm.jsx';
 
 // ---- Admin modals: manage access, department allocation, bulk allocate,
-// add / edit / disable student, add / edit / delete department ----
+// add / edit / disable student or auditor, assign students to an auditor, add / edit / delete department ----
 // Each form loads its own data from the API; saves go through AdminContext.
 export function AdminModal({ modal, onClose }) {
   const { saveStudentAllocations, allocateDept, bulkAllocate, refreshAll, setModal } = useAdmin();
@@ -31,18 +32,24 @@ export function AdminModal({ modal, onClose }) {
   if (modal.type === 'deleteDepartment') {
     return <DeleteDepartmentForm dept={modal.dept} onClose={onClose} onDone={departmentsChanged} />;
   }
+  // modal.role: 'student' (default) or 'auditor' — the same forms serve both tabs of the Users page.
   if (modal.type === 'editStudent') {
-    return <EditStudentForm student={modal.student} onClose={onClose} onSaved={refreshAll} />;
+    return <EditStudentForm student={modal.student} role={modal.role} onClose={onClose} onSaved={refreshAll} />;
   }
   if (modal.type === 'studentStatus') {
-    return <StudentStatusForm student={modal.student} onClose={onClose} onSaved={refreshAll} />;
+    return <StudentStatusForm student={modal.student} role={modal.role} onClose={onClose} onSaved={refreshAll} />;
+  }
+  if (modal.type === 'assignAuditor') {
+    return <AssignStudentsForm auditor={modal.auditor} onClose={onClose} onSaved={refreshAll} />;
   }
   if (modal.type === 'addStudent') {
     return (
       <AddStudentForm
+        role={modal.role}
         onClose={onClose}
         onCreated={refreshAll} // the new card and the statistics appear at once
         onAllocate={(student) => setModal({ type: 'allocate', student })} // straight on to Manage access
+        onAssign={(auditor) => setModal({ type: 'assignAuditor', auditor })} // straight on to Assign students
       />
     );
   }

@@ -18,3 +18,5 @@ module.exports.adminWorkValidation = require('./adminWork.validation');
 module.exports.auditValidation = require('./audit.validation');
 module.exports.mediaValidation = require('./media.validation');
 module.exports.feeValidation = require('./fee.validation');
+module.exports.adminAuditorValidation = require('./adminAuditor.validation');
+module.exports.chartAuditValidation = require('./chartAudit.validation');

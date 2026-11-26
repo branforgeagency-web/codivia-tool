@@ -12,7 +12,7 @@ const submitChart = (chartId, submission, student) => chartWorkService.submitWor
 
 // { chartId: savedResult }, the same map the frontend keeps as `results`.
 const getResults = async ({ student }, actor) => {
-  const rows = await ChartResult.find({ student: targetStudent(student, actor) }).select('-_id -student').lean();
+  const rows = await ChartResult.find({ student: targetStudent(student, actor) }).select(ChartResult.RESULT_LIST_FIELDS).lean();
   return { results: Object.fromEntries(rows.map(({ chart, ...saved }) => [chart, saved])) };
 };
 

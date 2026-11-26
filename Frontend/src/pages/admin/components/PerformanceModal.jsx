@@ -72,6 +72,18 @@ const chartColumns = (deptName) => [
     sortValue: (r) => (r.accuracy === null ? -1 : r.accuracy),
     render: (r) => (r.accuracy === null ? '—' : <span className={'pf-pill ' + bandOf(r.accuracy).tone}>{r.accuracy + '%'}</span>),
   },
+  {
+    key: 'audit',
+    header: 'Audit',
+    sortable: true,
+    sortValue: (r) => (r.audit ? 1 : 0),
+    render: (r) =>
+      r.audit ? (
+        <span title={`${r.audit.auditorName} · auto ${r.audit.autoAccuracy}%`}>{r.audit.verdict === 'adjusted' ? `Adjusted from ${r.audit.autoAccuracy}%` : 'Agreed'}</span>
+      ) : (
+        <span className="pf-none">—</span>
+      ),
+  },
 ];
 
 function CodeCount({ items, render, empty }) {

@@ -13,8 +13,9 @@ Epic-like workspace, get scored with a reason per check, track progress and buil
 resume. Admins upload charts, allocate them to students by department, answer physician queries and
 review performance.
 
-- **Roles: `admin` and `student` only.** The auditor role was removed 2026-11-17
-  (`Frontend/src/pages/auditor/AuditStation.jsx` is kept but unwired).
+- **Roles: `admin`, `student`, `auditor`** (auditor re-added 2026-11-26). Admin creates auditors
+  (Users page → Auditors tab) and assigns students to them **per department**; the auditor reviews
+  those students' submitted charts and agrees with or adjusts the score.
 - Students **self-register** at public `/auth/register`; admin "Add student" is optional.
 - **Charts come only from admin upload** (`/admin/uploads`). Seed scripts are dev-only.
 - Firebase was removed (2026-11-12); auth is the backend JWT API.
@@ -81,6 +82,9 @@ Styling: plain CSS (`src/styles/app.css`, `refinements.css` — large, grep it; 
 | Work types / statuses / option lists | `config/workQueue.js`, `data/workQueueReference.data.js`, `reference.service.js` (`GET /reference/work-queue`) |
 | Admin upload of charts | FE `pages/admin/Upload.jsx`, `UploadCase.jsx` · BE `chartUpload.*`, `middlewares/uploadChartFile.js` (pdf/docx/doc extraction) |
 | Admin students / departments / allocation | FE `pages/admin/*`, `pages/admin/components/*` · BE `adminStudent.*`, `adminDepartment.*`, `allocation.service.js`, `departmentPool.*` |
+| Admin Users page (Students + Auditors tabs) | FE `pages/admin/Students.jsx` (tabs, `?tab=auditors`), `pages/admin/Auditors.jsx`, `components/admin/AuditorCard.jsx`, `components/AssignStudentsForm.jsx`; Add/Edit/Status forms take `role` · BE `adminAuditor.*` (`/admin/auditors`), model `auditAssignment.model.js` (one auditor per student+dept) |
+| **Auditor role** (coding audit) | FE `pages/auditor/` (`AuditStation.jsx` = dashboard, `AuditQueue.jsx`, `AuditorStudents.jsx`, `AuditReview.jsx`), `layouts/AuditorLayout.jsx`, `styles/auditor.css` · BE `chartAudit.*` (`/audits`), model `chartAudit.model.js`, `config/auditors.js` (finding types, priority < 80%) |
+| Student sees audit | FE `workspace/AuditFeedback.jsx`, "Audited" tag in `DeptQueue.jsx` · data = `ChartResult.audit` |
 | Physician queries (admin answers) | FE `pages/admin/Queries.jsx` · BE `adminQuery.*` |
 | Code search / ICD index & notes | FE `components/code-search/FindACode.jsx`, `services/codeDb.js`, `public/data/codes/*.js` · BE `code.*`, `icd*.model.js` |
 | Medicare fees (RVU) | BE `fee.*`, `scripts/seedFees.js`, data `backend/src/data/RVU26A|B|C/` |
@@ -103,13 +107,21 @@ Styling: plain CSS (`src/styles/app.css`, `refinements.css` — large, grep it; 
 - Physician queries: **no auto-reply**; admin answers on `/admin/queries`; `cdiResponse` is a suggestion only.
 - `chart.previousRecords` drives the workspace "Previous records" panel (admin form editor not built yet).
 - Fee schedule: CMS RVU files → `npm run seed:fees` → `fee*` collections; the `codes` collection is untouched.
-- Student APIs **never return answer keys**.
+- Student APIs **never return answer keys** (the auditor's `/audits/:studentId/:chartId` does).
+- Audits: completing one sets `ChartResult.accuracy` to the audited score (`autoAccuracy` keeps the
+  automatic one); issued certificates are never revoked. An audit belongs to one submission
+  (`ChartAudit.resultAt === ChartResult.at`): a resubmission drops the audit and the chart returns to
+  the queue. `ChartResult.submission` / `checks` are saved on submit for the auditor and excluded from
+  list reads via `ChartResult.RESULT_LIST_FIELDS`.
 
 ## 7. How to work with this user (saves credits and rework)
 
 - The user is **not a medical coder**: Claude decides the correct coding behaviour, but **states the
   plan briefly and confirms before editing** non-trivial changes.
 - **Don't delete files** — disconnect/unwire features instead (remove the route/import, keep the file).
+- **Keep everything dynamic**: labels, option lists, statuses, thresholds and limits come from the backend
+  (`config/*.js` / reference DB via an API such as `GET /reference/work-queue`, `GET /audits/meta`), never
+  hard-coded in React. Render record fields from the data, not from a fixed field list.
 - Don't explore the whole repo: use §5, then `Grep` for the symbol, then read only that range.
 - Don't re-read files just edited; don't run broad `ls -R`/`find` over `node_modules` or `public/data`
   (huge generated code-data files — grep them, never read whole).

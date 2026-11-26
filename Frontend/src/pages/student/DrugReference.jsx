@@ -1,6 +1,6 @@
 import React from 'react';
 import { loadB64Json, loadFdaNdc } from '../../services/codeDb.js';
-import { useStudent } from '../../context/StudentContext.jsx';
+import { useSession } from '../../context/SessionContext.jsx';
 
 // ---- Drug Reference: substance -> how it is coded ------------------------
 // Built from the CMS Table of Drugs and Chemicals plus HCPCS J codes.
@@ -603,6 +603,6 @@ export function DrugReference({ codeDB, dbStatus }) {
 
 // route: /drug-reference
 export default function DrugReferencePage() {
-  const { codeDB, dbStatus } = useStudent();
+  const { codeDB, dbStatus } = useSession(); // students and auditors
   return <DrugReference codeDB={codeDB} dbStatus={dbStatus} />;
 }

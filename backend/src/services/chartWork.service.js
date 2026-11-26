@@ -225,9 +225,11 @@ const submitWork = async (student, chartId, submission) => {
   // assertDiagnoses is kept but no longer called (only a pending physician query blocks a submit).
   const result = gradeWork({ ...chart, profile, isInpatient: profile.facilityIP, workType: chart.workType || WORK_TYPES.CODE }, submission);
   const saved = toSaved(result, chart.dept, Date.now());
+  // Kept for the auditor; replacing the row also drops any audit of the previous submission.
+  const { draft, timeSpent, ...graded } = submission;
 
   const filter = { student: student._id, chart: chart._id };
-  const write = () => ChartResult.findOneAndReplace(filter, { ...filter, ...saved }, { upsert: true });
+  const write = () => ChartResult.findOneAndReplace(filter, { ...filter, ...saved, submission: graded, checks: result.checks }, { upsert: true });
   try {
     await write();
   } catch (err) {

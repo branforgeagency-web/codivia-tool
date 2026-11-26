@@ -20,8 +20,15 @@ export const PATHS = {
   adminQueries: '/admin/queries',
   adminActivity: '/admin/activity',
   adminAudit: '/admin/audit',
+  // auditor
+  auditorDashboard: '/auditor/dashboard',
+  auditorStudents: '/auditor/students',
+  auditorQueue: '/auditor/queue',
 };
 
 export const deptQueuePath = (deptKey) => `${PATHS.charts}/${deptKey}`;
 export const coderPath = (deptKey, chartId) =>
   `${PATHS.charts}/${deptKey}/${encodeURIComponent(chartId)}`;
+// Auditor: one student's submitted chart to audit.
+export const auditReviewPath = (studentId, chartId) =>
+  `/auditor/review/${encodeURIComponent(studentId)}/${encodeURIComponent(chartId)}`;

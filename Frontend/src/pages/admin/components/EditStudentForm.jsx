@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { Avatar, Modal } from '../../../components/ui/Modal.jsx';
 import { patch } from '../../../services/apiHelper.js';
-import { ADMIN_STUDENT } from '../../../services/endpoints.js';
+import { ADMIN_AUDITOR, ADMIN_STUDENT } from '../../../services/endpoints.js';
 
-// ---- Admin: edit a student's name, email or password (student card → Edit). Styles: .md-* / .as-*
+// ---- Admin: edit a student's or auditor's name, email or password (user card → Edit). Styles: .md-* / .as-*
+// role 'auditor' → PATCH /admin/auditors/:uid (response { auditor }).
 // PATCH /admin/students/:uid { name?, email?, password? } -> { student }. Only changed fields are sent;
 // a new password signs the student out of every device. ----
 
 const PASSWORD_HINT = '8+ characters with an uppercase letter, a lowercase letter, a number and a special character.';
 
-export function EditStudentForm({ student, onClose, onSaved }) {
+export function EditStudentForm({ student, role = 'student', onClose, onSaved }) {
+  const isAuditor = role === 'auditor';
+  const who = isAuditor ? 'auditor' : 'student';
   const [name, setName] = useState(student.name || '');
   const [email, setEmail] = useState(student.email || '');
   const [password, setPassword] = useState('');
@@ -30,13 +33,13 @@ export function EditStudentForm({ student, onClose, onSaved }) {
     setError('');
     setFieldErrors({});
     const errs = {};
-    if (!name.trim()) errs.name = 'Enter the student’s name.';
+    if (!name.trim()) errs.name = `Enter the ${who}’s name.`;
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) errs.email = 'Enter a valid email address.';
     if (Object.keys(errs).length) return setFieldErrors(errs);
     setBusy(true);
     try {
-      const res = await patch(ADMIN_STUDENT(student.uid), changes);
-      onSaved && onSaved(res.student, !!changes.password);
+      const res = await patch(isAuditor ? ADMIN_AUDITOR(student.uid) : ADMIN_STUDENT(student.uid), changes);
+      onSaved && onSaved(res[who], !!changes.password);
       onClose();
     } catch (e) {
       const details = (e.data && e.data.details) || [];
@@ -48,8 +51,8 @@ export function EditStudentForm({ student, onClose, onSaved }) {
 
   return (
     <Modal
-      title="Edit student"
-      subtitle={student.id}
+      title={isAuditor ? 'Edit auditor' : 'Edit student'}
+      subtitle={isAuditor ? student.email : student.id}
       icon={<Avatar name={student.name} />}
       onClose={onClose}
       footer={
@@ -90,10 +93,10 @@ export function EditStudentForm({ student, onClose, onSaved }) {
               <i className={'bi ' + (showPassword ? 'bi-eye-slash' : 'bi-eye')} aria-hidden="true" />
             </button>
           </div>
-          <small>{password ? PASSWORD_HINT + ' Saving signs the student out of every device.' : 'Only fill this in to reset the student’s password.'}</small>
+          <small>{password ? PASSWORD_HINT + ` Saving signs the ${who} out of every device.` : `Only fill this in to reset the ${who}’s password.`}</small>
           {fieldErrors.password && <em>{fieldErrors.password}</em>}
         </label>
-        <p className="ma-note">The Student ID ({student.id}) cannot be changed.</p>
+        {!isAuditor && <p className="ma-note">The Student ID ({student.id}) cannot be changed.</p>}
         {error && (
           <div className="cvx-msg err" role="alert">
             {error}

@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { StudentCard } from '../../components/admin/StudentCard.jsx';
+import { AdminAuditors } from './Auditors.jsx';
 import { PageLoader } from '../../components/ui/PageLoader.jsx';
 import { Pagination } from '../../components/ui/Pagination.jsx';
 import { StatTile, StatTiles } from '../../components/ui/StatTile.jsx';
@@ -29,7 +31,7 @@ const Svg = ({ d, size = 18 }) => (
   </svg>
 );
 
-export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk, onAdd, onEdit, onToggleStatus }) {
+export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk, onAdd, onEdit, onToggleStatus, tabs = null }) {
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim());
@@ -42,8 +44,9 @@ export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk
     <div className="ad">
       <div className="page-head sc-head">
         <div>
-          <h1>Students</h1>
+          <h1>Users</h1>
           <p>Students who registered or were added by an admin. Allocate department charts and follow their progress.</p>
+          {tabs}
         </div>
         <div className="sc-head-acts">
           <button type="button" className="sc-ghost" onClick={onBulk}>
@@ -53,7 +56,7 @@ export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk
             <Svg d={ICON.refresh} size={16} /> {loading ? 'Refreshing…' : 'Refresh'}
           </button>
           <button type="button" className="dc-action" onClick={onAdd}>
-            <Svg d={ICON.userPlus} size={16} /> Add student
+            <Svg d={ICON.userPlus} size={16} /> Add user
           </button>
         </div>
       </div>
@@ -111,7 +114,7 @@ export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk
               <h3>No students yet</h3>
               <p>Add a student with “Add student”, or ask students to sign up — then they appear here.</p>
               <button type="button" className="dc-action" onClick={onAdd} style={{ marginTop: 12 }}>
-                <Svg d={ICON.userPlus} size={16} /> Add student
+                <Svg d={ICON.userPlus} size={16} /> Add user
               </button>
             </>
           ) : (
@@ -126,17 +129,51 @@ export function AdminStudents({ reloadKey, onAllocate, onRefresh, onPerf, onBulk
   );
 }
 
-// route: /admin/students
+// Students | Auditors switch under the page title. The tab is kept in the address (?tab=auditors).
+function UserTabs({ tab, onTab }) {
+  return (
+    <div className="pg-filters us-tabs" role="tablist" aria-label="User type">
+      {[
+        ['students', 'Students', 'bi-mortarboard'],
+        ['auditors', 'Auditors', 'bi-clipboard-check'],
+      ].map(([key, label, icon]) => (
+        <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'on' : ''} onClick={() => onTab(key)}>
+          <i className={'bi ' + icon} aria-hidden="true" /> {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// route: /admin/students — the Users page (Students and Auditors tabs)
 export default function StudentsPage() {
   const { version, refreshAll, setModal, setPerfStudent } = useAdmin();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') === 'auditors' ? 'auditors' : 'students';
+  const tabs = <UserTabs tab={tab} onTab={(t) => setParams(t === 'auditors' ? { tab: t } : {}, { replace: true })} />;
+
+  if (tab === 'auditors') {
+    return (
+      <AdminAuditors
+        tabs={tabs}
+        reloadKey={version}
+        onRefresh={refreshAll}
+        onAdd={() => setModal({ type: 'addStudent', role: 'auditor' })}
+        onAssign={(auditor) => setModal({ type: 'assignAuditor', auditor })}
+        onEdit={(auditor) => setModal({ type: 'editStudent', role: 'auditor', student: auditor })}
+        onToggleStatus={(auditor) => setModal({ type: 'studentStatus', role: 'auditor', student: auditor })}
+      />
+    );
+  }
   return (
     <AdminStudents
+      tabs={tabs}
       reloadKey={version}
       onAllocate={(student) => setModal({ type: 'allocate', student })}
       onRefresh={refreshAll}
       onPerf={setPerfStudent}
       onBulk={() => setModal({ type: 'bulkAllocate' })}
-      onAdd={() => setModal({ type: 'addStudent' })}
+      onAdd={() => setModal({ type: 'addStudent', role: 'student' })}
       onEdit={(student) => setModal({ type: 'editStudent', student })}
       onToggleStatus={(student) => setModal({ type: 'studentStatus', student })}
     />

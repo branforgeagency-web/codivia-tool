@@ -59,6 +59,7 @@ function Status({ c }) {
     return (
       <>
         <span className={'acc ' + (c.accuracy >= 90 ? 'hi' : c.accuracy >= 75 ? 'mid' : 'lo')}>{c.accuracy + '%'}</span>
+        {c.audited && <div style={muted}>✓ Audited</div>}
         {c.transferredTo && <div style={muted}>then transferred</div>}
       </>
     );

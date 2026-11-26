@@ -20,9 +20,18 @@ export const ADMIN_NAV = [
   { id: 'overview', path: PATHS.adminOverview, ic: '🏠', lbl: 'Overview', ...tiles.dashboard },
   { id: 'departments', path: PATHS.adminDepartments, ic: '🗂️', lbl: 'Departments', ...tiles.charts },
   { id: 'charts', path: PATHS.adminCharts, ic: '📄', lbl: 'Browse Charts', ...tiles.myCertificates },
-  { id: 'students', path: PATHS.adminStudents, ic: '👥', lbl: 'Students', ...tiles.progress },
+  { id: 'students', path: PATHS.adminStudents, ic: '👥', lbl: 'Users', ...tiles.progress },
   { id: 'activity', path: PATHS.adminActivity, ic: '🧾', lbl: 'Chart Activity', ...tiles.resume },
   { id: 'upload', path: PATHS.adminUpload, ic: '📤', lbl: 'Upload Charts', ...tiles.upload },
   { id: 'queries', path: PATHS.adminQueries, ic: '💬', lbl: 'Physician Queries', ...tiles.guidelines },
   { id: 'audit', path: PATHS.adminAudit, ic: '📜', lbl: 'Audit Log', ...tiles.codeSearch },
+];
+
+export const AUDITOR_NAV = [
+  { id: 'dashboard', path: PATHS.auditorDashboard, ic: '🏠', lbl: 'Dashboard', ...tiles.dashboard },
+  { id: 'queue', path: PATHS.auditorQueue, ic: '🧾', lbl: 'Audit Queue', ...tiles.charts },
+  { id: 'students', path: PATHS.auditorStudents, ic: '👥', lbl: 'My Students', ...tiles.progress },
+  { id: 'findcode', path: PATHS.codeSearch, ic: '🔍', lbl: 'CODIVIA Code Search', ...tiles.codeSearch },
+  { id: 'guide', path: PATHS.guidelines, ic: '📘', lbl: 'Coding Guidelines', ...tiles.guidelines },
+  { id: 'drugref', path: PATHS.drugReference, ic: '💊', lbl: 'Drug Reference', ...tiles.drugReference },
 ];

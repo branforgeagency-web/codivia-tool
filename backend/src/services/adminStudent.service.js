@@ -125,7 +125,7 @@ const queryStudents = async ({ search, status = 'all', page = 1, limit = 10 }) =
 const getStudent = async (userId) => {
   const s = await findStudent(userId);
   const [results, departments] = await Promise.all([
-    ChartResult.find({ student: s._id }).select('-_id -student').lean(),
+    ChartResult.find({ student: s._id }).select(ChartResult.RESULT_LIST_FIELDS).lean(),
     Department.find().select('name').lean(),
   ]);
   return {

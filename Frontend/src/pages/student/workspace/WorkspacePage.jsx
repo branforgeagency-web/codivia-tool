@@ -23,6 +23,7 @@ import { runEdits } from './edits.js';
 import { DeferModal, QueryModal, SubmitModal, TransferModal } from './Modals.jsx';
 import { BILLING_LABEL, CODING_STEPS, codeDescriber, demographicsOf, documentsOf, dxClassOptions, ENCOUNTER_LABEL, facilityRate, firstTerm, fmtTime, icdRow, initialDraft, isBillable, isEM, lineStep, lineValues, norm, sequenceDx, settingOf, toSubmission, uid, usesSteps } from './model.js';
 import { ResultView } from './Result.jsx';
+import { AuditFeedback } from './AuditFeedback.jsx';
 import { AbstractSection, ChargeList, DrgSection, DxSection, EmSection, LinesSection, PcsSection } from './Sections.jsx';
 import { Sidebar } from './Sidebar.jsx';
 import './workspace.css';
@@ -757,7 +758,7 @@ export default function WorkspacePage() {
         )}
         {work && work.status === 'deferred' && <span className="pill gray">Deferred — {(work.defer && work.defer.reason) || ''}</span>}
         {work && work.status === 'transferred' && <span className="pill gray">Transferred — {(work.transfer && work.transfer.queue) || ''}</span>}
-        {chart.result && !result && <span className="pill navy">Last score {chart.result.accuracy}%</span>}
+        {chart.result && !result && <span className="pill navy">{chart.result.audit ? 'Audited score' : 'Last score'} {chart.result.accuracy}%</span>}
         {pending && <span className="pill warn">⏸ On hold — query pending</span>}
         <div className="sp" />
         <span className={'saved' + (saveState === 'saved' ? ' ok' : saveState === 'error' ? ' err' : '')} role="status">
@@ -769,6 +770,7 @@ export default function WorkspacePage() {
         <CodeSearchButton codeDB={codeDB} dbStatus={dbStatus} />
       </div>
       <Banner chart={chart} set={set} />
+      {chart.result && chart.result.audit && !result && <AuditFeedback audit={chart.result.audit} />}
 
       {result ? (
         <ResultView

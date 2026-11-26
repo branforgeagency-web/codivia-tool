@@ -169,7 +169,7 @@ const getMyQueue = async (student, deptKey, { search, status = 'todo', type = 'a
 
   const [rangeCharts, results, works] = await Promise.all([
     Chart.find(inRange).select('_id workType').lean(),
-    ChartResult.find({ student: student._id, dept: deptKey }).select('chart accuracy at').lean(),
+    ChartResult.find({ student: student._id, dept: deptKey }).select('chart accuracy at audit.verdict').lean(),
     ChartWork.find({ student: student._id, dept: deptKey }).select('chart status defer transfer updatedAt').lean(),
   ]);
   const scoreOf = new Map(results.map((r) => [r.chart, r]));
@@ -230,6 +230,7 @@ const getMyQueue = async (student, deptKey, { search, status = 'todo', type = 'a
         ...queueColumns(c),
         tab: tabOf(work, !!score),
         accuracy: score ? score.accuracy : null,
+        audited: Boolean(score && score.audit), // an auditor reviewed this submission
         inProgress: !!work && work.status === WORK_STATUS.IN_PROGRESS && !score,
         deferReason: work && work.status === WORK_STATUS.DEFERRED ? (work.defer || {}).reason || '' : '',
         transferredTo: work && work.status === WORK_STATUS.TRANSFERRED ? (work.transfer || {}).queue || '' : '',

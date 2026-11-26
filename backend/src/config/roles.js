@@ -1,14 +1,17 @@
-// Two roles: admin (manages everything) and student (signs up and codes charts).
-// The 'auditor' role was removed on 2026-11-17: it had no features (only a placeholder page) and no
-// accounts used it. Every role list below (user model, validation, access matrix) follows ROLES.
+// Three roles: admin (manages everything), student (signs up and codes charts) and auditor
+// (created by an admin; reviews the submitted charts of the students assigned to them per
+// department, and can adjust the score). Every role list below (user model, validation, access
+// matrix) follows ROLES.
 const ROLES = Object.freeze({
   ADMIN: 'admin',
   STUDENT: 'student',
+  AUDITOR: 'auditor',
 });
 
 const ROLE_LABELS = Object.freeze({
   [ROLES.ADMIN]: 'Admin',
   [ROLES.STUDENT]: 'Student',
+  [ROLES.AUDITOR]: 'Auditor',
 });
 
 const ALL_ROLES = Object.freeze(Object.values(ROLES));

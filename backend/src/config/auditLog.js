@@ -8,6 +8,7 @@ const AUDIT_CATEGORIES = Object.freeze([
   { key: 'charts', label: 'Charts' },
   { key: 'departments', label: 'Departments' },
   { key: 'work', label: 'Chart work' },
+  { key: 'auditors', label: 'Auditors & audits' },
 ]);
 const AUDIT_CATEGORY_KEYS = Object.freeze(AUDIT_CATEGORIES.map((c) => c.key));
 
@@ -41,6 +42,14 @@ const AUDIT_ACTIONS = Object.freeze({
   'work.return': { category: 'work', label: 'Returned chart to student' },
   'work.resolve': { category: 'work', label: 'Resolved transfer' },
   'work.note': { category: 'work', label: 'Added note' },
+
+  'auditor.create': { category: 'auditors', label: 'Added auditor' },
+  'auditor.update': { category: 'auditors', label: 'Edited auditor' },
+  'auditor.disable': { category: 'auditors', label: 'Disabled auditor' },
+  'auditor.enable': { category: 'auditors', label: 'Enabled auditor' },
+  'auditor.delete': { category: 'auditors', label: 'Deleted auditor' },
+  'auditor.assign': { category: 'auditors', label: 'Assigned students to auditor' },
+  'audit.complete': { category: 'auditors', label: 'Completed chart audit' },
 });
 const AUDIT_ACTION_KEYS = Object.freeze(Object.keys(AUDIT_ACTIONS));
 

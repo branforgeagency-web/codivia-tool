@@ -13,6 +13,10 @@ const LABELS = {
     const s = await User.findById(id).select('name email studentId').lean();
     return s ? `${s.name || s.email}${s.studentId ? ' (' + s.studentId + ')' : ''}` : '';
   },
+  auditor: async (id) => {
+    const a = await User.findById(id).select('name email').lean();
+    return a ? a.name || a.email : '';
+  },
   chart: async (id) => {
     const c = await Chart.findById(id).select('title').lean();
     return c ? `${id}${c.title ? ' — ' + c.title : ''}` : String(id);

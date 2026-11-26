@@ -25,3 +25,5 @@ module.exports.adminWorkService = require('./adminWork.service');
 module.exports.auditService = require('./audit.service');
 module.exports.mediaService = require('./media.service');
 module.exports.feeService = require('./fee.service');
+module.exports.adminAuditorService = require('./adminAuditor.service');
+module.exports.chartAuditService = require('./chartAudit.service');

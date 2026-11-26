@@ -137,9 +137,9 @@ export function SessionProvider({ children }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, []);
 
-  // load code DB once logged in as student
+  // load code DB once logged in as a student or auditor (both use Code Search)
   useEffect(() => {
-    if (session && session.role === 'student' && !codeDB && dbStatus === 'idle') {
+    if (session && (session.role === 'student' || session.role === 'auditor') && !codeDB && dbStatus === 'idle') {
       setDbStatus('loading');
       loadCodeDB()
         .then((db) => {

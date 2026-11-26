@@ -30,7 +30,7 @@ const QUERY_POLL_MS = 30 * 1000; // new physician queries show up in the sidebar
 
 export function AdminProvider({ children }) {
   const [browseChart, setBrowseChart] = useState(null); // chart being previewed (full record)
-  const [modal, setModal] = useState(null); // { type:'allocate', student } | { type:'deptAllocate', dept } | { type:'bulkAllocate' } | { type:'addStudent' }
+  const [modal, setModal] = useState(null); // { type:'allocate', student } | { type:'deptAllocate', dept } | { type:'bulkAllocate' } | { type:'addStudent', role } | { type:'editStudent'|'studentStatus', student, role } | { type:'assignAuditor', auditor }
   const [perfStudent, setPerfStudent] = useState(null); // { uid, ... } whose performance panel is open
   const [notice, setNotice] = useState(null); // { tone: 'err'|'ok', text }
   const [totals, setTotals] = useState(null); // department-pools analytics: departments, totalPool, allocated, students
