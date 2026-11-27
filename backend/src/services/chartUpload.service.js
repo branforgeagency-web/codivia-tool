@@ -9,6 +9,7 @@ const { BILLING_TYPE_LABELS, DX_CLASSES, ENCOUNTER_TYPES, ENCOUNTER_TYPE_LIST, e
 const counterService = require('./counter.service');
 const { publicUrl, deleteFile } = require('./media.service');
 const ApiError = require('../utils/ApiError');
+const { readChartText } = require('../utils/readChartText');
 const httpStatus = require('../utils/httpStatus');
 
 // ---------- Admin Upload page: uploaded charts, draft → published ----------
@@ -76,7 +77,18 @@ const extractPdfText = async (buffer) => {
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent();
-      const text = content.items.map((item) => (typeof item.str === 'string' ? item.str : '')).join(' ');
+      // Keep the PDF's line breaks (end-of-line marks and a change of baseline), so "Label: value"
+      // lines and answer key rows stay one per line for readChartText.
+      let text = '';
+      let lastY = null;
+      content.items.forEach((item) => {
+        const y = item.transform ? Math.round(item.transform[5]) : null;
+        if (lastY !== null && y !== null && Math.abs(y - lastY) > 2 && !text.endsWith('\n')) text += '\n';
+        else if (text && !text.endsWith('\n') && !text.endsWith(' ') && item.str && !item.str.startsWith(' ')) text += ' ';
+        text += typeof item.str === 'string' ? item.str : '';
+        if (item.hasEOL) text += '\n';
+        lastY = y;
+      });
       pages.push(text);
       length += text.length;
       if (length > UPLOAD_LIMITS.record) {
@@ -134,6 +146,16 @@ const extractFileText = async (file) => {
     throw new ApiError(httpStatus.PAYLOAD_TOO_LARGE, 'Extracted text exceeds the 200,000 character limit.');
   }
   return { fileName: path.basename(file.originalname), text: normalized };
+};
+
+// Extract the file, then read its labels into the form fields (config/chartImport.js), so the
+// admin does not retype what the chart already says. text = the record students read.
+const importChartFile = async (file) => {
+  const { fileName, text } = await extractFileText(file);
+  const departments = await Department.find().select('name').lean();
+  const { record, fields, found } = readChartText(text, { departments: departments.map((d) => ({ id: d._id, name: d.name })) });
+  if (!record.trim()) throw new ApiError(httpStatus.BAD_REQUEST, 'The file has no chart text outside its setup / answer key blocks.');
+  return { fileName, text: record, fields, found };
 };
 
 // Publishing needs a complete answer key: every row with a code, type, description and rationale.
@@ -415,4 +437,4 @@ const deleteUpload = async (id) => {
   if (upload.sourceFile && upload.sourceFile.key) await deleteFile(upload.sourceFile.key);
 };
 
-module.exports = { extractFileText, listUploads, createUpload, getUpload, updateUpload, setStatus, deleteUpload, chartFields, checkPublishable, applyUploadEdits, applyChartFields };
+module.exports = { extractFileText, importChartFile, listUploads, createUpload, getUpload, updateUpload, setStatus, deleteUpload, chartFields, checkPublishable, applyUploadEdits, applyChartFields };

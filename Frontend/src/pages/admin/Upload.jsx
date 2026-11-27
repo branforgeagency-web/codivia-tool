@@ -64,6 +64,7 @@ export function AdminUpload() {
   // The chosen file once stored in S3: { key, url, size, mimeType }; null until then (or on failure).
   const [stored, setStored] = useState(null);
   const [fileNote, setFileNote] = useState('');
+  const [filled, setFilled] = useState([]); // what the server read from the file (config/chartImport.js)
   const [text, setText] = useState('');
   const [dept, setDept] = useState('GENSURG');
   const [title, setTitle] = useState('');
@@ -155,6 +156,7 @@ export function AdminUpload() {
     setFile(null);
     setStored(null);
     setFileNote('');
+    setFilled([]);
     setFileKey((k) => k + 1); // the file input shows no file again
     setText('');
     setKey([]);
@@ -178,6 +180,7 @@ export function AdminUpload() {
     setFile(f);
     setStored(null);
     setFileNote('');
+    setFilled([]);
     setBusy('Extracting text and storing the file\u2026');
     try {
       checkMediaFile(f, 'charts');
@@ -197,7 +200,17 @@ export function AdminUpload() {
       if (!t) throw new Error('No text was returned by the extraction service.');
       setText(t);
       setPhi(scanPHI(t));
-      if (!title) setTitle(f.name.replace(/\.[^.]+$/, ''));
+      // A new upload takes everything the file states (setup, patient, encounter, answer key …);
+      // editing a saved chart only replaces its record text.
+      const fl = (!editing && result.fields) || null;
+      if (fl) {
+        if (fl.dept) setDept(fl.dept);
+        setCs(fromCase(fl));
+        if (fl.answerKey && fl.answerKey.length) setKey(rowsFromKey(fl.answerKey));
+        if (fl.title) setTitle(fl.title);
+        setFilled(result.found || []);
+      }
+      if (!title && !(fl && fl.title)) setTitle(f.name.replace(/\.[^.]+$/, ''));
     } catch (ex) {
       setErr(ex.message || String(ex));
       setText('');
@@ -565,6 +578,7 @@ export function AdminUpload() {
               </div>
             )}
             {fileNote && <div className="up-file warn">{fileNote}</div>}
+            {filled.length > 0 && <div className="up-file ok">{'✓ Filled from the file: ' + filled.join(', ') + '. Check them below.'}</div>}
           </div>
           {text && (
             <div style={{ marginBottom: 12 }}>

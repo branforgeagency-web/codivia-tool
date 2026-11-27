@@ -9,7 +9,7 @@ const uploadTarget = (u) => ({ type: 'upload', id: u.id, label: `${[u.chart, u.t
 
 const extractText = async (req, res) => {
   if (!req.file) throw new ApiError(httpStatus.BAD_REQUEST, 'Choose a PDF, DOC/DOCX or TXT file.');
-  const result = await chartUploadService.extractFileText(req.file);
+  const result = await chartUploadService.importChartFile(req.file);
   res.status(httpStatus.OK).json(result);
 };
 
