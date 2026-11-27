@@ -7,6 +7,8 @@ const httpStatus = require('../utils/httpStatus');
 const { escapeRegex } = require('../utils/codeText');
 const { chartHeader, HEADER_FIELDS } = require('../utils/chartHeader');
 const { encounterProfile, isInpatientElements } = require('../config/encounter');
+const { DEMOGRAPHICS } = require('../config/demographics');
+const { CODING_STEP_RULES } = require('../config/codingSteps');
 const { DRAFT_SYNC } = require('../config/drafts');
 
 // ---------- Student "My Charts" ----------
@@ -294,6 +296,10 @@ const getMyChart = async (student, deptKey, chartId) => {
     remits: [...usedRemits],
     // Offline-safe saving: timing and wording for the workspace (config/drafts.js).
     draftSync: DRAFT_SYNC,
+    // Demographics activity: tabs, sections and labels (config/demographics.js).
+    demographics: DEMOGRAPHICS,
+    // Which coding step opens when (config/codingSteps.js).
+    codingSteps: CODING_STEP_RULES,
   };
 };
 

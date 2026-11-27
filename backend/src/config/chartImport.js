@@ -2,6 +2,8 @@
 // A file is split into blocks by marker lines such as "===== ANSWER KEY =====". Inside a block,
 // "Label: value" lines fill fields; the label words and value words below are matched without case.
 // Only the CHART block (or the whole file when it has no markers) becomes the record students read.
+const { DEMOGRAPHICS } = require('./demographics');
+
 const CHART_IMPORT = Object.freeze({
   blocks: {
     setup: ['CHART SETUP', 'SETUP'],
@@ -14,6 +16,8 @@ const CHART_IMPORT = Object.freeze({
 
   // "Label: value" fields, by the group they fill.
   labels: {
+    // Demographics (DOB, address, language, employer, contacts …): words from config/demographics.js.
+    demographics: Object.fromEntries(DEMOGRAPHICS.fields.filter((f) => f.aliases).map((f) => [f.key, f.aliases])),
     setup: {
       dept: ['Department', 'Dept'],
       title: ['Title', 'Chart Title'],

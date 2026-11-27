@@ -49,6 +49,7 @@ const chartUploadSchema = new mongoose.Schema(
       name: { type: String, default: 'Uploaded Record' },
       sex: { type: String, enum: ['M', 'F'], default: 'F' },
       age: { type: Number, min: 0, default: 45 },
+      details: { type: mongoose.Schema.Types.Mixed, default: undefined }, // demographics (config/demographics.js)
     },
     // Encounter (copied into Chart on publish; same meaning as there). New uploads must set it.
     encounterType: { type: String, enum: ENCOUNTER_TYPE_LIST, default: undefined },

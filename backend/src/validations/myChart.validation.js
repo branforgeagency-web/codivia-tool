@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { CODING_STEP_KEYS } = require('../config/codingSteps');
 const { DEPARTMENT_KEY_PATTERN } = require('../config/departments');
 const { CHART_ID_PATTERN } = require('../config/certificates');
 const { DENIAL_DECISIONS, WORK_LIMITS: W, WORK_TYPE_LIST } = require('../config/workQueue');
@@ -48,6 +49,8 @@ const draft = Joi.object({
     .max(W.evidence),
   notes: str(W.notes),
   acks: Joi.array().items(str(300)).max(100),
+  // Coding steps the student confirmed have no codes at this visit (config/codingSteps.js).
+  noneSteps: Joi.array().items(Joi.string().valid(...CODING_STEP_KEYS)).unique().max(CODING_STEP_KEYS.length),
   decision: Joi.string().valid('', ...DENIAL_DECISIONS),
   comment: str(W.comment),
   step: Joi.number().integer().min(1).max(3),

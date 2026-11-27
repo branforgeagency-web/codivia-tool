@@ -120,8 +120,8 @@ function readChartText(text, { departments = [] } = {}) {
 
   // Setup labels are for the admin: dropped from the record even when written inside the chart.
   const setupLines = new Set();
-  const chartLabels = readLabels(blocks.chart, ['setup', 'patient', 'encounter'], (i, g) => g === 'setup' && setupLines.add(i));
-  const L = { ...chartLabels, ...readLabels(blocks.setup || [], ['setup', 'patient', 'encounter']) };
+  const chartLabels = readLabels(blocks.chart, ['setup', 'patient', 'encounter', 'demographics'], (i, g) => g === 'setup' && setupLines.add(i));
+  const L = { ...chartLabels, ...readLabels(blocks.setup || [], ['setup', 'patient', 'encounter', 'demographics']) };
   const record = blocks.chart
     .filter((_, i) => !setupLines.has(i))
     .join('\n')
@@ -213,6 +213,10 @@ function readChartText(text, { departments = [] } = {}) {
       .slice(0, 50),
   };
 
+  const details = {};
+  Object.keys(C.labels.demographics).forEach((k) => {
+    if (L['demographics.' + k]) details[k] = clip(L['demographics.' + k], 300);
+  });
   const patient = { name: clip(L['patient.name'], UPLOAD_LIMITS.patientName), sex: pick('sex', L['patient.sex']), age: int(L['patient.age']) };
   const fields = {
     dept: dept ? dept.id : '',
@@ -221,7 +225,7 @@ function readChartText(text, { departments = [] } = {}) {
     billingType,
     workType: pick('workType', L['setup.workType']) || 'code',
     difficulty: pick('difficulty', L['setup.difficulty']) || 'moderate',
-    patient: { name: patient.name, sex: patient.sex || 'F', age: patient.age === null ? '' : String(patient.age) },
+    patient: { name: patient.name, sex: patient.sex || 'F', age: patient.age === null ? '' : String(patient.age), details },
     encounter,
     original,
     denial,

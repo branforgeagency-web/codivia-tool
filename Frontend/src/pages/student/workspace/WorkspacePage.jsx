@@ -5,7 +5,6 @@
    actions on the student's own work. Submitting is scored on the server (PUT /chart-results/:id). */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Header } from '../../../components/layout/Header.jsx';
 import { ErrorState } from '../../../components/ui/ErrorState.jsx';
 import { PageLoader } from '../../../components/ui/PageLoader.jsx';
 import { useSession } from '../../../context/SessionContext.jsx';
@@ -13,7 +12,17 @@ import { useStudent } from '../../../context/StudentContext.jsx';
 import { CodeSearchButton } from './CodeSearchPopup.jsx';
 import { coderPath, deptQueuePath } from '../../../routes/paths.js';
 import { get, post, put } from '../../../services/apiHelper.js';
-import { FEE_RVU, MY_CHART, MY_CHART_COMMENTS, MY_CHART_DEFER, MY_CHART_QUERIES, MY_CHART_SESSION, MY_CHART_TRANSFER, MY_CHART_WORK, MY_DEPT_CHARTS } from '../../../services/endpoints.js';
+import {
+  FEE_RVU,
+  MY_CHART,
+  MY_CHART_COMMENTS,
+  MY_CHART_DEFER,
+  MY_CHART_QUERIES,
+  MY_CHART_SESSION,
+  MY_CHART_TRANSFER,
+  MY_CHART_WORK,
+  MY_DEPT_CHARTS,
+} from '../../../services/endpoints.js';
 import { useReference, workTypeInfo } from '../../../hooks/useReference.js';
 import { DenialLeft, DenialRight } from './Denial.jsx';
 import { DocumentsPanel } from './Documents.jsx';
@@ -21,13 +30,81 @@ import { fetchNotes } from './Encoder.jsx';
 import { CodeEntry } from './CodeEntry.jsx';
 import { runEdits } from './edits.js';
 import { DeferModal, QueryModal, SubmitModal, TransferModal } from './Modals.jsx';
-import { BILLING_LABEL, CODING_STEPS, codeDescriber, demographicsOf, documentsOf, dxClassOptions, ENCOUNTER_LABEL, facilityRate, firstTerm, fmtTime, icdRow, initialDraft, isBillable, isEM, lineStep, lineValues, norm, sequenceDx, settingOf, toSubmission, uid, usesSteps } from './model.js';
+import {
+  CODING_STEPS,
+  codeDescriber,
+  demographicsOf,
+  documentsOf,
+  dxClassOptions,
+  facilityRate,
+  firstTerm,
+  fmtTime,
+  icdRow,
+  initialDraft,
+  isBillable,
+  isEM,
+  lineStep,
+  lineValues,
+  norm,
+  sequenceDx,
+  settingOf,
+  toSubmission,
+  uid,
+  usesSteps,
+} from './model.js';
 import { ResultView } from './Result.jsx';
 import { AuditFeedback } from './AuditFeedback.jsx';
-import { AbstractSection, ChargeList, DrgSection, DxSection, EmSection, LinesSection, PcsSection } from './Sections.jsx';
+import {
+  AbstractSection,
+  ChargeList,
+  DrgSection,
+  DxSection,
+  EmSection,
+  LinesSection,
+  PcsSection,
+} from './Sections.jsx';
 import { Sidebar } from './Sidebar.jsx';
-import { clearLocalDraft, loadLocalDraft, OfflineBanner, RecoveryPrompt, shouldOfferRecovery, SyncStatus, useDraftSync, useUnsavedGuard } from '../../../offline/index.js';
+import {
+  clearLocalDraft,
+  loadLocalDraft,
+  OfflineBanner,
+  RecoveryPrompt,
+  shouldOfferRecovery,
+  SyncStatus,
+  useDraftSync,
+  useUnsavedGuard,
+} from '../../../offline/index.js';
 import './workspace.css';
+import {
+  ActivityTabs,
+  activityTabs,
+  BottomBar,
+  ChartReview,
+  chartReviewRows,
+  Demographics,
+  Episode,
+  FIRST_ACTIVITY,
+  Flowsheets,
+  medsOf,
+  NO_SIDEBAR,
+  PatientIQ,
+  PatientMessage,
+  PatientTabs,
+  sectionsText,
+  pinKey,
+  SidePanel,
+  NotesActivity,
+  visitModel,
+  StepStack,
+  Storyboard,
+  Synopsis,
+  SystemBar,
+  Treatments,
+  visitSections,
+  vitalsOf,
+  WrapUp,
+  useDragWidth,
+} from './ehr/index.js';
 
 const IP_TABS = [
   ['dx', 'Diagnoses'],
@@ -35,106 +112,30 @@ const IP_TABS = [
   ['abs', 'Abstract'],
   ['drg', 'MS-DRG'],
 ];
-const TAB_NAMES = { em: 'Level of service', dx: 'Diagnoses', lines: 'Charge lines', pcs: 'Procedures', abs: 'Abstract', drg: 'MS-DRG' };
+const TAB_NAMES = {
+  em: 'Level of service',
+  dx: 'Diagnoses',
+  lines: 'Charge lines',
+  pcs: 'Procedures',
+  abs: 'Abstract',
+  drg: 'MS-DRG',
+};
 // Names of the coding steps, for the edits sidebar ("Go to …"). Charge-line edits belong to step 5.
-const STEP_NAMES = { em: 'Step 1 · E/M', cpt: 'Step 2 · CPT', hcpcs: 'Step 3 · HCPCS', dx: 'Step 4 · ICD-10-CM', lines: 'Step 5 · Modifiers & Dx link', mods: 'Step 5 · Modifiers & Dx link' };
+const STEP_NAMES = {
+  em: 'Step 1 · E/M',
+  cpt: 'Step 2 · CPT',
+  hcpcs: 'Step 3 · HCPCS',
+  dx: 'Step 4 · ICD-10-CM',
+  lines: 'Step 5 · Modifiers & Dx link',
+  mods: 'Step 5 · Modifiers & Dx link',
+};
 // The coding tabs of a chart: inpatient facility as above; charts with charge lines (OP and IP
 // professional) are coded in 5 steps — CPT, E/M, HCPCS, ICD-10-CM, then modifiers & Dx links.
-const tabsOf = (set) => (set.inpatient ? IP_TABS : usesSteps(set) ? CODING_STEPS : [['dx', 'Diagnoses']]);
+const tabsOf = (set) =>
+  set.inpatient ? IP_TABS : usesSteps(set) ? CODING_STEPS : [['dx', 'Diagnoses']];
 // The entry box shown on each step, and the step each entry box (or the E/M box) belongs to.
 const STEP_BOX = { cpt: 'cpt', hcpcs: 'hcpcs', dx: 'icd' };
 const BOX_STEP = { cpt: 'cpt', hcpcs: 'hcpcs', icd: 'dx', pcs: 'pcs', em: 'em' };
-
-function Banner({ chart, set }) {
-  const p = chart.patient || {};
-  const e = chart.encounter || {};
-  const f = (label, value, sub, mono) =>
-    value ? (
-      <div className="bf" key={label}>
-        <span>{label}</span>
-        <b className={mono ? 'm' : ''}>{value}</b>
-        {sub ? <em>{sub}</em> : null}
-      </div>
-    ) : null;
-  const ptype = e.ptype || '';
-  // Plain charts: the record's demographic lines live here (not as a Documents tab).
-  const demo = useMemo(() => demographicsOf(chart), [chart.record, chart.documents]); // eslint-disable-line react-hooks/exhaustive-deps
-  const shown = new Set([p.name, ...Object.values(e)].filter((v) => typeof v === 'string' && v).map((v) => v.toLowerCase()));
-  const [open, setOpen] = useState(true);
-  const sexAge = (p.sex === 'F' ? 'Female' : p.sex === 'M' ? 'Male' : p.sex) + ' · ' + p.age + ' y';
-  const toggle = (
-    <button type="button" className={'wsx-bantoggle' + (open ? ' on' : '')} onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? 'Hide patient details' : 'Show patient details'} title={open ? 'Hide patient details' : 'Show patient details'}>
-      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-        <path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
-  );
-  if (!open) {
-    return (
-      <div className="wsx-bannerwrap closed">
-        <div className="wsx-banner mini">
-          <span className="nm">{p.name}</span>
-          <span className="sub">{sexAge}</span>
-          <span className="btag" title={'Encounter type: ' + ENCOUNTER_LABEL[set.encounterType]}>
-            {set.encounterType}
-          </span>
-          {e.mrn && <span className="sub m">MRN {e.mrn}</span>}
-          {e.allergy && e.allergy !== 'NKDA' && <span className="btag alert">Allergy: {e.allergy}</span>}
-        </div>
-        {toggle}
-      </div>
-    );
-  }
-  return (
-    <div className="wsx-bannerwrap">
-    <div className="wsx-banner">
-      <div className="who">
-        <div className="nm">{p.name}</div>
-        <div className="sub">
-          {p.sex === 'F' ? 'Female' : p.sex === 'M' ? 'Male' : p.sex} · {p.age} y
-        </div>
-        <div className="tags">
-          {/* Encounter type (and billing type) from the chart record — read-only for the student. */}
-          <span className="btag enc" title={'Encounter type: ' + set.encounterType + ' – ' + ENCOUNTER_LABEL[set.encounterType] + (set.billingType ? ' · ' + BILLING_LABEL[set.billingType] + ' billing' : '')}>
-            {set.encounterType + ' · ' + ENCOUNTER_LABEL[set.encounterType].toUpperCase()}
-          </span>
-          {set.ip && set.billingType && <span className="btag">{set.billingType === 'facility' ? 'FACILITY' : 'PROFESSIONAL'}</span>}
-          {ptype && <span className="btag">{ptype === 'new' ? 'NEW PATIENT' : 'ESTABLISHED'}</span>}
-          {e.allergy && <span className={'btag' + (e.allergy !== 'NKDA' ? ' alert' : '')}>Allergy: {e.allergy}</span>}
-          {chart.handwritten && <span className="btag">HANDWRITTEN</span>}
-        </div>
-      </div>
-      {f('MRN', e.mrn, '', 1)}
-      {f('Account', e.acct, '', 1)}
-      {f('Encounter', e.encounterId, '', 1)}
-      {set.ip ? f('Admit → Discharge', e.admit && `${e.admit} → ${e.discharge || '—'}`) : f('Date of service', e.dos)}
-      {set.ip && f('LOS', e.los != null && e.los + ' days')}
-      {f(set.ip ? 'Attending' : 'Provider', e.provider, e.specialty)}
-      {!set.ip && f('Visit type · POS', e.visitType, e.pos && 'POS ' + e.pos)}
-      {f('Payer', e.payer, e.plan)}
-      {f('Member ID', e.member, '', 1)}
-      {f('Facility', e.facility)}
-      {f('Last seen', e.lastSeen)}
-      {!Object.keys(e).length && f('Department', chart.deptName)}
-      {demo.pairs
-        .filter((x) => !shown.has(x.value.toLowerCase()))
-        .map((x, i) => (
-          <div className="bf" key={'d' + i}>
-            <span>{x.label}</span>
-            <b>{x.value}</b>
-          </div>
-        ))}
-      {demo.notes.length > 0 && (
-        <div className="bf note" title={demo.notes.join('\n')}>
-          <span>Note</span>
-          <b>{demo.notes.join(' · ')}</b>
-        </div>
-      )}
-    </div>
-    {toggle}
-    </div>
-  );
-}
 
 // route: /charts/:dept/:chartId
 export default function WorkspacePage() {
@@ -160,9 +161,51 @@ export default function WorkspacePage() {
   const [flash, setFlash] = useState(null);
   const [encQ, setEncQ] = useState('');
   const [encSel, setEncSel] = useState(null);
-  const [sidebar, setSidebar] = useState(true);
-  const [docsOpen, setDocsOpen] = useState(false); // Documents panel starts collapsed
+
+  const [, setDocsOpen] = useState(false); // the Notes activity always shows the documents (kept for its callers)
   const [modal, setModal] = useState(null);
+  const [activity, setActivity] = useState(FIRST_ACTIVITY); // EHR activity tab (ehr/activities/registry.js): review | episode | notes | treat | coding | wrap | iq | msg | demo | flow | synopsis
+  const [sideOpen, setSideOpen] = useState(true); // right panel (Coding · Reports · Visit Report · To Do)
+  const [sideTab, setSideTab] = useState('coding'); // the student codes in the right panel while reading
+  // Chart Review rows shown as their own "Visit Report" tabs in the right panel (Display in Chart Sidebar).
+  const [pinnedIds, setPinnedIds] = useState([]);
+  const pinRow = (row) => {
+    setPinnedIds((ids) => (ids.includes(row.id) ? ids : [...ids, row.id].slice(-6)));
+    setSideOpen(true);
+    setSideTab(pinKey(row.id));
+  };
+  const unpinRow = (id) => {
+    setPinnedIds((ids) => ids.filter((x) => x !== id));
+    setSideTab((t) => (t === pinKey(id) ? 'reports' : t));
+  };
+  // Right panel width: drag the bar between the record and the panel (remembered on this device).
+  const sideResize = useDragWidth({
+    storageKey: 'codivia.workspace.sideWidth',
+    min: 320,
+    maxRatio: 0.7,
+  });
+  const openCodingPanel = () => {
+    setSideOpen(true);
+    setSideTab('coding');
+  };
+  // ◀ ▶ through the activities opened on this chart.
+  const hist = useRef({ list: [FIRST_ACTIVITY], i: 0, moving: false });
+  useEffect(() => {
+    const h = hist.current;
+    if (h.moving) h.moving = false;
+    else if (h.list[h.i] !== activity) {
+      h.list = [...h.list.slice(0, h.i + 1), activity].slice(-30);
+      h.i = h.list.length - 1;
+    }
+  }, [activity]);
+  const stepHistory = (d) => {
+    const h = hist.current;
+    const i = h.i + d;
+    if (i < 0 || i >= h.list.length) return;
+    h.i = i;
+    h.moving = true;
+    setActivity(h.list[i]);
+  };
   const [dxCls, setDxCls] = useState(''); // diagnosis type picked next to the ICD-10-CM box ('' = automatic)
   const [notes, setNotes] = useState({});
   // Medicare fee schedule prices of the codes on the claim (GET /fees/rvu); off = not available.
@@ -271,7 +314,10 @@ export default function WorkspacePage() {
   });
   const saveNow = sync.flush;
   // Closing the tab only needs a warning when the last changes could not be sent.
-  useUnsavedGuard(sync.unsynced && ['offline', 'retrying', 'failed'].includes(sync.state), syncLabels.leaveWarning);
+  useUnsavedGuard(
+    sync.unsynced && ['offline', 'retrying', 'failed'].includes(sync.state),
+    syncLabels.leaveWarning,
+  );
 
   const restoreLocal = async () => {
     baseTime.current = Math.max(baseTime.current, recovery.timeSpent || 0);
@@ -300,7 +346,8 @@ export default function WorkspacePage() {
         const w = await get(MY_CHART_WORK(dept, chartId));
         setWork((cur) => {
           const before = ((cur && cur.queries) || []).filter((q) => q.answered).length;
-          if (w.queries.filter((q) => q.answered).length > before) toast('The physician answered your query — see “Query Response” in Documents');
+          if (w.queries.filter((q) => q.answered).length > before)
+            toast('The physician answered your query — see “Query Response” in Documents');
           return { ...cur, ...w, draft: undefined };
         });
       } catch (e) {
@@ -329,7 +376,15 @@ export default function WorkspacePage() {
     if (!need.length) return undefined;
     let live = true;
     get(FEE_RVU, { params: { codes: need.join(',') } })
-      .then((r) => live && setFees((f) => ({ state: r.release ? 'ready' : 'off', release: r.release, codes: { ...f.codes, ...r.codes } })))
+      .then(
+        (r) =>
+          live &&
+          setFees((f) => ({
+            state: r.release ? 'ready' : 'off',
+            release: r.release,
+            codes: { ...f.codes, ...r.codes },
+          })),
+      )
       .catch(() => live && setFees((f) => ({ ...f, state: 'off' })));
     return () => {
       live = false;
@@ -350,14 +405,22 @@ export default function WorkspacePage() {
       } else if (mod && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setDocsOpen(true);
+        setActivity('notes');
         setTimeout(() => {
           if (findRef.current) {
             findRef.current.focus();
             findRef.current.select();
           }
         }, 0);
-      } else if (e.altKey && /^[1-5]$/.test(e.key) && chart && tabsOf(settingOf(chart))[+e.key - 1]) {
+      } else if (
+        e.altKey &&
+        /^[1-5]$/.test(e.key) &&
+        chart &&
+        tabsOf(settingOf(chart))[+e.key - 1]
+      ) {
         e.preventDefault();
+        setSideOpen(true);
+        setSideTab('coding');
         setTab(tabsOf(settingOf(chart))[+e.key - 1][0]);
       }
     };
@@ -365,7 +428,8 @@ export default function WorkspacePage() {
     return () => document.removeEventListener('keydown', onKey);
   }, [modal, chart]);
 
-  if (!(stu.depts && stu.depts[dept] != null) || missing) return <Navigate to={deptQueuePath(dept)} replace />;
+  if (!(stu.depts && stu.depts[dept] != null) || missing)
+    return <Navigate to={deptQueuePath(dept)} replace />;
   if (loadError || refError)
     return (
       <ErrorState
@@ -386,12 +450,26 @@ export default function WorkspacePage() {
   const docs = documentsOf(chart, queries);
   const facility = facilityRate(chart, set);
   const lineVals = usesSteps(set) ? lineValues(draft.lines, fees, facility) : null;
-  const edits = runEdits({ chart, draft, notes, describe, lookupIcd: codeDB ? (c) => icdRow(codeDB, c) : null, lineVals });
+  const edits = runEdits({
+    chart,
+    draft,
+    notes,
+    describe,
+    lookupIcd: codeDB ? (c) => icdRow(codeDB, c) : null,
+    lineVals,
+  });
   const errs = edits.filter((e) => e.sev === 'err').length;
   const openWarns = edits.filter((e) => e.sev === 'warn' && !draft.acks.includes(e.key)).length;
   // Students may submit with open errors or warnings (they cost marks); only a pending physician query blocks.
   const ready = !pending;
-  const original = chart.original ? { dx: chart.original.dx || [], lines: chart.original.lines || [], drg: chart.original.drg, enteredBy: chart.original.enteredBy } : null;
+  const original = chart.original
+    ? {
+        dx: chart.original.dx || [],
+        lines: chart.original.lines || [],
+        drg: chart.original.drg,
+        enteredBy: chart.original.enteredBy,
+      }
+    : null;
 
   const systems = [{ key: 'CM', label: 'ICD-10-CM', sys: [0] }];
   if (set.hasPCS) systems.push({ key: 'PCS', label: 'ICD-10-PCS', sys: [1] });
@@ -401,7 +479,14 @@ export default function WorkspacePage() {
   const P = set.firstListed; // 'primary' (OP) or 'principal' (IP)
   const hasFirst = draft.dx.some((x) => x.cls === P);
   const currentFirst = draft.dx.find((x) => x.cls === P);
-  const newDx = (code, desc, cls) => ({ id: uid('d'), code, desc, poa: /^Z/.test(norm(code)) && set.inpatient ? '1' : '', cls, ev: [] });
+  const newDx = (code, desc, cls) => ({
+    id: uid('d'),
+    code,
+    desc,
+    poa: /^Z/.test(norm(code)) && set.inpatient ? '1' : '',
+    cls,
+    ev: [],
+  });
   // "Make primary / principal": the chosen code becomes the first-listed diagnosis, the old one secondary.
   const addDx = (row, principal) => {
     const code = row[2];
@@ -420,7 +505,8 @@ export default function WorkspacePage() {
     if (set.inpatient) setTab('dx');
   };
   const addPcs = (row) => {
-    if (draft.pcs.some((p) => norm(p.code) === norm(row[2]))) return toast(row[2] + ' is already coded');
+    if (draft.pcs.some((p) => norm(p.code) === norm(row[2])))
+      return toast(row[2] + ' is already coded');
     change((d) => d.pcs.push({ id: uid('p'), code: row[2], desc: row[3], date: '', ev: [] }));
     setEncSel(null);
     setEncQ('');
@@ -428,7 +514,14 @@ export default function WorkspacePage() {
   };
   const addLine = (row) => {
     change((d) => {
-      const line = { id: uid('l'), code: row[2], desc: row[3], mods: ['', '', '', ''], units: 1, ptrs: d.dx[0] ? [d.dx[0].id] : [] };
+      const line = {
+        id: uid('l'),
+        code: row[2],
+        desc: row[3],
+        mods: ['', '', '', ''],
+        units: 1,
+        ptrs: d.dx[0] ? [d.dx[0].id] : [],
+      };
       if (isEM(norm(row[2]))) d.lines.unshift(line);
       else d.lines.push(line);
     });
@@ -438,8 +531,18 @@ export default function WorkspacePage() {
   const actionsFor = (row) => {
     if (row[0] === 0)
       return [
-        { label: draft.dx.some((x) => norm(x.code) === norm(row[2])) ? `Make ${P}` : `Add as ${P} dx`, primary: true, run: (r) => addDx(r, true) },
-        { label: 'Add as secondary dx', run: (r) => addDx(r, false), disabled: draft.dx.some((x) => norm(x.code) === norm(row[2])) },
+        {
+          label: draft.dx.some((x) => norm(x.code) === norm(row[2]))
+            ? `Make ${P}`
+            : `Add as ${P} dx`,
+          primary: true,
+          run: (r) => addDx(r, true),
+        },
+        {
+          label: 'Add as secondary dx',
+          run: (r) => addDx(r, false),
+          disabled: draft.dx.some((x) => norm(x.code) === norm(row[2])),
+        },
       ];
     if (row[0] === 1) return [{ label: 'Add procedure', primary: true, run: addPcs }];
     return [{ label: 'Add charge line', primary: true, run: addLine }];
@@ -448,7 +551,8 @@ export default function WorkspacePage() {
   // A save returns an error message, or '' when the code was added.
   // The diagnosis type chosen next to the ICD-10-CM box: first-listed until there is one, then secondary.
   const entryCls = dxCls || (hasFirst ? 'secondary' : P);
-  const onlyOne = (code) => `Only one ${firstTerm(set)} is allowed — ${code} is already the ${firstTerm(set)}. Edit it first, or add this code as secondary.`;
+  const onlyOne = (code) =>
+    `Only one ${firstTerm(set)} is allowed — ${code} is already the ${firstTerm(set)}. Edit it first, or add this code as secondary.`;
   const saveDx = (row) => {
     if (draft.dx.some((x) => norm(x.code) === norm(row[2]))) return row[2] + ' is already coded';
     if (draft.dx.length >= set.maxDx) return 'A claim holds at most ' + set.maxDx + ' diagnoses';
@@ -468,9 +572,11 @@ export default function WorkspacePage() {
     const row = icdRow(codeDB, typedCode);
     if (!typedCode) return 'Enter an ICD-10-CM code.';
     if (codeDB && !row) return `${typedCode} is not a valid ICD-10-CM code.`;
-    if (row && !isBillable(row)) return `${row[2]} is a header code — code to the highest specificity.`;
+    if (row && !isBillable(row))
+      return `${row[2]} is a header code — code to the highest specificity.`;
     const code = row ? row[2] : typedCode;
-    if (draft.dx.some((x) => x.id !== id && norm(x.code) === norm(code))) return code + ' is already coded';
+    if (draft.dx.some((x) => x.id !== id && norm(x.code) === norm(code)))
+      return code + ' is already coded';
     const other = draft.dx.find((x) => x.id !== id && x.cls === P);
     if (cls === P && other) return onlyOne(other.code);
     change((d) => {
@@ -495,7 +601,14 @@ export default function WorkspacePage() {
   // A charge line is added without modifiers or diagnosis links — those are step 5.
   const saveLine = (row) => {
     change((d) => {
-      const line = { id: uid('l'), code: row[2], desc: row[3], mods: ['', '', '', ''], units: 1, ptrs: [] };
+      const line = {
+        id: uid('l'),
+        code: row[2],
+        desc: row[3],
+        mods: ['', '', '', ''],
+        units: 1,
+        ptrs: [],
+      };
       if (isEM(norm(row[2]))) d.lines.unshift(line);
       else d.lines.push(line);
     });
@@ -505,7 +618,12 @@ export default function WorkspacePage() {
   };
   // The CPT step takes procedure codes; where the E/M step is offered, E/M codes are sent there.
   const saveCpt = (row) =>
-    set.hasEM && isEM(norm(row[2])) ? { msg: `${row[2]} is an E/M level code. Enter it in step 1 (E/M).`, move: { key: 'em', label: 'step 1 (E/M)', code: row[2] } } : saveLine(row);
+    set.hasEM && isEM(norm(row[2]))
+      ? {
+          msg: `${row[2]} is an E/M level code. Enter it in step 1 (E/M).`,
+          move: { key: 'em', label: 'step 1 (E/M)', code: row[2] },
+        }
+      : saveLine(row);
   // Entry boxes: CPT, HCPCS (charge-line charts), PCS (inpatient facility), ICD-10-CM.
   const entryBoxes = [
     set.hasLines && {
@@ -524,7 +642,14 @@ export default function WorkspacePage() {
       help: 'Drugs (J-codes), supplies and G-codes. Set the units below — J-code units follow the dose given.',
       save: saveLine,
     },
-    set.hasPCS && { key: 'pcs', label: 'ICD-10-PCS', sys: [1], placeholder: 'e.g. 0DTJ4ZZ', help: 'Type a procedure code and press Enter to save it.', save: savePcs },
+    set.hasPCS && {
+      key: 'pcs',
+      label: 'ICD-10-PCS',
+      sys: [1],
+      placeholder: 'e.g. 0DTJ4ZZ',
+      help: 'Type a procedure code and press Enter to save it.',
+      save: savePcs,
+    },
     {
       key: 'icd',
       label: 'ICD-10-CM',
@@ -534,7 +659,12 @@ export default function WorkspacePage() {
       save: saveDx,
       button: 'Add diagnosis',
       extra: (
-        <select className="inp dxtype" value={entryCls} aria-label="Diagnosis type" onChange={(e) => setDxCls(e.target.value)}>
+        <select
+          className="inp dxtype"
+          value={entryCls}
+          aria-label="Diagnosis type"
+          onChange={(e) => setDxCls(e.target.value)}
+        >
           {dxClassOptions(set).map(([v, l]) => (
             <option key={v} value={v} disabled={v === P && hasFirst}>
               {l}
@@ -583,7 +713,14 @@ export default function WorkspacePage() {
           if (has(d.dx, c.code) || d.dx.length >= set.maxDx) return;
           // A previous record's PDx becomes the first-listed diagnosis only if this chart has none yet.
           const first = /^PDx$/i.test(c.type) && !d.dx.some((r) => r.cls === set.firstListed);
-          const x = { id: uid('d'), code: c.code, desc: describe(c.code) || c.desc, poa: set.inpatient ? c.poa || '' : '', cls: first ? set.firstListed : 'secondary', ev: [] };
+          const x = {
+            id: uid('d'),
+            code: c.code,
+            desc: describe(c.code) || c.desc,
+            poa: set.inpatient ? c.poa || '' : '',
+            cls: first ? set.firstListed : 'secondary',
+            ev: [],
+          };
           if (first) d.dx.unshift(x);
           else d.dx.push(x);
           added += 1;
@@ -592,14 +729,27 @@ export default function WorkspacePage() {
         codes
           .filter((c) => /^PCS$/i.test(c.type) && !has(d.pcs, c.code))
           .forEach((c) => {
-            d.pcs.push({ id: uid('p'), code: c.code, desc: describe(c.code) || c.desc, date: '', ev: [] });
+            d.pcs.push({
+              id: uid('p'),
+              code: c.code,
+              desc: describe(c.code) || c.desc,
+              date: '',
+              ev: [],
+            });
             added += 1;
           });
       if (set.hasLines)
         codes
           .filter((c) => /^(CPT|HCPCS)$/i.test(c.type) && !has(d.lines, c.code))
           .forEach((c) => {
-            const line = { id: uid('l'), code: c.code, desc: describe(c.code) || c.desc, mods: [...(c.mods || []), '', '', '', ''].slice(0, 4), units: c.units || 1, ptrs: d.dx[0] ? [d.dx[0].id] : [] };
+            const line = {
+              id: uid('l'),
+              code: c.code,
+              desc: describe(c.code) || c.desc,
+              mods: [...(c.mods || []), '', '', '', ''].slice(0, 4),
+              units: c.units || 1,
+              ptrs: d.dx[0] ? [d.dx[0].id] : [],
+            };
             if (isEM(norm(c.code))) d.lines.unshift(line);
             else d.lines.push(line);
             added += 1;
@@ -611,11 +761,16 @@ export default function WorkspacePage() {
       }
     }
     if (added) setDraft(d);
-    toast(added ? `Added ${added} code${added > 1 ? 's' : ''} from ${prev.title || "the previous record"} — review them against this visit` : 'Those codes are already on this chart');
+    toast(
+      added
+        ? `Added ${added} code${added > 1 ? 's' : ''} from ${prev.title || 'the previous record'} — review them against this visit`
+        : 'Those codes are already on this chart',
+    );
   };
   const goEvidence = (ev) => {
     setDocKey(ev.doc);
     setDocsOpen(true);
+    setActivity('notes');
     setFlash(null);
     setTimeout(() => setFlash(ev.id), 30);
   };
@@ -640,15 +795,21 @@ export default function WorkspacePage() {
   };
   const doSubmit = async () => {
     // Scoring happens on the server: no submitting while offline (the work stays saved on the device).
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new Error(syncLabels.submitOffline);
+    if (typeof navigator !== 'undefined' && navigator.onLine === false)
+      throw new Error(syncLabels.submitOffline);
     await saveNow();
     let res;
     try {
-      res = await submitChart(chart.id, { ...toSubmission(draftRef.current), draft: draftRef.current, timeSpent: elapsed() });
+      res = await submitChart(chart.id, {
+        ...toSubmission(draftRef.current),
+        draft: draftRef.current,
+        timeSpent: elapsed(),
+      });
     } catch (e) {
       // The server re-checks the diagnoses against the chart's encounter type (422 + the rules broken).
       const details = (e && e.data && e.data.details) || [];
-      if (e && e.status === 422 && details.length) throw new Error(e.message + ': ' + details.map((x) => x.message).join(' '));
+      if (e && e.status === 422 && details.length)
+        throw new Error(e.message + ': ' + details.map((x) => x.message).join(' '));
       throw e;
     }
     await sync.discardLocal(); // submitted: the device copy is no longer needed
@@ -685,25 +846,73 @@ export default function WorkspacePage() {
   // Steps: the charge-line edits are fixed in step 5; the sidebar names steps, not tabs.
   const editTab = (t) => (stepMode && t === 'lines' ? 'mods' : t);
   const stepCount = (k) =>
-    k === 'dx' ? draft.dx.length : k === 'mods' ? draft.lines.length : draft.lines.filter((l) => lineStep(l, set) === k).length;
-  const stepIdx = codingTabs.findIndex(([k]) => k === tab);
+    k === 'dx'
+      ? draft.dx.length
+      : k === 'mods'
+        ? draft.lines.length
+        : draft.lines.filter((l) => lineStep(l, set) === k).length;
+  // ---- step order: a step opens only when every step before it is done (rules: chart.codingSteps,
+  // backend config/codingSteps.js). Steps with "codesOrNone" are done with a code or a "none" tick.
+  const stepRules = (chart.codingSteps && chart.codingSteps.steps) || {};
+  const stepText = (chart.codingSteps && chart.codingSteps.labels) || {};
+  const noneSteps = draft.noneSteps || [];
+  const stepOff = (k) => k === 'em' && !set.hasEM;
+  const stepDone = (k) => {
+    const rule = (stepRules[k] || {}).done;
+    if (stepOff(k) || !rule || rule === 'last') return true;
+    return stepCount(k) > 0 || (rule === 'codesOrNone' && noneSteps.includes(k));
+  };
+  const stepLocked = (k) => {
+    const i = codingTabs.findIndex(([x]) => x === k);
+    return codingTabs.slice(0, Math.max(0, i)).some(([x]) => !stepDone(x));
+  };
+  const firstOpenStep = (codingTabs.find(([k]) => !stepOff(k) && !stepDone(k)) ||
+    codingTabs[codingTabs.length - 1])[0];
+  // The step shown: the one asked for (Alt+n, a "Fix" link …) unless it is still locked.
+  const curTab = stepMode && (stepLocked(tab) || stepOff(tab)) ? firstOpenStep : tab;
+  const toggleNone = (k, on) =>
+    change(
+      (d) =>
+        (d.noneSteps = on
+          ? [...new Set([...(d.noneSteps || []), k])]
+          : (d.noneSteps || []).filter((x) => x !== k)),
+    );
+  const fillStep = (s, vars) =>
+    String(s || '').replace(/\{(\w+)\}/g, (m, v) => (vars[v] !== undefined ? vars[v] : m));
+  const stepIdx = codingTabs.findIndex(([k]) => k === curTab);
   const prevStep = stepIdx > 0 ? codingTabs[stepIdx - 1] : null;
   const nextStep = stepIdx > -1 && stepIdx < codingTabs.length - 1 ? codingTabs[stepIdx + 1] : null;
   const dxSection = (
-    <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} editDx={editDx} letters={stepMode} />
+    <DxSection
+      draft={draft}
+      change={change}
+      set={set}
+      lists={lists}
+      evidence={draft.evidence}
+      docs={docs}
+      onGoEvidence={goEvidence}
+      onInfo={showInfo}
+      removeDx={removeDx}
+      editDx={editDx}
+      letters={stepMode}
+    />
   );
   const stepBody =
-    tab === 'cpt' ? (
+    curTab === 'cpt' ? (
       <ChargeList
         draft={draft}
         change={change}
         edits={edits}
         filter={(l) => lineStep(l, set) === 'cpt'}
         title="CPT procedures"
-        hint={set.hasEM ? 'Procedures and services. The E/M level is step 1.' : 'Procedures, services and any E/M level.'}
+        hint={
+          set.hasEM
+            ? 'Procedures and services. The E/M level is step 1.'
+            : 'Procedures, services and any E/M level.'
+        }
         empty="No CPT codes yet. Type a CPT code in the box above and press Enter."
       />
-    ) : tab === 'em' ? (
+    ) : curTab === 'em' ? (
       set.hasEM ? (
         <EmSection
           key={'em' + (entryPrefill && entryPrefill.key === 'em' ? entryPrefill.n : '')}
@@ -719,10 +928,13 @@ export default function WorkspacePage() {
           <div className="sh">
             <h3>Level of service (E/M)</h3>
           </div>
-          <div className="empty">The E/M level is not a separate step in this department. If the visit has an E/M service, enter its code in step 2 (CPT).</div>
+          <div className="empty">
+            The E/M level is not a separate step in this department. If the visit has an E/M
+            service, enter its code in step 2 (CPT).
+          </div>
         </div>
       )
-    ) : tab === 'hcpcs' ? (
+    ) : curTab === 'hcpcs' ? (
       <ChargeList
         draft={draft}
         change={change}
@@ -732,8 +944,18 @@ export default function WorkspacePage() {
         hint="Drugs, supplies and G-codes."
         empty="No HCPCS codes yet. Type a HCPCS code (e.g. J1885) in the box above and press Enter — or go on if the visit has none."
       />
-    ) : tab === 'mods' ? (
-      <LinesSection draft={draft} change={change} edits={edits} original={chart.workType === 'review' ? original : null} describe={describe} lists={lists} grid values={lineVals} fee={{ state: fees.state, release: fees.release, facility }} />
+    ) : curTab === 'mods' ? (
+      <LinesSection
+        draft={draft}
+        change={change}
+        edits={edits}
+        original={chart.workType === 'review' ? original : null}
+        describe={describe}
+        lists={lists}
+        grid
+        values={lineVals}
+        fee={{ state: fees.state, release: fees.release, facility }}
+      />
     ) : (
       dxSection
     );
@@ -742,245 +964,563 @@ export default function WorkspacePage() {
     stepBody
   ) : set.inpatient ? (
     tab === 'dx' ? (
-      <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} editDx={editDx} />
+      <DxSection
+        draft={draft}
+        change={change}
+        set={set}
+        lists={lists}
+        evidence={draft.evidence}
+        docs={docs}
+        onGoEvidence={goEvidence}
+        onInfo={showInfo}
+        removeDx={removeDx}
+        editDx={editDx}
+      />
     ) : tab === 'pcs' ? (
-      <PcsSection draft={draft} change={change} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} />
+      <PcsSection
+        draft={draft}
+        change={change}
+        evidence={draft.evidence}
+        docs={docs}
+        onGoEvidence={goEvidence}
+      />
     ) : tab === 'abs' ? (
       <AbstractSection draft={draft} change={change} chart={chart} lists={lists} />
     ) : (
       <DrgSection draft={draft} change={change} original={chart.original} lists={lists} />
     )
+  ) : tab === 'em' && set.hasEM ? (
+    <EmSection draft={draft} change={change} chart={chart} describe={describe} lists={lists} />
+  ) : tab === 'lines' && set.hasLines ? (
+    <LinesSection
+      draft={draft}
+      change={change}
+      edits={edits}
+      original={chart.workType === 'review' ? original : null}
+      describe={describe}
+      lists={lists}
+    />
   ) : (
-    tab === 'em' && set.hasEM ? (
-      <EmSection draft={draft} change={change} chart={chart} describe={describe} lists={lists} />
-    ) : tab === 'lines' && set.hasLines ? (
-      <LinesSection draft={draft} change={change} edits={edits} original={chart.workType === 'review' ? original : null} describe={describe} lists={lists} />
+    <DxSection
+      draft={draft}
+      change={change}
+      set={set}
+      lists={lists}
+      evidence={draft.evidence}
+      docs={docs}
+      onGoEvidence={goEvidence}
+      onInfo={showInfo}
+      removeDx={removeDx}
+      editDx={editDx}
+    />
+  );
+
+  // ---- EHR shell: activities ----
+  const openNotes = (key) => {
+    if (key) setDocKey(key);
+    setDocsOpen(true);
+    setActivity('notes');
+  };
+  // Coding happens in the right panel's Coding tab, beside whatever the student is reading.
+  const goCoding = (t) => {
+    openCodingPanel();
+    if (t) setTab(codingTabs.some(([k]) => k === editTab(t)) ? editTab(t) : codingTabs[0][0]);
+  };
+  const showSide = sideOpen && !result && !NO_SIDEBAR.includes(activity);
+  const submitLabel = set.inpatient
+    ? 'Submit for audit'
+    : chart.workType === 'review'
+      ? 'Resubmit charges'
+      : 'Submit for scoring';
+  const reviewRows = chartReviewRows(chart, docs);
+  // Tab list and order: ehr/activities/registry.js; the page adds live counts and labels.
+  const activities = activityTabs(chart, {
+    notes: { count: docs.length },
+    msg: { count: queries.filter((q) => !q.answered).length },
+  });
+  const visitSecs = visitSections(docs);
+  const visitVitals = vitalsOf(sectionsText(visitSecs));
+  const badges = (
+    <>
+      <div className="chip enc">{type.label}</div>
+      {chart.position && chart.position.index > 0 && (
+        <div className="chip ok">
+          Chart {chart.position.index} of {chart.position.of}
+        </div>
+      )}
+      {work && work.status === 'deferred' && (
+        <div className="chip pend">Deferred — {(work.defer && work.defer.reason) || ''}</div>
+      )}
+      {work && work.status === 'transferred' && (
+        <div className="chip pend">
+          Transferred — {(work.transfer && work.transfer.queue) || ''}
+        </div>
+      )}
+      {chart.result && !result && (
+        <div className="chip score">
+          {chart.result.audit ? 'Audited score' : 'Last score'} {chart.result.accuracy}%
+        </div>
+      )}
+      {pending && <div className="chip pend">On hold — query pending</div>}
+    </>
+  );
+
+  const codeEntry = (
+    <CodeEntry
+      boxes={entryBoxes.filter((b) => b.key === (stepMode ? STEP_BOX[curTab] : activeSet))}
+      allBoxes={entryBoxes}
+      codeDB={codeDB}
+      dbStatus={dbStatus}
+      prefill={entryPrefill}
+      onSwitch={(key, code) => {
+        setEntryPrefill((p) => ({ key, code, n: (p ? p.n : 0) + 1 }));
+        if (stepMode) setTab(BOX_STEP[key] || 'cpt');
+        else openCodeSet(key);
+      }}
+    />
+  );
+  // Step mode: the steps one under another; only the open step shows its entry box and list.
+  const curRule = stepRules[curTab] || {};
+  const curDone = stepDone(curTab);
+  const stepStack = (
+    <StepStack
+      active={curTab}
+      onOpen={setTab}
+      steps={codingTabs.map(([k, l], i) => {
+        const n = stepCount(k);
+        const before = codingTabs.slice(0, i).find(([x]) => !stepDone(x));
+        return {
+          key: k,
+          label: l,
+          count: stepOff(k) ? 0 : n,
+          bad: errTab(k === 'mods' ? 'lines' : k),
+          state: stepOff(k)
+            ? 'off'
+            : before
+              ? 'locked'
+              : stepDone(k) && (stepRules[k] || {}).done !== 'last'
+                ? 'done'
+                : 'open',
+          summary: stepOff(k)
+            ? 'Not a separate step in this department'
+            : !n && noneSteps.includes(k)
+              ? stepText.noneChosen
+              : k === 'dx'
+                ? draft.dx.map((x) => x.code).join(', ')
+                : draft.lines
+                    .filter((x) => k === 'mods' || lineStep(x, set) === k)
+                    .map((x) => x.code)
+                    .join(', '),
+          lockedText: before
+            ? fillStep(stepText.locked, { n: codingTabs.indexOf(before) + 1, label: before[1] })
+            : '',
+        };
+      })}
+    >
+      {codeEntry}
+      {codingBody}
+      {curRule.done === 'codesOrNone' && !stepCount(curTab) && (
+        <label className="ehr-none">
+          <input
+            type="checkbox"
+            checked={noneSteps.includes(curTab)}
+            onChange={(e) => toggleNone(curTab, e.target.checked)}
+          />{' '}
+          {curRule.none}
+        </label>
+      )}
+      <div className="wsx-stepnav">
+        {prevStep && (
+          <button type="button" className="btn sm" onClick={() => setTab(prevStep[0])}>
+            ‹ Back: {prevStep[1]}
+          </button>
+        )}
+        <div className="sp" />
+        {!curDone && (
+          <span className="ehr-stephint">
+            {curRule.done === 'codes'
+              ? curRule.need
+              : fillStep(stepText.needCodes, { none: curRule.none })}
+          </span>
+        )}
+        {nextStep ? (
+          <button
+            type="button"
+            className="btn sm primary"
+            disabled={!curDone}
+            onClick={() => setTab(nextStep[0])}
+          >
+            {fillStep(stepText.next, { label: nextStep[1] }) || 'Next: ' + nextStep[1]} ›
+          </button>
+        ) : (
+          <button type="button" className="btn sm primary" onClick={() => setActivity('wrap')}>
+            {stepText.finish || 'Wrap-Up'} ›
+          </button>
+        )}
+      </div>
+    </StepStack>
+  );
+  const codingCard = (
+    <div className="card panel">
+      <div className="ph">
+        <h2>
+          {set.ip && chart.workType === 'code'
+            ? set.inpatient
+              ? 'Inpatient coding'
+              : 'Inpatient professional coding'
+            : type.panel}
+        </h2>
+        <div className="r">
+          <span className={'pill ' + type.cls}>{type.badge}</span>
+        </div>
+      </div>
+      {stepMode && stepStack}
+      {!stepMode && codeSets.length > 1 && (
+        <div className="wsx-sets" role="tablist" aria-label="Code set">
+          {codeSets.map(([k, l]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={activeSet === k}
+              className={activeSet === k ? 'on' : ''}
+              onClick={() => openCodeSet(k)}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
+      {!stepMode && codeEntry}
+      {!stepMode && codingTabs.length > 1 && (
+        <div className="wsx-subtabs" role="tablist" aria-label="Coding sections">
+          {codingTabs.map(([k, l], i) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={tab === k}
+              className={'tab' + (tab === k ? ' on' : '')}
+              title={'Alt+' + (i + 1)}
+              onClick={() => setTab(k)}
+            >
+              {l}
+              {k === 'dx' || k === 'pcs' || k === 'lines' ? (
+                <span
+                  className={'pill ' + (errTab(k) ? 'err' : 'gray')}
+                  style={{ padding: '0 7px', marginLeft: 5 }}
+                >
+                  {k === 'dx'
+                    ? draft.dx.length
+                    : k === 'pcs'
+                      ? draft.pcs.length
+                      : draft.lines.length}
+                </span>
+              ) : errTab(k) ? (
+                <span className="pill err" style={{ padding: '0 7px', marginLeft: 5 }}>
+                  !
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      )}
+      {!stepMode && <div className="pb">{codingBody}</div>}
+    </div>
+  );
+
+  // A function, so it is only built after a submit (result is null until then).
+  const resultView = () => (
+    <ResultView
+      result={result.result}
+      certificate={result.certificate}
+      time={result.time}
+      title={
+        chart.workType === 'denial'
+          ? 'Denial worked'
+          : set.inpatient
+            ? 'Audit result — ' + chart.id
+            : chart.workType === 'review'
+              ? 'Charges resubmitted'
+              : 'Chart scored'
+      }
+      onReview={() => setResult(null)}
+      onBack={() => navigate(deptQueuePath(dept))}
+      onNext={nextChart}
+    />
+  );
+  // Each activity tab's screen (keys from ehr/activities/registry.js). Only the open one is rendered.
+  const views = {
+    review: () => (
+      <ChartReview
+        rows={reviewRows}
+        find={find}
+        onOpenNotes={openNotes}
+        onUseCodes={carryForwardCodes}
+        onRoute={() => setModal('query')}
+        onClose={() => stepHistory(-1)}
+        visitOf={(row) => visitModel({ chart, docs, draft, row: row.prev ? row : null })}
+        onPin={pinRow}
+      />
+    ),
+    episode: () => <Episode chart={chart} rows={reviewRows} onOpenNotes={openNotes} />,
+    // The old Documents panel (Documents.jsx) is no longer used here; notes are listed by type and date.
+    notes: () => (
+      <NotesActivity
+        rows={reviewRows}
+        find={find}
+        setFind={setFind}
+        findRef={findRef}
+        docKey={docKey}
+        onSelectDoc={setDocKey}
+        onRoute={() => setModal('query')}
+        onUseCodes={carryForwardCodes}
+        handwritten={chart.handwritten}
+      />
+    ),
+    treat: () => <Treatments docs={docs} find={find} />,
+    // Denial charts only: the claim, remit and account history (the denial work is in the right panel).
+    coding: () => (
+      <div className="ehr-denialleft">
+        <DenialLeft chart={{ ...chart, work }} docs={docs} lists={lists} />
+      </div>
+    ),
+    wrap: () => (
+      <WrapUp
+        chart={chart}
+        draft={draft}
+        set={set}
+        edits={edits}
+        acks={draft.acks}
+        queries={queries}
+        onGo={goCoding}
+        onSubmit={() => setModal('submit')}
+        submitLabel={submitLabel}
+        ready={ready}
+        onDefer={() => setModal('defer')}
+        onTransfer={() => setModal('transfer')}
+        onQuery={() => setModal('query')}
+      />
+    ),
+    iq: () => <PatientIQ docs={docs} find={find} />,
+    msg: () => <PatientMessage queries={queries} onNew={() => setModal('query')} />,
+    demo: () => <Demographics chart={chart} onClose={() => stepHistory(-1)} />,
+    flow: () => <Flowsheets chart={chart} docs={docs} />,
+    synopsis: () => (
+      <Synopsis
+        chart={chart}
+        set={set}
+        docs={docs}
+        workLabel={type.label}
+        onOpenNotes={openNotes}
+      />
+    ),
+  };
+  const stage = (result ? resultView : views[activity] || views[FIRST_ACTIVITY])();
+
+  // Right panel › Coding: the coding steps (or, for a denial, the denial work-up).
+  const codingPanel =
+    chart.workType === 'denial' ? (
+      <DenialRight
+        chart={chart}
+        draft={draft}
+        change={change}
+        set={set}
+        describe={describe}
+        edits={edits}
+        evidence={draft.evidence}
+        docs={docs}
+        lists={lists}
+        onFinish={doSubmit}
+        editDx={editDx}
+        onAccept={async () => {
+          await saveNow();
+          const w = await post(MY_CHART_SESSION(dept, chartId));
+          setWork(w);
+          return w.session;
+        }}
+      />
     ) : (
-      <DxSection draft={draft} change={change} set={set} lists={lists} evidence={draft.evidence} docs={docs} onGoEvidence={goEvidence} onInfo={showInfo} removeDx={removeDx} editDx={editDx} />
-    )
+      codingCard
+    );
+  // Right panel › To Do, under the task list: the edits / scrubber panel (acknowledge, notes, comments).
+  const editsPanel = (
+    <Sidebar
+      open
+      setOpen={() => {}}
+      edits={edits}
+      acks={draft.acks}
+      toggleAck={(k) =>
+        change(
+          (d) =>
+            (d.acks = d.acks.includes(k)
+              ? d.acks.filter((x) => x !== k)
+              : [...d.acks, k].slice(-100)),
+        )
+      }
+      tabName={(t) => (stepMode ? STEP_NAMES[t] : TAB_NAMES[t]) || t}
+      currentTab={stepMode && tab === 'mods' ? 'lines' : tab}
+      goTab={(t) =>
+        setTab(codingTabs.some(([k]) => k === editTab(t)) ? editTab(t) : codingTabs[0][0])
+      }
+      queries={queries}
+      notes={draft.notes}
+      setNotes={(v) => change((d) => (d.notes = v))}
+      activity={(work && work.activity) || []}
+      onComment={async (text) => setWork(await post(MY_CHART_COMMENTS(dept, chartId), { text }))}
+    />
   );
 
   return (
-    <div className="wsx">
-      <Header session={session} onLogout={logout} title={chart.deptName} />
-      <div className="wsx-bar">
-        <button type="button" className="btn sm" onClick={() => leave(deptQueuePath(dept))}>
-          ← Back to chart list
-        </button>
-        <span className="q">
-          {chart.deptName}
-          <small>{chart.id}</small>
-        </span>
-        <span className={'pill ' + type.cls}>{type.label}</span>
-        {chart.position && chart.position.index > 0 && (
-          <span className="pill gray">
-            Chart {chart.position.index} of {chart.position.of}
-          </span>
-        )}
-        {work && work.status === 'deferred' && <span className="pill gray">Deferred — {(work.defer && work.defer.reason) || ''}</span>}
-        {work && work.status === 'transferred' && <span className="pill gray">Transferred — {(work.transfer && work.transfer.queue) || ''}</span>}
-        {chart.result && !result && <span className="pill navy">{chart.result.audit ? 'Audited score' : 'Last score'} {chart.result.accuracy}%</span>}
-        {pending && <span className="pill warn">⏸ On hold — query pending</span>}
-        <div className="sp" />
-        <SyncStatus sync={sync} labels={syncLabels} onRetry={saveNow} />
-        <span className="timer" title="Time on this chart (all sessions)">
-          ⏱ {fmtTime(result ? result.time : elapsed())}
-        </span>
-        <CodeSearchButton codeDB={codeDB} dbStatus={dbStatus} />
-      </div>
-      <Banner chart={chart} set={set} />
-      <OfflineBanner text={syncLabels.offlineBanner} />
-      {recovery && draft && !result && <RecoveryPrompt local={recovery} labels={syncLabels} onRestore={restoreLocal} onDiscard={discardLocalCopy} />}
-      {chart.result && chart.result.audit && !result && <AuditFeedback audit={chart.result.audit} />}
-
-      {result ? (
-        <ResultView
-          result={result.result}
-          certificate={result.certificate}
-          time={result.time}
-          title={chart.workType === 'denial' ? 'Denial worked' : set.inpatient ? 'Audit result — ' + chart.id : chart.workType === 'review' ? 'Charges resubmitted' : 'Chart scored'}
-          onReview={() => setResult(null)}
-          onBack={() => navigate(deptQueuePath(dept))}
-          onNext={nextChart}
+    <div className="wsx ehr">
+      <SystemBar
+        user={session && session.user ? session.user.name : ''}
+        onQueue={() => leave(deptQueuePath(dept))}
+        onLogout={logout}
+        codeSearch={<CodeSearchButton codeDB={codeDB} dbStatus={dbStatus} />}
+        sync={<SyncStatus sync={sync} labels={syncLabels} onRetry={saveNow} />}
+        timer={fmtTime(result ? result.time : elapsed())}
+        onSearch={(q) => {
+          setFind(q);
+          openNotes();
+        }}
+        counters={[
+          { label: 'Open Edits', n: errs + openWarns, onClick: () => setActivity('wrap') },
+          { label: 'Queries', n: queries.length, onClick: () => setActivity('wrap') },
+        ]}
+      />
+      <PatientTabs
+        name={(chart.patient && chart.patient.name) || ''}
+        chartId={chart.id}
+        onClose={() => leave(deptQueuePath(dept))}
+      />
+      <div className="ehr-body">
+        <Storyboard
+          chart={chart}
+          set={set}
+          demo={demographicsOf(chart)}
+          dxList={draft.dx}
+          lines={draft.lines}
+          badges={badges}
+          vitals={visitVitals}
+          medCount={medsOf(visitSecs).length}
+          alertText={pending ? 'Physician query pending' : type.label}
+          onProfile={() => setActivity('demo')}
         />
-      ) : chart.workType === 'denial' ? (
-        <div className="wsx-grid two">
-          <DenialLeft chart={{ ...chart, work }} docs={docs} lists={lists} />
-          <DenialRight
-            chart={chart}
-            draft={draft}
-            change={change}
-            set={set}
-            describe={describe}
-            edits={edits}
-            evidence={draft.evidence}
-            docs={docs}
-            lists={lists}
-            onFinish={doSubmit}
-            editDx={editDx}
-            onAccept={async () => {
-              await saveNow();
-              const w = await post(MY_CHART_SESSION(dept, chartId));
-              setWork(w);
-              return w.session;
-            }}
+        <div className="ehr-main">
+          <ActivityTabs
+            tabs={activities}
+            active={result ? '' : activity}
+            onTab={(k) => (setResult(null), setActivity(k))}
+            onBack={() => stepHistory(-1)}
+            onForward={() => stepHistory(1)}
+            canBack={hist.current.i > 0}
+            canForward={hist.current.i < hist.current.list.length - 1}
           />
-        </div>
-      ) : (
-        <div className={'wsx-grid' + (sidebar ? '' : ' closed') + (docsOpen ? '' : ' docs-closed')}>
-          <DocumentsPanel
-            previous={chart.previousRecords || []}
-            onUseCodes={carryForwardCodes}
-            open={docsOpen}
-            setOpen={setDocsOpen}
-            docs={docs}
-            active={docKey}
-            onOpen={setDocKey}
-            evidence={draft.evidence}
-            linkTargets={linkTargets}
-            onLink={linkEvidence}
-            find={find}
-            setFind={setFind}
-            flash={flash}
-            handwritten={chart.handwritten}
-            findRef={findRef}
-            toast={toast}
-          />
-          <div className="card panel">
-            <div className="ph">
-              <h2>{set.ip && chart.workType === 'code' ? (set.inpatient ? 'Inpatient coding' : 'Inpatient professional coding') : type.panel}</h2>
-              <div className="r">
-                <span className={'pill ' + type.cls}>{type.badge}</span>
-              </div>
-            </div>
-            {dbStatus === 'error' && (
-              <div className="cv-banner degraded" style={{ position: 'static' }} role="alert">
-                The code database couldn't load, so code search is unavailable.
-                <button type="button" onClick={retryCodeDB}>
-                  Retry
-                </button>
-              </div>
-            )}
-            {stepMode && (
-              <ol className="wsx-steps" role="tablist" aria-label="Coding steps">
-                {codingTabs.map(([k, l], i) => {
-                  const n = stepCount(k);
-                  const off = k === 'em' && !set.hasEM;
-                  const bad = errTab(k === 'mods' ? 'lines' : k);
-                  return (
-                    <li key={k}>
-                      <button
-                        type="button"
-                        role="tab"
-                        aria-selected={tab === k}
-                        className={'st' + (tab === k ? ' on' : '') + (off ? ' off' : '') + (n && !off ? ' done' : '') + (bad ? ' bad' : '')}
-                        title={'Alt+' + (i + 1) + (off ? ' — not a separate step in this department' : '')}
-                        onClick={() => setTab(k)}
-                      >
-                        <span className="n">{i + 1}</span>
-                        <span className="l">{l}</span>
-                        {!off && n > 0 && <span className="c">{n}</span>}
-                        {bad && (
-                          <span className="c err" aria-label="has errors">
-                            !
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-            {!stepMode && codeSets.length > 1 && (
-              <div className="wsx-sets" role="tablist" aria-label="Code set">
-                {codeSets.map(([k, l]) => (
-                  <button key={k} type="button" role="tab" aria-selected={activeSet === k} className={activeSet === k ? 'on' : ''} onClick={() => openCodeSet(k)}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-            )}
-            <CodeEntry
-              boxes={entryBoxes.filter((b) => b.key === (stepMode ? STEP_BOX[tab] : activeSet))}
-              allBoxes={entryBoxes}
-              codeDB={codeDB}
-              dbStatus={dbStatus}
-              prefill={entryPrefill}
-              onSwitch={(key, code) => {
-                setEntryPrefill((p) => ({ key, code, n: (p ? p.n : 0) + 1 }));
-                if (stepMode) setTab(BOX_STEP[key] || 'cpt');
-                else openCodeSet(key);
-              }}
+          <OfflineBanner text={syncLabels.offlineBanner} />
+          {recovery && draft && !result && (
+            <RecoveryPrompt
+              local={recovery}
+              labels={syncLabels}
+              onRestore={restoreLocal}
+              onDiscard={discardLocalCopy}
             />
-            {!stepMode && codingTabs.length > 1 && (
-              <div className="wsx-subtabs" role="tablist" aria-label="Coding sections">
-                {codingTabs.map(([k, l], i) => (
-                  <button key={k} type="button" role="tab" aria-selected={tab === k} className={'tab' + (tab === k ? ' on' : '')} title={'Alt+' + (i + 1)} onClick={() => setTab(k)}>
-                    {l}
-                    {k === 'dx' || k === 'pcs' || k === 'lines' ? (
-                      <span className={'pill ' + (errTab(k) ? 'err' : 'gray')} style={{ padding: '0 7px', marginLeft: 5 }}>
-                        {k === 'dx' ? draft.dx.length : k === 'pcs' ? draft.pcs.length : draft.lines.length}
-                      </span>
-                    ) : errTab(k) ? (
-                      <span className="pill err" style={{ padding: '0 7px', marginLeft: 5 }}>
-                        !
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
+          )}
+          {chart.result && chart.result.audit && !result && (
+            <AuditFeedback audit={chart.result.audit} />
+          )}
+          {dbStatus === 'error' && (
+            <div className="cv-banner degraded" style={{ position: 'static' }} role="alert">
+              The code database couldn't load, so code search is unavailable.
+              <button type="button" onClick={retryCodeDB}>
+                Retry
+              </button>
+            </div>
+          )}
+          <div
+            className={
+              'ehr-split' + (showSide ? ' with-side' + (sideTab === 'coding' ? ' wide' : '') : '')
+            }
+            style={
+              showSide && sideResize.width ? { '--side-w': sideResize.width + 'px' } : undefined
+            }
+          >
+            <div className="ehr-stage">{stage}</div>
+            {showSide && (
+              <div
+                className="ehr-resizer"
+                title="Drag to resize · double-click to reset"
+                {...sideResize.handleProps}
+              >
+                <i className="bi bi-grip-vertical" aria-hidden="true" />
               </div>
             )}
-            <div className="pb">
-              {codingBody}
-              {stepMode && (
-                <div className="wsx-stepnav">
-                  {prevStep && (
-                    <button type="button" className="btn sm" onClick={() => setTab(prevStep[0])}>
-                      ‹ Back: {prevStep[1]}
-                    </button>
-                  )}
-                  <div className="sp" />
-                  {nextStep && (
-                    <button type="button" className="btn sm" onClick={() => setTab(nextStep[0])}>
-                      Next: {nextStep[1]} ›
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="abar">
-              <span className={'status ' + statusText[0]}>{statusText[1]}</span>
-              <div className="sp" />
-              <button type="button" className="btn" onClick={() => setModal('query')}>
-                Physician query
+            {showSide && (
+              <SidePanel
+                chart={chart}
+                docs={docs}
+                draft={draft}
+                edits={edits}
+                acks={draft.acks}
+                errs={errs}
+                pending={pending}
+                queries={queries}
+                onOpenNotes={openNotes}
+                onWrap={() => setActivity('wrap')}
+                onGo={goCoding}
+                onHide={() => setSideOpen(false)}
+                tab={sideTab}
+                onTab={setSideTab}
+                coding={codingPanel}
+                codingCount={errs || openWarns}
+                codingTone={errs ? 'err' : openWarns ? 'warn' : ''}
+                todoExtra={editsPanel}
+                pinned={pinnedIds.map((id) => reviewRows.find((r) => r.id === id)).filter(Boolean)}
+                onUnpin={unpinRow}
+                onUseCodes={carryForwardCodes}
+              />
+            )}
+            {!showSide && !result && !NO_SIDEBAR.includes(activity) && (
+              <button
+                type="button"
+                className="ehr-sideopen"
+                onClick={() => setSideOpen(true)}
+                title="Show sidebar"
+                aria-label="Show sidebar"
+              >
+                <i className="bi bi-chevron-double-left" />
               </button>
-              <button type="button" className="btn" onClick={() => setModal('defer')}>
-                Defer
-              </button>
-              <button type="button" className="btn" onClick={() => setModal('transfer')}>
-                Transfer
-              </button>
-              <button type="button" className="btn primary" disabled={!ready} title={ready ? '' : 'Wait for the answer to your physician query first'} onClick={() => setModal('submit')}>
-                {set.inpatient ? 'Submit for audit ▸' : chart.workType === 'review' ? 'Resubmit charges ▸' : 'Submit for scoring ▸'}
-              </button>
-            </div>
+            )}
           </div>
-          <Sidebar
-            open={sidebar}
-            setOpen={setSidebar}
-            edits={edits}
-            acks={draft.acks}
-            toggleAck={(k) => change((d) => (d.acks = d.acks.includes(k) ? d.acks.filter((x) => x !== k) : [...d.acks, k].slice(-100)))}
-            tabName={(t) => (stepMode ? STEP_NAMES[t] : TAB_NAMES[t]) || t}
-            currentTab={stepMode && tab === 'mods' ? 'lines' : tab}
-            goTab={(t) => setTab(codingTabs.some(([k]) => k === editTab(t)) ? editTab(t) : codingTabs[0][0])}
-            queries={queries}
-            notes={draft.notes}
-            setNotes={(v) => change((d) => (d.notes = v))}
-            activity={(work && work.activity) || []}
-            onComment={async (text) => setWork(await post(MY_CHART_COMMENTS(dept, chartId), { text }))}
-          />
         </div>
+      </div>
+      {!result && (
+        <BottomBar
+          dxCount={draft.dx.length}
+          onAddDx={() => goCoding('dx')}
+          status={statusText}
+          actions={[
+            {
+              label: 'Physician Query',
+              icon: 'bi-chat-left-dots',
+              onClick: () => setModal('query'),
+            },
+            { label: 'Defer', icon: 'bi-pause-circle', onClick: () => setModal('defer') },
+            { label: 'Transfer', icon: 'bi-arrow-left-right', onClick: () => setModal('transfer') },
+            { label: 'Wrap-Up', icon: 'bi-check2-square', onClick: () => setActivity('wrap') },
+          ]}
+          submit={
+            <button
+              type="button"
+              className="ehr-sign"
+              disabled={!ready}
+              title={ready ? '' : 'Wait for the answer to your physician query first'}
+              onClick={() => setModal('submit')}
+            >
+              <i className="bi bi-check-lg" /> {submitLabel}
+            </button>
+          }
+        />
       )}
 
       {modal === 'defer' && (
@@ -1017,7 +1557,17 @@ export default function WorkspacePage() {
           }}
         />
       )}
-      {modal === 'submit' && <SubmitModal draft={draft} set={set} workType={chart.workType} errs={errs} warns={openWarns} onClose={() => setModal(null)} onSubmit={doSubmit} />}
+      {modal === 'submit' && (
+        <SubmitModal
+          draft={draft}
+          set={set}
+          workType={chart.workType}
+          errs={errs}
+          warns={openWarns}
+          onClose={() => setModal(null)}
+          onSubmit={doSubmit}
+        />
+      )}
       {toastMsg && (
         <div className="wsx-toast" role="status">
           {toastMsg}

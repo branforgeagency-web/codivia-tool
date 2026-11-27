@@ -44,7 +44,7 @@ test('reads setup, patient, encounter and answer key; record keeps only the char
   assert.equal(fields.encounterType, 'IP');
   assert.equal(fields.billingType, 'facility');
   assert.equal(fields.difficulty, 'advanced');
-  assert.deepEqual(fields.patient, { name: 'Rivera, Ana', sex: 'F', age: '52' });
+  assert.deepEqual(fields.patient, { name: 'Rivera, Ana', sex: 'F', age: '52', details: {} });
   assert.equal(fields.encounter.mrn, 'M0048213');
   assert.equal(fields.encounter.provider, 'Dr Kim Patel, MD');
   assert.equal(fields.encounter.specialty, 'General Surgery');
@@ -89,4 +89,10 @@ HISTORY | 01/12/2026 | Denied | CO-97 bundled | 180.00`;
   assert.equal(fields.denial.invoice.billed, 180);
   assert.equal(fields.denial.invoice.daysToAppeal, 45);
   assert.deepEqual(fields.denial.history, [['01/12/2026', 'Denied', 'CO-97 bundled', '180.00']]);
+});
+
+test('reads demographic details (DOB, address, language, employer, code status)', () => {
+  const { fields, record } = readChartText('Patient: Doe, Jane\nDOB: 11/29/1980\nAddress: 12 Elm St, Springfield\nPreferred Language: English\nEmployer: Acme\nCode Status: Full Code\n\nHPI:\nCough.', { departments });
+  assert.deepEqual(fields.patient.details, { dob: '11/29/1980', address: '12 Elm St, Springfield', language: 'English', employer: 'Acme', codeStatus: 'Full Code' });
+  assert.ok(record.includes('DOB: 11/29/1980'));
 });

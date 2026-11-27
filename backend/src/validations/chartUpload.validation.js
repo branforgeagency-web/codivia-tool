@@ -5,6 +5,12 @@ const { DIFFICULTIES } = require('../models/chart.model');
 const { UPLOAD_STATUS } = require('../models/chartUpload.model');
 const { objectId } = require('./custom.validation');
 const { answerRow, caseFields, encounterType } = require('./chartCase.validation');
+const { DEMOGRAPHICS } = require('../config/demographics');
+
+// Demographic details: { dob: '…', address: '…' } (keys from config/demographics.js).
+const details = Joi.object()
+  .pattern(Joi.string().valid(...DEMOGRAPHICS.fields.filter((f) => !f.from).map((f) => f.key)), Joi.string().trim().max(DEMOGRAPHICS.limits.value).allow(''))
+  .max(DEMOGRAPHICS.limits.keys);
 
 // A file stored by POST /media-upload (charts folder). Only the key is trusted; the URL is rebuilt
 // on the server, so a chart can't point at an outside link.
@@ -34,6 +40,7 @@ const createUpload = {
       name: Joi.string().trim().min(1).max(L.patientName),
       sex: Joi.string().valid('M', 'F'),
       age: Joi.number().integer().min(0).max(130),
+    details,
     }),
     sourceName: Joi.string().trim().max(L.sourceName).allow(null, ''),
     sourceFile,
@@ -52,6 +59,7 @@ const chartEditFields = {
     name: Joi.string().trim().min(1).max(L.patientName),
     sex: Joi.string().valid('M', 'F'),
     age: Joi.number().integer().min(0).max(130),
+    details,
   }),
   // Changing the encounter / billing type of a chart students have already worked is refused (409)
   // until the admin confirms they reviewed the impact; the confirmation is written to the audit log.

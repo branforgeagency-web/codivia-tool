@@ -74,6 +74,9 @@ Styling: plain CSS (`src/styles/app.css`, `refinements.css` — large, grep it; 
 | Task | Look here first |
 |---|---|
 | Sign-in / sign-up / tokens | FE `pages/auth/Login.jsx`, `services/auth.service.js`, `tokenCookies.js`, `context/SessionContext.jsx` · BE `auth.*`, `token.service.js`, `middlewares/auth.js`, `config/users.js`, `validations/custom.validation.js` |
+| **Workspace EHR shell** (2026-11-27 layout) | `workspace/ehr/` — import everything from `ehr/index.js`. `shell/` (SystemBar, PatientTabs, Storyboard, ActivityTabs, BottomBar) · `activities/` (one file per tab; **`registry.js` = tab list/order**, `when(chart)` hides a tab; WorkspacePage maps keys → screens in `views`) · `chart-review/` (`CR_TABS`, `CR_FILTERS`, `chartReviewRows`; `PreviewPane` opens BELOW the list with a drag bar; rows with `detail` (referrals) show a structured form; a tab can set `tools` (own disabled toolbar buttons) and `compactFilters` (text filter behind "Filters"), e.g. Rad with modality boxes in `CR_FILTERS.rad`, a filter with `default: true` starts ticked; `preview: 'right'` opens the preview beside the list (toolbar switch below/beside); Rad rows carry `imaging` → `ImagingReport.jsx`); encounter rows show a wide **visit report** (`lib/visitModel.js` + `sidebar/VisitReport.jsx`), and "Display in Chart Sidebar" pins it as its own closable Visit Report tab in the right panel (`pinnedIds` in WorkspacePage, keys `pin:<row id>`) · Notes activity = `activities/NotesActivity.jsx` (note-type tabs, list by date, read-only note toolbar; the old `Documents.jsx` panel is no longer used there) · `sidebar/` (`SidePanel` = **Coding** · Reports · (pinned Visit Report tabs) · To Do; tab state `sideTab` in WorkspacePage; `REPORTS` list) · `ui/` (ActivityHeader, Card, KvTable, EhrTable, Note, QueryList, ReportView) · `lib/chartText.js` (names, `visitSections`, vitals, meds, dates), `lib/useDragWidth.js` (drag-resize width of the right panel, saved in localStorage). Old flat files in `ehr/` (Activities, MoreActivities, EhrShell, SidePanel, ChartReview, chartReviewData, ReportView) are unused leftovers |
+| Where the student codes | Right panel › **Coding** tab (`codingPanel` in WorkspacePage), beside Chart Review / Notes etc.; no separate Coding activity (denial charts keep a "Denial Work" activity for the claim + remit, with `DenialRight` in the panel). ADD DX, Fix, Go to fix and Alt+1–5 open it (`goCoding`). Edits/scrubber panel (acknowledge, notes, comments) sits under **To Do** |
+| Patient demographics (DOB, address, employer, contacts, code status …) | BE `config/demographics.js` (tabs, sections, labels, upload aliases) → `chart.patient.details` (Mixed, chart + chartUpload models) → sent as `chart.demographics` by `getMyChart`; read from upload files by `readChartText` |
 | **Coding workspace** (student codes a chart) | `Frontend/src/pages/student/workspace/`: `WorkspacePage.jsx` (state, autosave, submit), `Sections.jsx` (tabs/steps UI), `model.js` (chart setting, steps, helpers), `edits.js` (live claim-scrubber edits), `Denial.jsx`, `Documents.jsx`, `Encoder.jsx`, `CodeEntry.jsx`, `Modals.jsx`, `Result.jsx`, `constants.js` |
 | Student chart work API (autosave, defer, transfer, query, comment) | BE `routes/v1/myChart.route.js` → `myChart.controller.js` → `myChart.service.js` + `chartWork.service.js`, model `chartWork.model.js` |
 | Workspace autosave / **offline safety** | FE `src/offline/` (`useDraftSync` = IndexedDB device copy + server sync + retry + keepalive on close; `RecoveryPrompt`, `SyncStatus`, `OfflineBanner`, `useUnsavedGuard`) · settings & wording BE `config/drafts.js` → `chart.draftSync` · sign-out clears device copies (`SessionContext`) |
@@ -98,7 +101,8 @@ Styling: plain CSS (`src/styles/app.css`, `refinements.css` — large, grep it; 
 ## 6. Domain rules already decided (don't re-ask, don't undo)
 
 - Workspace must feel like **Epic charge review + denial flow**. The reference PDF contains PHI — never
-  copy patient data from it.
+  copy patient data from it. The EHR shell follows Epic's layout and workflow closely but never uses
+  Epic's name, logo or icons (trade dress); evidence linking was removed from the Documents panel.
 - Work types: `code`, `review` (charge review), `denial`, `drg` (DRG validation).
 - Coding steps order (OP / professional): **E/M → CPT → HCPCS → ICD-10-CM → Modifiers & Dx link**
   (E/M first, user's choice). E/M tab only in `EM`, `ED_PRO`, `ED_FAC` departments.
@@ -106,6 +110,9 @@ Styling: plain CSS (`src/styles/app.css`, `refinements.css` — large, grep it; 
   POA, abstract, MS-DRG; IP professional = CPT/HCPCS lines, no POA. Legacy charts without
   `encounterType` derive it from the department — never write to them silently.
 - **Submit is always enabled**; open edits cost marks; only a **pending physician query** blocks submit.
+- Coding steps are **stacked vertically and unlock in order** (2026-11-27): E/M, CPT, HCPCS are done with a
+  code or a "None at this visit" tick (`draft.noneSteps`); ICD-10-CM needs ≥1 diagnosis; Modifiers is last.
+  Rules + wording: BE `config/codingSteps.js` → `chart.codingSteps`; UI `ehr/ui/StepStack.jsx`. Locks never block Submit.
 - Physician queries: **no auto-reply**; admin answers on `/admin/queries`; `cdiResponse` is a suggestion only.
 - `chart.previousRecords` drives the workspace "Previous records" panel (admin form editor not built yet).
 - Fee schedule: CMS RVU files → `npm run seed:fees` → `fee*` collections; the `codes` collection is untouched.

@@ -57,6 +57,7 @@ const chartSchema = new mongoose.Schema(
       name: { type: String, required: true },
       sex: { type: String, enum: ['M', 'F'], required: true },
       age: { type: Number, required: true, min: 0 },
+      details: { type: mongoose.Schema.Types.Mixed, default: undefined }, // demographics (config/demographics.js)
     },
     record: { type: String, required: true },
     answerKey: {

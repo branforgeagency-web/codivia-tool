@@ -49,7 +49,7 @@ export function fromCase(src = {}) {
     billingType: src.billingType || '',
     workType: src.workType || 'code',
     difficulty: src.difficulty || 'moderate',
-    patient: { name: str(src.patient && src.patient.name), sex: (src.patient && src.patient.sex) || 'F', age: str(src.patient && src.patient.age) },
+    patient: { name: str(src.patient && src.patient.name), sex: (src.patient && src.patient.sex) || 'F', age: str(src.patient && src.patient.age), details: (src.patient && src.patient.details) || {} },
     documents: (src.documents || []).map((x, i) => ({ key: x.key || 'd' + (i + 1), title: str(x.title), sub: str(x.sub), body: str(x.body) })),
     encounter: Object.fromEntries(Object.keys(base.encounter).map((k) => [k, str((src.encounter || {})[k])])),
     original: {
@@ -107,7 +107,8 @@ export function toCasePayload(c, { inpatient }) {
     billingType: c.encounterType === 'IP' ? c.billingType : '',
     difficulty: c.difficulty,
     // Blank name / age are left out, so the server's defaults apply.
-    patient: compact({ name: c.patient.name.trim(), sex: c.patient.sex, age: num(c.patient.age) }),
+    // details: demographics read from the uploaded file (DOB, address, employer …), kept as they are.
+    patient: compact({ name: c.patient.name.trim(), sex: c.patient.sex, age: num(c.patient.age), details: c.patient.details && Object.keys(c.patient.details).length ? c.patient.details : undefined }),
     documents: c.documents.filter((d) => d.title.trim() && d.body.trim()).map((d, i) => ({ key: d.key || 'd' + (i + 1), title: d.title.trim(), sub: d.sub.trim(), body: d.body.trim() })),
     cdiResponse: c.cdiResponse.trim(),
   };

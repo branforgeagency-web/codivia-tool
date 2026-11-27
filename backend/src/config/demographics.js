@@ -1,0 +1,55 @@
+// Patient demographics shown in the workspace's Demographics activity (and read from the upload
+// file's "Label: value" lines). Tabs and sections are sent to the student app with the chart, so
+// labels and order live here. A field with `from` is taken from another chart field instead of
+// patient.details; aliases = the labels accepted in an uploaded file.
+const DEMOGRAPHICS = Object.freeze({
+  tabs: [
+    { key: 'basics', label: 'Basics' },
+    { key: 'employer', label: 'Employer and Identification' },
+    { key: 'contacts', label: 'Patient Contacts' },
+    { key: 'pharmacies', label: 'Pharmacies and Labs' },
+    { key: 'care', label: 'Care Information' },
+    { key: 'lists', label: 'Patient Lists' },
+    { key: 'directives', label: 'Advance Directives' },
+    { key: 'code', label: 'Code Status' },
+  ],
+  fields: [
+    { key: 'name', label: 'Name', tab: 'basics', group: '', from: 'patient.name' },
+    { key: 'dob', label: 'Date of Birth', tab: 'basics', group: '', aliases: ['DOB', 'Date of Birth', 'Birth Date'] },
+    { key: 'sex', label: 'Legal Sex', tab: 'basics', group: '', from: 'patient.sex' },
+    { key: 'address', label: 'Address', tab: 'basics', group: 'Communication', aliases: ['Address', 'Home Address'] },
+    { key: 'phone', label: 'Phone', tab: 'basics', group: 'Communication', aliases: ['Phone', 'Home Phone', 'Mobile Phone', 'Cell Phone'] },
+    { key: 'email', label: 'Email', tab: 'basics', group: 'Communication', aliases: ['Email', 'E-mail'] },
+    { key: 'language', label: 'Pref Spk Language', tab: 'basics', group: 'Additional', aliases: ['Language', 'Preferred Language', 'Spoken Language'] },
+    { key: 'writtenLanguage', label: 'Pref Wrt Language', tab: 'basics', group: 'Additional', aliases: ['Written Language'] },
+    { key: 'interpreter', label: 'Interpreter Needed?', tab: 'basics', group: 'Additional', aliases: ['Interpreter', 'Interpreter Needed'] },
+    { key: 'religion', label: 'Religion', tab: 'basics', group: 'Additional', aliases: ['Religion'] },
+    { key: 'maidenName', label: 'Maiden Name', tab: 'basics', group: 'Additional', aliases: ['Maiden Name'] },
+    { key: 'ethnicity', label: 'Ethnicity', tab: 'basics', group: 'Additional', aliases: ['Ethnicity'] },
+    { key: 'race', label: 'Race', tab: 'basics', group: 'Additional', aliases: ['Race'] },
+    { key: 'maritalStatus', label: 'Marital Status', tab: 'basics', group: 'Additional', aliases: ['Marital Status'] },
+    { key: 'employmentStatus', label: 'Employment Status', tab: 'employer', group: 'Employer Information', aliases: ['Employment Status'] },
+    { key: 'employer', label: 'Employer', tab: 'employer', group: 'Employer Information', aliases: ['Employer'] },
+    { key: 'occupation', label: 'Occupation', tab: 'employer', group: 'Employer Information', aliases: ['Occupation'] },
+    { key: 'mrn', label: 'MRN', tab: 'employer', group: 'Patient Identification', from: 'encounter.mrn' },
+    { key: 'ptype', label: 'Patient Type', tab: 'employer', group: 'Patient Identification', from: 'encounter.ptype' },
+    { key: 'member', label: 'Member ID', tab: 'employer', group: 'Patient Identification', from: 'encounter.member' },
+    { key: 'emergencyContact', label: 'Emergency Contact', tab: 'contacts', group: 'Patient Contacts', aliases: ['Emergency Contact', 'Next of Kin'] },
+    { key: 'contactRelation', label: 'Relationship', tab: 'contacts', group: 'Patient Contacts', aliases: ['Relationship', 'Contact Relationship'] },
+    { key: 'contactPhone', label: 'Contact Phone', tab: 'contacts', group: 'Patient Contacts', aliases: ['Contact Phone', 'Emergency Phone'] },
+    { key: 'pharmacy', label: 'Preferred Pharmacy', tab: 'pharmacies', group: 'Pharmacies', aliases: ['Pharmacy', 'Preferred Pharmacy'] },
+    { key: 'lab', label: 'Preferred Lab', tab: 'pharmacies', group: 'Labs', aliases: ['Preferred Lab'] },
+    { key: 'pcp', label: 'Primary Care Provider', tab: 'care', group: 'Care Team', aliases: ['PCP', 'Primary Care Provider'] },
+    { key: 'referringProvider', label: 'Referring Provider', tab: 'care', group: 'Care Team', aliases: ['Referring Provider'] },
+    { key: 'provider', label: 'Provider', tab: 'care', group: 'Care Team', from: 'encounter.provider' },
+    { key: 'payer', label: 'Payer', tab: 'care', group: 'Coverage', from: 'encounter.payer' },
+    { key: 'plan', label: 'Plan', tab: 'care', group: 'Coverage', from: 'encounter.plan' },
+    { key: 'patientLists', label: 'Patient Lists', tab: 'lists', group: '', aliases: ['Patient Lists', 'Patient List'] },
+    { key: 'advanceDirective', label: 'Advance Directive', tab: 'directives', group: '', aliases: ['Advance Directive', 'Advance Directives', 'Adv Care Plan'] },
+    { key: 'codeStatus', label: 'Code Status', tab: 'code', group: '', aliases: ['Code Status'] },
+  ],
+  valueLabels: { sex: { F: 'Female', M: 'Male' }, ptype: { new: 'New patient', est: 'Established patient' } },
+  limits: { keys: 60, value: 300 },
+});
+
+module.exports = { DEMOGRAPHICS };
