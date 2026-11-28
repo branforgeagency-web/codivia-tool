@@ -12,6 +12,19 @@ const MEDIA_FOLDERS = Object.freeze({
       '.txt': 'text/plain',
     }),
   }),
+  // Scans and photos attached to a chart's Media items (Chart Review › Media): shown to students.
+  chartMedia: Object.freeze({
+    label: 'Chart media (scans, photos)',
+    maxBytes: 10 * 1024 * 1024,
+    types: Object.freeze({
+      '.pdf': 'application/pdf',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
+      '.gif': 'image/gif',
+    }),
+  }),
 });
 
 const MEDIA_FOLDER_LIST = Object.freeze(Object.keys(MEDIA_FOLDERS));

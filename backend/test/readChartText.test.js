@@ -240,3 +240,8 @@ MEDIA | Signed consent form | Consent | 03/09/2026 | Registration`;
   assert.ok(!record.includes('LAB |') && record.includes('HPI: knee pain'));
   assert.ok(found.includes('Labs (2)') && found.includes('Anesthesia (1)'));
 });
+
+test('reads structured cardiology rows', () => {
+  const { fields } = readChartText('CARD | EKG 12-lead | 03/10/2026 08:15 | Sinus tachycardia, no ST changes | HR 112; PR 150 ms; QTc 440 ms | Abnormal | Final | Dr Heart', { departments });
+  assert.deepEqual(fields.clinical.cards[0], { study: 'EKG 12-lead', date: '03/10/2026 08:15', interpretation: 'Sinus tachycardia, no ST changes', measurements: 'HR 112; PR 150 ms; QTc 440 ms', flag: 'Abnormal', status: 'Final', readBy: 'Dr Heart' });
+});

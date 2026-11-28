@@ -5,6 +5,8 @@ import { MEDIA_UPLOAD } from './endpoints';
 // so a wrong file fails before it is sent. The server checks again.
 export const MEDIA_FOLDERS = Object.freeze({
   charts: { extensions: ['.pdf', '.doc', '.docx', '.txt'], maxBytes: 10 * 1024 * 1024 },
+  // Scans / photos attached to a chart's Media items (shown to students).
+  chartMedia: { extensions: ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.gif'], maxBytes: 10 * 1024 * 1024 },
 });
 
 const extOf = (name) => {

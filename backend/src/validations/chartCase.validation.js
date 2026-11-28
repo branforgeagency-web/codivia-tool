@@ -172,13 +172,29 @@ const answerRow = Joi.object({
 const encounterType = Joi.string().trim().uppercase().valid(...ENCOUNTER_TYPE_LIST);
 const billingType = Joi.string().trim().lowercase().valid(...BILLING_TYPE_LIST).allow('', null);
 
+// A scan / photo attached to a Media item (POST /media-upload, folder chartMedia). The URL is
+// added when the chart is read (utils/chartMedia.js), so only the key is stored.
+const mediaFile = Joi.object({
+  key: Joi.string().trim().max(400).required(),
+  name: text(255),
+  size: Joi.number().integer().min(0),
+  mimeType: text(100),
+  folder: text(30),
+  url: Joi.any().strip(),
+});
+
 // Structured results / orders, one list per kind; the fields come from config/chartImport.js.
 const clinical = Joi.object(
   Object.fromEntries(
     Object.entries(CHART_IMPORT.clinicalRows).map(([kind, { fields }]) => [
       kind,
       Joi.array()
-        .items(Joi.object(Object.fromEntries(fields.map((f) => [f, text(L.short)]))))
+        .items(
+          Joi.object({
+            ...Object.fromEntries(fields.map((f) => [f, text(L.short)])),
+            ...(kind === 'media' ? { file: mediaFile } : {}),
+          })
+        )
         .max(L.clinicalRows),
     ])
   )

@@ -11,6 +11,7 @@ const { publicUrl, deleteFile } = require('./media.service');
 const ApiError = require('../utils/ApiError');
 const { readChartText } = require('../utils/readChartText');
 const httpStatus = require('../utils/httpStatus');
+const { withMediaUrls } = require('../utils/chartMedia');
 
 // ---------- Admin Upload page: uploaded charts, draft → published ----------
 
@@ -43,7 +44,7 @@ const toView = (u, deptName) => ({
   denial: u.denial || null,
   previousRecords: u.previousRecords || [],
   episodes: u.episodes || [],
-  clinical: u.clinical || null,
+  clinical: withMediaUrls(u.clinical) || null,
   keyMeta: u.keyMeta || null,
   cdiResponse: u.cdiResponse || '',
   sourceName: u.sourceName,

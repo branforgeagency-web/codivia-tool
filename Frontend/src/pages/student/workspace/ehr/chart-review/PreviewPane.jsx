@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { VisitReport } from '../sidebar/VisitReport.jsx';
 import { ImagingReport } from './ImagingReport.jsx';
+import { MediaViewer } from './MediaViewer.jsx';
 import { ReportView } from '../ui/index.js';
 
 // Plain text of the preview, for Copy.
@@ -169,6 +170,7 @@ export function PreviewPane({
           />
         ) : row.detail ? (
           <>
+            {row.file && row.file.url && <MediaViewer file={row.file} title={row.cells.desc} />}
             <DetailForm groups={row.detail} />
             <ReportView
               title={row.sourceTitle || 'Source in the record'}

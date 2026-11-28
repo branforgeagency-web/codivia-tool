@@ -10,6 +10,7 @@ const { encounterProfile, isInpatientElements } = require('../config/encounter')
 const { DEMOGRAPHICS } = require('../config/demographics');
 const { CODING_STEP_RULES } = require('../config/codingSteps');
 const { DRAFT_SYNC } = require('../config/drafts');
+const { withMediaUrls } = require('../utils/chartMedia');
 
 // ---------- Student "My Charts" ----------
 // Only the signed-in student's own allocated departments and charts. Never returns answer keys.
@@ -287,6 +288,7 @@ const getMyChart = async (student, deptKey, chartId) => {
     encounterType: profile.encounterType,
     billingType: profile.billingType,
     encounterTypeSet: profile.explicit,
+    clinical: withMediaUrls(chart.clinical), // Media items carry their scan / photo URL
     // Inpatient hospital (facility) claim: POA, ICD-10-PCS, abstract, MS-DRG.
     isInpatient: profile.facilityIP,
     position: { index: queue.findIndex((c) => c._id === _id) + 1, of: queue.length },

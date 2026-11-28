@@ -9,6 +9,9 @@ import { parseRecordSections } from '../../recordSections.js';
 import { VITAL_LIST, vitalsOf } from '../lib/chartText.js';
 
 const ED_WORDS = /emergency|\bED\b|\bER\b/;
+// A Media file shown as a picture (else it opens as a PDF / document).
+export const isImage = (f) =>
+  /^image\//.test((f && f.mimeType) || '') || /\.(png|jpe?g|gif|webp)$/i.test((f && f.name) || '');
 // Minutes between two times ("07:42", "03/10/2026 09:17"); past midnight counts on. null if unknown.
 const minutesBetween = (a, b) => {
   const t = (s) => {
@@ -118,9 +121,10 @@ export const CR_TABS = [
     cols: [
       ['when', 'Date'],
       ['desc', 'Study'],
+      ['interp', 'Interpretation'],
       ['abn', 'Abnormal?'],
       ['status', 'Status'],
-      ['author', 'Auth Prov'],
+      ['author', 'Read By'],
     ],
   },
   {
@@ -193,9 +197,11 @@ export const CR_TABS = [
     key: 'media',
     label: 'Media',
     color: '#2a9d5c',
+    preview: 'right', // scans and photos need room: the viewer opens beside the list
     cols: [
       ['when', 'Date'],
       ['desc', 'Document'],
+      ['att', 'File', 'icon'],
       ['type', 'Type'],
       ['author', 'From'],
     ],
@@ -265,6 +271,8 @@ const TYPE_ICON = {
   'Query Response': 'bi-chat-left-text',
   'Progress Notes': 'bi-file-earmark-text',
   Episode: 'bi-collection',
+  Image: 'bi-image', // Media files
+  PDF: 'bi-file-earmark-pdf',
 };
 export const typeIcon = (t) =>
   TYPE_ICON[t] ||
@@ -356,6 +364,23 @@ export const CR_FILTERS = {
     },
   ],
   labs: [{ key: 'abn', label: 'Abnormal', mode: 'only', test: (r) => !!r.cells.abn }],
+  // Cardiology: abnormal, then one box per kind of study (from its name).
+  card: [
+    { key: 'abn', label: 'Abnormal', mode: 'only', test: (r) => !!r.cells.abn },
+    ...[
+      ['ekg', 'EKG', /\b(ekg|ecg|electrocardiogra)/i],
+      ['echo', 'Echo', /echo/i],
+      ['stress', 'Stress', /stress/i],
+      ['monitor', 'Holter/Monitor', /holter|event monitor|monitor|zio/i],
+      ['cath', 'Cath', /cath|angiogra|\bpci\b/i],
+      ['device', 'Device', /pacemaker|\bicd\b|device|interrogat/i],
+    ].map(([key, label, re]) => ({
+      key,
+      label,
+      mode: 'only',
+      test: (r) => re.test(r.cells.desc || ''),
+    })),
+  ],
   meds: [
     { key: 'active', label: 'Active', mode: 'only', test: (r) => /active/i.test(r.cells.status) },
     {
@@ -559,14 +584,14 @@ export function chartReviewRows(chart, docs) {
           status: d.isQuery
             ? 'Answered'
             : d.status ||
-              (tab === 'labs' || tab === 'rad'
+              (['labs', 'rad', 'card'].includes(tab)
                 ? 'Final result'
                 : tab === 'letters'
                   ? 'Sent'
                   : 'Signed'),
           to: d.recipient || '', // letters
           abn:
-            (tab === 'labs' || tab === 'rad') && ABNORMAL.test(bodyOf(x.sections))
+            ['labs', 'rad', 'card'].includes(tab) && ABNORMAL.test(bodyOf(x.sections))
               ? 'Abnormal'
               : '',
           // Imaging: a resulted study is done and signed on the visit date.
@@ -732,7 +757,7 @@ export function chartReviewRows(chart, docs) {
   const opNote = docs.find((d) =>
     /operative|op note|procedure note/i.test(`${d.type || ''} ${d.title}`),
   );
-  const addRow = (tab, i, x, form, text) =>
+  const addRow = (tab, i, x, form, text, more = []) =>
     rows.push({
       id: tab + '-s' + i,
       tab,
@@ -742,9 +767,10 @@ export function chartReviewRows(chart, docs) {
       when: x.when || visitText,
       sections: [{ head: 'RECORD', body: text }],
       cells: x.cells,
-      detail: [{ title: '', rows: form }],
+      detail: [{ title: '', rows: form }, ...more],
       sourceTitle: 'As documented',
       ...(x.doc ? { doc: x.doc } : {}),
+      ...(x.file ? { file: x.file } : {}), // Media: the attached scan / photo
     });
   (cl.labs || []).forEach((l, i) =>
     addRow(
@@ -907,13 +933,61 @@ export function chartReviewRows(chart, docs) {
       [a.type, a.procedure].filter(Boolean).join(' · '),
     );
   });
+  // Cardiology studies: the measurements ("HR 112; QTc 440 ms; EF 35%") are listed one per row.
+  (cl.cards || []).forEach((c, i) => {
+    let findings = 0;
+    const measures = String(c.measurements || '')
+      .split(';')
+      .map((m) => m.trim())
+      .filter(Boolean)
+      .map((m) => {
+        const x = m.match(/^([A-Za-z][A-Za-z0-9 /().-]*?)\s*[:=]?\s*([-<>]?\d.*)$/);
+        return x
+          ? [x[1].trim(), x[2].trim()]
+          : [++findings > 1 ? 'Finding ' + findings : 'Finding', m]; // no number: a finding ("Mild MR")
+      });
+    addRow(
+      'card',
+      i,
+      {
+        when: c.date,
+        cells: {
+          desc: c.study,
+          interp: c.interpretation || '',
+          abn: /^(y|yes|abn|abnormal|a)$/i.test(String(c.flag || '').trim())
+            ? 'Abnormal'
+            : c.flag && !/^(n|no|normal)$/i.test(c.flag)
+              ? c.flag
+              : '',
+          status: c.status || 'Final result',
+          author: c.readBy || '',
+        },
+      },
+      [
+        ['Study', c.study],
+        ['Date', c.date],
+        ['Interpretation', c.interpretation],
+        ['Abnormal?', c.flag],
+        ['Status', c.status || 'Final result'],
+        ['Read By', c.readBy],
+      ],
+      [c.study, c.interpretation].filter(Boolean).join(': '),
+      measures.length ? [{ title: 'Measurements', rows: measures }] : [],
+    );
+  });
   (cl.media || []).forEach((m, i) =>
     addRow(
       'media',
       i,
       {
         when: m.date,
-        cells: { desc: m.document, type: m.type || '', author: m.from || '' },
+        file: m.file && m.file.url ? m.file : null,
+        cells: {
+          desc: m.document,
+          type: m.type || '',
+          author: m.from || '',
+          att: m.file && m.file.url ? (isImage(m.file) ? 'Image' : 'PDF') : '',
+        },
       },
       [
         ['Document', m.document],

@@ -168,6 +168,8 @@ const CHART_IMPORT = Object.freeze({
     ldas: { label: 'LDAs', words: ['lda', 'device', 'drain', 'airway'], fields: ['device', 'site', 'inserted', 'removed', 'status'] },
     procedures: { label: 'Procedures', words: ['proc', 'procedure'], fields: ['procedure', 'date', 'performedBy', 'status'] },
     anesthesia: { label: 'Anesthesia', words: ['anes', 'anesthesia', 'anaesthesia'], fields: ['type', 'asa', 'start', 'stop', 'provider', 'procedure'] },
+    // Cardiology studies: measurements are "name value" pairs split by ; (HR 112; QTc 440 ms; EF 35%).
+    cards: { label: 'Cardiology', words: ['card', 'cardiology', 'ekg', 'ecg', 'echo'], fields: ['study', 'date', 'interpretation', 'measurements', 'flag', 'status', 'readBy'] },
     media: { label: 'Media', words: ['media', 'scan', 'attachment'], fields: ['document', 'type', 'date', 'from'] },
   },
   notReported: ['not reported', 'do not report', 'not coded'], // "NOT REPORTED | CODE | reason"

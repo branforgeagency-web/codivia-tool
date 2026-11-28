@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { post } from '../../services/apiHelper.js';
 import { ADMIN_UPLOADS_EXTRACT } from '../../services/endpoints.js';
+import { MEDIA_FOLDERS, uploadMedia } from '../../services/media.service.js';
 import { validateCode } from '../../utils/codes.js';
 
 // Option lists (work types, POA, dispositions, remit codes, decisions) come from the database
@@ -160,7 +161,8 @@ export function toCasePayload(c, { inpatient }) {
   // Left out when empty, so the server keeps what the chart already has.
   if (c.previousRecords && c.previousRecords.length) payload.previousRecords = c.previousRecords;
   if (c.episodes && c.episodes.length) payload.episodes = c.episodes;
-  if (c.clinical && Object.keys(c.clinical).length) payload.clinical = c.clinical;
+  // Always sent when the form has it, so removing the last media item clears it on the server.
+  if (c.clinical) payload.clinical = c.clinical;
   return payload;
 }
 
@@ -276,6 +278,30 @@ export function CaseFields({ value: c, onChange, inpatient, ip = inpatient, list
       onError('Document extract failed: ' + (e.message || e));
     }
     setBusyDoc(false);
+  };
+  // Media items (chart.clinical.media): read from MEDIA | … rows or added here; each can carry an
+  // uploaded scan / photo (POST /media-upload, folder chartMedia).
+  const [busyMedia, setBusyMedia] = useState(null);
+  const media = (c.clinical && c.clinical.media) || [];
+  const setMedia = (fn) =>
+    set((n) => {
+      n.clinical = n.clinical || {};
+      n.clinical.media = n.clinical.media || [];
+      fn(n.clinical.media);
+      if (!n.clinical.media.length) delete n.clinical.media;
+    });
+  const attachMedia = async (i, f) => {
+    setBusyMedia(i);
+    try {
+      const r = await uploadMedia(f, { folder: 'chartMedia' });
+      setMedia((list) => {
+        list[i].file = { key: r.key, url: r.url, name: r.name, size: r.size, mimeType: r.mimeType, folder: r.folder };
+        if (!list[i].document) list[i].document = f.name.replace(/\.[^.]+$/, '');
+      });
+    } catch (e) {
+      onError('Media upload failed: ' + (e.message || e));
+    }
+    setBusyMedia(null);
   };
   const type = c.workType;
 
@@ -434,6 +460,52 @@ export function CaseFields({ value: c, onChange, inpatient, ip = inpatient, list
               </button>
             </div>
             <textarea value={d.body} placeholder={'HEADING:\nText…  (lines ending in ":" in capitals start sections)'} {...flag(`documents.${i}.body`)} onChange={(e) => set((n) => (n.documents[i].body = e.target.value))} style={{ ...inp, minHeight: 110, fontFamily: 'ui-monospace,Menlo,monospace', fontSize: 12, ...badStyle(`documents.${i}.body`) }} />
+          </div>
+        ))}
+      </div>
+
+      {/* media: scans and photos students open in Chart Review › Media */}
+      <div style={sec}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <h4 style={{ ...h4, margin: 0 }}>Media (scans &amp; photos)</h4>
+          <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Outside records, consent forms, wound photos … Students see the attached file. Never attach the chart file itself (it holds the answer key).</span>
+          <span style={{ flex: 1 }} />
+          <button type="button" className="btn" style={ghostBtn} onClick={() => setMedia((list) => list.push({ document: '', type: '', date: '', from: '' }))}>
+            + Media item
+          </button>
+        </div>
+        {media.map((m, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', border: '1px solid var(--line)', borderRadius: 10, padding: 8, marginBottom: 8 }}>
+            {[
+              ['document', 'Document, e.g. Signed consent form', 2],
+              ['type', 'Type, e.g. Consent / Photo / Outside record', 1],
+              ['date', 'Date', 1],
+              ['from', 'From, e.g. Registration', 1],
+            ].map(([k, ph, grow]) => (
+              <input key={k} value={m[k] || ''} placeholder={ph} onChange={(e) => setMedia((list) => (list[i][k] = e.target.value))} style={{ ...inp, flex: grow, minWidth: 120 }} />
+            ))}
+            {m.file ? (
+              <span style={{ fontSize: 12, display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                {m.file.url ? (
+                  <a href={m.file.url} target="_blank" rel="noreferrer">
+                    📎 {m.file.name || 'file'}
+                  </a>
+                ) : (
+                  <>📎 {m.file.name || 'file'}</>
+                )}
+                <button type="button" style={xBtn} onClick={() => setMedia((list) => delete list[i].file)} title="Remove the file">
+                  ×
+                </button>
+              </span>
+            ) : (
+              <label className="btn" style={{ ...ghostBtn, cursor: 'pointer' }}>
+                {busyMedia === i ? 'Uploading…' : 'Attach file'}
+                <input type="file" accept={MEDIA_FOLDERS.chartMedia.extensions.join(',')} style={{ display: 'none' }} disabled={busyMedia !== null} onChange={(e) => e.target.files[0] && attachMedia(i, e.target.files[0])} />
+              </label>
+            )}
+            <button type="button" style={xBtn} onClick={() => setMedia((list) => list.splice(i, 1))} title="Remove this item">
+              🗑
+            </button>
           </div>
         ))}
       </div>
