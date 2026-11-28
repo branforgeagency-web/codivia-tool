@@ -186,12 +186,12 @@ const mediaFile = Joi.object({
 // Structured results / orders, one list per kind; the fields come from config/chartImport.js.
 const clinical = Joi.object(
   Object.fromEntries(
-    Object.entries(CHART_IMPORT.clinicalRows).map(([kind, { fields }]) => [
+    Object.entries(CHART_IMPORT.clinicalRows).map(([kind, { fields, limits = {} }]) => [
       kind,
       Joi.array()
         .items(
           Joi.object({
-            ...Object.fromEntries(fields.map((f) => [f, text(L.short)])),
+            ...Object.fromEntries(fields.map((f) => [f, text(limits[f] ?? L.short)])),
             ...(kind === 'media' ? { file: mediaFile } : {}),
           })
         )

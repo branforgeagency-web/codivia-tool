@@ -3,6 +3,7 @@
 // "Label: value" lines fill fields; the label words and value words below are matched without case.
 // Only the CHART block (or the whole file when it has no markers) becomes the record students read.
 const { DEMOGRAPHICS } = require('./demographics');
+const { CASE_LIMITS } = require('./chartUploads');
 
 const CHART_IMPORT = Object.freeze({
   blocks: {
@@ -170,6 +171,16 @@ const CHART_IMPORT = Object.freeze({
     anesthesia: { label: 'Anesthesia', words: ['anes', 'anesthesia', 'anaesthesia'], fields: ['type', 'asa', 'start', 'stop', 'provider', 'procedure'] },
     // Cardiology studies: measurements are "name value" pairs split by ; (HR 112; QTc 440 ms; EF 35%).
     cards: { label: 'Cardiology', words: ['card', 'cardiology', 'ekg', 'ecg', 'echo'], fields: ['study', 'date', 'interpretation', 'measurements', 'flag', 'status', 'readBy'] },
+    // Treatments activity: plans (sessions "done/planned", e.g. 4/12) and medicines actually given (MAR).
+    treatments: { label: 'Treatment plans', words: ['treatment', 'treatment plan', 'plan of care'], fields: ['plan', 'type', 'dx', 'schedule', 'sessions', 'status', 'orderedBy', 'approval', 'instructions', 'orderRef', 'start', 'end'] },
+    given: { label: 'Medications given', words: ['admin', 'given', 'mar', 'administered'], fields: ['drug', 'dose', 'route', 'start', 'stop', 'givenBy', 'dx', 'orderRef'] },
+    outcomeForms: { label: 'Outcome forms', words: ['outcome form', 'questionnaire'], fields: ['name', 'date', 'status', 'episode', 'responses'] },
+    outcomeScores: { label: 'Outcome scores', words: ['outcome score', 'prom score'], fields: ['measure', 'domain', 'date', 'score', 'scale', 'milestone', 'episode'] },
+    outcomeTasks: { label: 'Outcome tasks', words: ['outcome task'], fields: ['name', 'due', 'status', 'assignedTo', 'episode', 'detail'] },
+    outcomeMessages: { label: 'Outcome messages', words: ['outcome message'], fields: ['subject', 'date', 'from', 'to', 'episode', 'body'] },
+    patientMessages: { label: 'Patient portal messages', words: ['patient message', 'portal message'], fields: ['thread', 'subject', 'sentAt', 'from', 'to', 'category', 'body'], limits: { body: CASE_LIMITS.why } },
+    digitalVisits: { label: 'Digital E/M documentation', words: ['digital em', 'digital e/m'], fields: ['thread', 'initiatedBy', 'patientRelationship', 'period', 'clinician', 'minutes', 'assessment', 'relatedCare'], limits: { assessment: CASE_LIMITS.why, relatedCare: CASE_LIMITS.why } },
+    flowsheetEntries: { label: 'Flowsheet entries', words: ['flowsheet', 'flowsheet entry'], fields: ['group', 'measure', 'recordedAt', 'value', 'unit', 'recordedBy', 'note'], limits: { value: CASE_LIMITS.why, note: CASE_LIMITS.why } },
     media: { label: 'Media', words: ['media', 'scan', 'attachment'], fields: ['document', 'type', 'date', 'from'] },
   },
   notReported: ['not reported', 'do not report', 'not coded'], // "NOT REPORTED | CODE | reason"

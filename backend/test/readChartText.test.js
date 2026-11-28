@@ -1,11 +1,52 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readChartText } = require('../src/utils/readChartText');
+const { caseFields } = require('../src/validations/chartCase.validation');
 
 const departments = [
   { id: 'EM', name: 'E/M Clinic' },
   { id: 'GENSURG', name: 'General Surgery' },
 ];
+
+test('imports repeated flowsheet measurements and assessment groups', () => {
+  const { fields, record } = readChartText(`===== CHART =====
+HPI: Monitoring visit
+===== CLINICAL DATA =====
+FLOWSHEET | Vitals | Blood pressure | 2026-03-10T08:00 | 122/76 | mmHg | Nurse A
+FLOWSHEET ENTRY | Vitals | Blood pressure | 2026-03-10T12:00 | 118/74 | mmHg | Nurse B
+FLOWSHEET | Pain | Pain score | 2026-03-10T08:00 | 0 | /10
+FLOWSHEET | Intake and Output | Oral intake | 2026-03-10T08:00 | 240 | mL
+FLOWSHEET | Intake and Output | Urine output | 2026-03-10T08:00 | 180 | mL
+FLOWSHEET | Nursing | Mobility | 2026-03-10T08:00 | Assisted
+FLOWSHEET | Wounds | Incision | 2026-03-10T08:00 | Dressing intact | - | Nurse A | No drainage documented
+FLOWSHEET | Screening | Fall risk | 2026-03-10T08:00 | 25`, { departments });
+  const entries = fields.clinical.flowsheetEntries;
+  assert.equal(caseFields.clinical.validate(fields.clinical).error, undefined);
+  assert.equal(entries.length, 8);
+  assert.deepEqual(entries.slice(0, 2).map(({ recordedAt, value }) => [recordedAt, value]), [
+    ['2026-03-10T08:00', '122/76'], ['2026-03-10T12:00', '118/74'],
+  ]);
+  assert.equal(entries[2].value, '0');
+  assert.equal(entries[6].note, 'No drainage documented');
+  assert.ok(record.includes('Monitoring visit') && !record.includes('122/76'));
+});
+
+test('imports portal conversations and associated digital E/M documentation', () => {
+  const body = 'Patient-provided symptom details. '.repeat(10).trim();
+  const { fields, record } = readChartText(`===== CHART =====
+HPI: Follow-up visit
+===== CLINICAL DATA =====
+PATIENT MESSAGE | t1 | Follow-up question | 03/10/2026 09:04 | Patient | Care team | Symptoms | ${body}
+PORTAL MESSAGE | t1 | - | 03/10/2026 10:32 | Clinician | Patient | Advice | Follow-up instructions sent
+DIGITAL E/M | t1 | Patient | Established | 03/10/2026 to 03/16/2026 | Clinician | 12 | Symptoms assessed | Follow-up documented`, { departments });
+  assert.equal(caseFields.clinical.validate(fields.clinical).error, undefined);
+  const { patientMessages, digitalVisits } = fields.clinical;
+  assert.equal(patientMessages[0].body, body);
+  assert.equal(patientMessages[1].thread, digitalVisits[0].thread);
+  assert.equal(patientMessages[1].sentAt, '03/10/2026 10:32');
+  assert.equal(digitalVisits[0].minutes, '12');
+  assert.ok(record.includes('Follow-up visit') && !record.includes(body));
+});
 
 const FILE = `===== CHART SETUP =====
 Department: General Surgery
@@ -244,4 +285,39 @@ MEDIA | Signed consent form | Consent | 03/09/2026 | Registration`;
 test('reads structured cardiology rows', () => {
   const { fields } = readChartText('CARD | EKG 12-lead | 03/10/2026 08:15 | Sinus tachycardia, no ST changes | HR 112; PR 150 ms; QTc 440 ms | Abnormal | Final | Dr Heart', { departments });
   assert.deepEqual(fields.clinical.cards[0], { study: 'EKG 12-lead', date: '03/10/2026 08:15', interpretation: 'Sinus tachycardia, no ST changes', measurements: 'HR 112; PR 150 ms; QTc 440 ms', flag: 'Abnormal', status: 'Final', readBy: 'Dr Heart' });
+});
+
+test('reads treatment plans and medicines given', () => {
+  const { fields } = readChartText('TREATMENT | Physical therapy, right knee | Therapy | M17.11 | 2x/week x 6 weeks | 4/12 | Active | Dr Kim | Auth #A123\nADMIN | Ceftriaxone | 1 g | IV infusion | 10:05 | 10:40 | K. Ward, RN', { departments });
+  assert.deepEqual(fields.clinical.treatments[0], { plan: 'Physical therapy, right knee', type: 'Therapy', dx: 'M17.11', schedule: '2x/week x 6 weeks', sessions: '4/12', status: 'Active', orderedBy: 'Dr Kim', approval: 'Auth #A123' });
+  assert.deepEqual(fields.clinical.given[0], { drug: 'Ceftriaxone', dose: '1 g', route: 'IV infusion', start: '10:05', stop: '10:40', givenBy: 'K. Ward, RN' });
+});
+
+test('reads optional treatment instructions and administration order references', () => {
+  const { fields } = readChartText(`TREATMENT | Infusion plan | Infusion | N39.0 | Once | 1/1 | Completed | Dr Kim | - | Observe for 30 minutes | ORD-17 | 2026-03-10 | 2026-03-11
+ADMIN | Ceftriaxone | 1 g | IV infusion | 10:05 | 10:40 | K. Ward, RN | N39.0 | ORD-17`, { departments });
+  assert.equal(fields.clinical.treatments[0].instructions, 'Observe for 30 minutes');
+  assert.equal(fields.clinical.treatments[0].orderRef, 'ORD-17');
+  assert.equal(fields.clinical.treatments[0].start, '2026-03-10');
+  assert.equal(fields.clinical.treatments[0].end, '2026-03-11');
+  assert.equal(fields.clinical.given[0].dx, 'N39.0');
+  assert.equal(fields.clinical.given[0].orderRef, 'ORD-17');
+});
+
+test('imports patient outcome records separately from chart narrative', () => {
+  const { fields, record } = readChartText(`===== CHART =====
+HPI: Follow-up visit
+===== CLINICAL DATA =====
+QUESTIONNAIRE | Recovery survey | 03/10/2026 | Completed | Knee recovery | Walks independently
+OUTCOME SCORE | Pain NRS | Pain | 03/10/2026 | 0 | 0–10 | Follow-up | Knee recovery
+PROM SCORE | PROMIS PF | Physical function | 03/10/2026 | 46 | T-score | Follow-up | Knee recovery
+OUTCOME TASK | Send follow-up survey | 04/01/2026 | Pending | Care team | Knee recovery | One-month check-in
+OUTCOME MESSAGE | Survey received | 03/11/2026 | Care team | Patient | Knee recovery | Thank you`, { departments });
+  const { outcomeForms, outcomeScores, outcomeTasks, outcomeMessages } = fields.clinical;
+  assert.equal(outcomeForms[0].responses, 'Walks independently');
+  assert.equal(outcomeScores[0].score, '0');
+  assert.equal(outcomeScores[1].domain, 'Physical function');
+  assert.equal(outcomeTasks[0].assignedTo, 'Care team');
+  assert.equal(outcomeMessages[0].body, 'Thank you');
+  assert.ok(record.includes('Follow-up visit') && !record.includes('Survey received'));
 });

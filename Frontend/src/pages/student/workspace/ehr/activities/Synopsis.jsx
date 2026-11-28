@@ -1,6 +1,6 @@
-/* Synopsis: the encounter at a glance and this visit's documents. */
 import { hasValue } from '../lib/chartText.js';
 import { ActivityHeader, Card, CardGrid, KvTable, Note } from '../ui/index.js';
+import { SynopsisHistory } from './SynopsisHistory.jsx';
 
 const ENCOUNTER_FIELDS = [
   ['mrn', 'MRN'],
@@ -36,6 +36,7 @@ export function Synopsis({ chart, set, docs, workLabel, onOpenNotes }) {
         title="Synopsis"
         sub={`${chart.deptName} · ${workLabel} · ${set.encounterType === 'IP' ? 'Inpatient' : 'Outpatient'}`}
       />
+      <SynopsisHistory chart={chart} docs={docs} />
       <CardGrid>
         <Card title="Encounter" icon="bi-hospital">
           {rows.length ? <KvTable rows={rows} /> : <Note>No encounter details on this chart.</Note>}

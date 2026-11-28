@@ -13,7 +13,7 @@ const ED_WORDS = /emergency|\bED\b|\bER\b/;
 export const isImage = (f) =>
   /^image\//.test((f && f.mimeType) || '') || /\.(png|jpe?g|gif|webp)$/i.test((f && f.name) || '');
 // Minutes between two times ("07:42", "03/10/2026 09:17"); past midnight counts on. null if unknown.
-const minutesBetween = (a, b) => {
+export const minutesBetween = (a, b) => {
   const t = (s) => {
     const m = String(s || '').match(/(\d{1,2}):(\d{2})(?!.*\d{1,2}:\d{2})/);
     return m ? Number(m[1]) * 60 + Number(m[2]) : null;

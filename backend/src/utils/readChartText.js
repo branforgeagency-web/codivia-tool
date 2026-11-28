@@ -116,7 +116,8 @@ function readClinical(lines) {
     const list = (out[kind] = out[kind] || []);
     if (list.length >= CASE_LIMITS.clinicalRows) return;
     const row = {};
-    C.clinicalRows[kind].fields.forEach((f, i) => c[i + 1] && c[i + 1] !== '-' && (row[f] = clip(c[i + 1])));
+    const { fields, limits = {} } = C.clinicalRows[kind];
+    fields.forEach((f, i) => c[i + 1] && c[i + 1] !== '-' && (row[f] = clip(c[i + 1], limits[f])));
     list.push(row);
   });
   return out;

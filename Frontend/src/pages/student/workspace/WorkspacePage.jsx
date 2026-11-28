@@ -1278,7 +1278,7 @@ export default function WorkspacePage() {
         handwritten={chart.handwritten}
       />
     ),
-    treat: () => <Treatments docs={docs} find={find} />,
+    treat: () => <Treatments chart={chart} docs={docs} find={find} />,
     // Denial charts only: the claim, remit and account history (the denial work is in the right panel).
     coding: () => (
       <div className="ehr-denialleft">
@@ -1302,8 +1302,8 @@ export default function WorkspacePage() {
         onQuery={() => setModal('query')}
       />
     ),
-    iq: () => <PatientIQ docs={docs} find={find} />,
-    msg: () => <PatientMessage queries={queries} onNew={() => setModal('query')} />,
+    iq: () => <PatientIQ chart={chart} docs={docs} find={find} />,
+    msg: () => <PatientMessage clinical={chart.clinical} queries={queries} onNew={() => setModal('query')} />,
     demo: () => <Demographics chart={chart} onClose={() => stepHistory(-1)} />,
     flow: () => <Flowsheets chart={chart} docs={docs} />,
     synopsis: () => (
