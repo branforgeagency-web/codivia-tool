@@ -21,19 +21,21 @@ const asText = (row) =>
 function DetailForm({ groups }) {
   return (
     <div className="ehr-detail">
-      {groups.map((g, i) => (
-        <section key={i}>
-          {g.title && <h4>{g.title}</h4>}
-          {g.rows
-            .filter(([, v]) => v !== undefined && v !== null && v !== '')
-            .map(([l, v]) => (
-              <div key={l} className="row">
-                <span>{l}:</span>
-                <b>{v}</b>
-              </div>
-            ))}
-        </section>
-      ))}
+      {groups
+        .filter((g) => g.rows.some(([, v]) => v !== undefined && v !== null && v !== ''))
+        .map((g, i) => (
+          <section key={i}>
+            {g.title && <h4>{g.title}</h4>}
+            {g.rows
+              .filter(([, v]) => v !== undefined && v !== null && v !== '')
+              .map(([l, v]) => (
+                <div key={l} className="row">
+                  <span>{l}:</span>
+                  <b>{v}</b>
+                </div>
+              ))}
+          </section>
+        ))}
     </div>
   );
 }
@@ -154,7 +156,11 @@ export function PreviewPane({
       </div>
       <div className="ehr-preview-body">
         {visit ? (
-          <VisitReport model={visit} wide find={hit} onUseCodes={onUseCodes} />
+          <>
+            {/* ED visits: arrival, triage, disposition … above the visit report */}
+            {row.detail && <DetailForm groups={row.detail} />}
+            <VisitReport model={visit} wide find={hit} onUseCodes={onUseCodes} />
+          </>
         ) : row.imaging ? (
           <ImagingReport
             row={row}
@@ -164,7 +170,11 @@ export function PreviewPane({
         ) : row.detail ? (
           <>
             <DetailForm groups={row.detail} />
-            <ReportView title="Source in the record" sections={row.sections} find={hit} />
+            <ReportView
+              title={row.sourceTitle || 'Source in the record'}
+              sections={row.sections}
+              find={hit}
+            />
           </>
         ) : (
           <ReportView

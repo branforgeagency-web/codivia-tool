@@ -33,6 +33,13 @@ const uploadDocumentSchema = new mongoose.Schema(
     key: { type: String, required: true, trim: true },
     title: { type: String, required: true, trim: true },
     sub: { type: String, default: '' },
+    // Note details (NOTE blocks): type (H&P, Consult, Operative Report …), author, specialty, date, status.
+    type: { type: String, default: undefined },
+    author: { type: String, default: undefined },
+    specialty: { type: String, default: undefined },
+    date: { type: String, default: undefined },
+    status: { type: String, default: undefined },
+    recipient: { type: String, default: undefined }, // letters: who it was sent to
     body: { type: String, required: true },
   },
   { _id: false }
@@ -61,6 +68,10 @@ const chartUploadSchema = new mongoose.Schema(
     original: { type: Mixed, default: undefined },
     denial: { type: Mixed, default: undefined },
     previousRecords: { type: Mixed, default: undefined },
+    // Episodes of care [{ key, name, type, status, start, end, provider, dx, note }]; visits join by name.
+    episodes: { type: Mixed, default: undefined },
+    // Structured results / orders: { labs, meds, orders, ldas, procedures, anesthesia, media } (config/chartImport.js clinicalRows).
+    clinical: { type: Mixed, default: undefined },
     keyMeta: { type: Mixed, default: undefined },
     cdiResponse: { type: String, default: undefined },
     sourceName: { type: String, default: null }, // original file name, for the list

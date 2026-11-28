@@ -38,6 +38,13 @@ const documentSchema = new mongoose.Schema(
     key: { type: String, required: true, trim: true },
     title: { type: String, required: true, trim: true },
     sub: { type: String, default: '' },
+    // Note details (NOTE blocks): type (H&P, Consult, Operative Report …), author, specialty, date, status.
+    type: { type: String, default: undefined },
+    author: { type: String, default: undefined },
+    specialty: { type: String, default: undefined },
+    date: { type: String, default: undefined },
+    status: { type: String, default: undefined },
+    recipient: { type: String, default: undefined }, // letters: who it was sent to
     body: { type: String, required: true },
   },
   { _id: false }
@@ -89,6 +96,10 @@ const chartSchema = new mongoose.Schema(
     // the student can carry the codes forward). These are earlier visits, not this chart's answer key:
     //   [{ key, title, dos, provider, facility, body, codes: [{ code, desc, type, poa, mods, units }] }]
     previousRecords: { type: Mixed, default: undefined },
+    // Episodes of care [{ key, name, type, status, start, end, provider, dx, note }]; visits join by name.
+    episodes: { type: Mixed, default: undefined },
+    // Structured results / orders: { labs, meds, orders, ldas, procedures, anesthesia, media } (config/chartImport.js clinicalRows).
+    clinical: { type: Mixed, default: undefined },
     // Graded extras that are not codes: { disp, decision }. Never sent to students.
     keyMeta: { type: Mixed, default: undefined, private: true },
     // The physician's answer to a CDI query on this chart. Sent only once the query is answered.

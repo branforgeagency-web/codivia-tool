@@ -29,12 +29,14 @@ export const emptyCase = () => ({
   difficulty: 'moderate',
   patient: { name: '', sex: 'F', age: '' },
   documents: [],
-  encounter: { mrn: '', acct: '', encounterId: '', dos: '', admit: '', discharge: '', los: '', provider: '', specialty: '', visitType: '', pos: '', facility: '', payer: '', plan: '', member: '', ptype: '', lastSeen: '', allergy: '' },
+  encounter: { mrn: '', acct: '', encounterId: '', dos: '', admit: '', discharge: '', los: '', provider: '', specialty: '', visitType: '', pos: '', facility: '', payer: '', plan: '', member: '', ptype: '', lastSeen: '', allergy: '', episode: '', arrival: '', departure: '', acuity: '', disposition: '' },
   original: { dx: [], lines: [], pcs: '', disp: '', drg: '', rules: '', enteredBy: '' },
   denial: { queue: '', invoice: { num: '', icn: '', status: 'Denied', received: '', billed: '', allowed: '', daysToAppeal: '' }, history: [] },
   keyMeta: { disp: '', dispWhy: '', decision: '', decisionWhy: '', extraWhy: '' },
   cdiResponse: '',
 });
+
+const NOTE_FIELDS = ['type', 'author', 'specialty', 'date', 'status', 'recipient'];
 
 // ---- saved chart / upload → form (the Edit form starts from this) ----
 const str = (v) => (v === undefined || v === null ? '' : String(v));
@@ -50,7 +52,8 @@ export function fromCase(src = {}) {
     workType: src.workType || 'code',
     difficulty: src.difficulty || 'moderate',
     patient: { name: str(src.patient && src.patient.name), sex: (src.patient && src.patient.sex) || 'F', age: str(src.patient && src.patient.age), details: (src.patient && src.patient.details) || {} },
-    documents: (src.documents || []).map((x, i) => ({ key: x.key || 'd' + (i + 1), title: str(x.title), sub: str(x.sub), body: str(x.body) })),
+    // note: the note's details (type, author, specialty, date, status) from NOTE blocks, kept as they are.
+    documents: (src.documents || []).map((x, i) => ({ key: x.key || 'd' + (i + 1), title: str(x.title), sub: str(x.sub), body: str(x.body), note: NOTE_FIELDS.reduce((m, k) => (x[k] ? { ...m, [k]: x[k] } : m), {}) })),
     encounter: Object.fromEntries(Object.keys(base.encounter).map((k) => [k, str((src.encounter || {})[k])])),
     original: {
       dx: (o.dx || []).map((x) => ({ code: str(x.code), poa: str(x.poa) })),
@@ -83,6 +86,10 @@ export function fromCase(src = {}) {
         .join('\n'),
     },
     cdiResponse: str(src.cdiResponse),
+    // Read from the file (PREVIOUS RECORD / EPISODE blocks) and kept as they are: no editor yet.
+    previousRecords: src.previousRecords || [],
+    episodes: src.episodes || [],
+    clinical: src.clinical || {}, // LAB / MED / ORDER … rows from the file (no editor yet)
   };
 }
 
@@ -109,7 +116,7 @@ export function toCasePayload(c, { inpatient }) {
     // Blank name / age are left out, so the server's defaults apply.
     // details: demographics read from the uploaded file (DOB, address, employer …), kept as they are.
     patient: compact({ name: c.patient.name.trim(), sex: c.patient.sex, age: num(c.patient.age), details: c.patient.details && Object.keys(c.patient.details).length ? c.patient.details : undefined }),
-    documents: c.documents.filter((d) => d.title.trim() && d.body.trim()).map((d, i) => ({ key: d.key || 'd' + (i + 1), title: d.title.trim(), sub: d.sub.trim(), body: d.body.trim() })),
+    documents: c.documents.filter((d) => d.title.trim() && d.body.trim()).map((d, i) => ({ key: d.key || 'd' + (i + 1), title: d.title.trim(), sub: d.sub.trim(), ...(d.note || {}), body: d.body.trim() })),
     cdiResponse: c.cdiResponse.trim(),
   };
   if (enc) payload.encounter = enc;
@@ -150,6 +157,10 @@ export function toCasePayload(c, { inpatient }) {
     extraWhy: Object.keys(extraWhy).length ? extraWhy : undefined,
   });
   if (km) payload.keyMeta = km;
+  // Left out when empty, so the server keeps what the chart already has.
+  if (c.previousRecords && c.previousRecords.length) payload.previousRecords = c.previousRecords;
+  if (c.episodes && c.episodes.length) payload.episodes = c.episodes;
+  if (c.clinical && Object.keys(c.clinical).length) payload.clinical = c.clinical;
   return payload;
 }
 
@@ -388,6 +399,11 @@ export function CaseFields({ value: c, onChange, inpatient, ip = inpatient, list
           <Field label="Plan">{text('encounter.plan')}</Field>
           <Field label="Member ID">{text('encounter.member')}</Field>
           <Field label="Allergy">{text('encounter.allergy', 'NKDA')}</Field>
+          <Field label="Episode">{text('encounter.episode', 'e.g. Right knee replacement')}</Field>
+          <Field label="ED arrival">{text('encounter.arrival', 'MM/DD/YYYY HH:MM')}</Field>
+          <Field label="ED departure">{text('encounter.departure', 'MM/DD/YYYY HH:MM')}</Field>
+          <Field label="Triage acuity (ESI)">{text('encounter.acuity', '1–5')}</Field>
+          <Field label="ED disposition">{text('encounter.disposition', 'e.g. Discharged home')}</Field>
         </div>
       </div>
 

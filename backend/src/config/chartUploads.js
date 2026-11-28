@@ -24,6 +24,8 @@ const CASE_LIMITS = Object.freeze({
   documents: 12,
   previousRecords: 20,
   previousCodes: 50,
+  episodes: 10,
+  clinicalRows: 100, // per kind (labs, meds, orders …)
   docTitle: 120,
   docBody: 100000,
   short: 200,

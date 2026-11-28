@@ -12,7 +12,14 @@ const CHART_IMPORT = Object.freeze({
     denial: ['DENIAL', 'DENIAL DETAILS'],
     key: ['ANSWER KEY'],
     cdi: ['CDI RESPONSE', 'PHYSICIAN QUERY RESPONSE'],
+    // May repeat: one block per earlier visit / per episode of care.
+    previous: ['PREVIOUS RECORD', 'PREVIOUS VISIT', 'EARLIER VISIT', 'PRIOR ENCOUNTER'],
+    episode: ['EPISODE', 'EPISODE OF CARE'],
+    note: ['NOTE', 'CLINICAL NOTE', 'TRANSCRIPTION'], // one block per note (H&P, consult, op report …)
+    // Structured results and orders (LAB | …, MED | … rows); the rows may also sit in the CHART block.
+    clinical: ['CLINICAL DATA', 'RESULTS', 'RESULTS AND ORDERS', 'ORDERS', 'LABS', 'MEDICATIONS', 'LDAS'],
   },
+  repeatBlocks: ['previous', 'episode', 'note'],
 
   // "Label: value" fields, by the group they fill.
   labels: {
@@ -50,6 +57,47 @@ const CHART_IMPORT = Object.freeze({
       ptype: ['Patient Type', 'Patient Status'],
       lastSeen: ['Last Seen'],
       allergy: ['Allergies', 'Allergy'],
+      episode: ['Episode', 'Episode of Care'], // links this visit to an EPISODE block by name
+      // Emergency visit details (Chart Review › ED Visits).
+      arrival: ['Arrival', 'Arrival Time', 'Arrival Date', 'ED Arrival'],
+      departure: ['Departure', 'Departure Time', 'ED Departure'],
+      acuity: ['Acuity', 'ESI', 'Triage Acuity', 'Triage Level'],
+      disposition: ['ED Disposition', 'Disposition'],
+    },
+    // PREVIOUS RECORD block: the visit's details; other plain lines are its note, and
+    // "TYPE | CODE | description" rows (key types below) are the codes billed on it.
+    previous: {
+      title: ['Title', 'Visit', 'Record Title', 'Visit Type'],
+      dos: ['Date of Service', 'DOS', 'Date'],
+      provider: ['Provider', 'Attending', 'Rendering Provider'],
+      facility: ['Facility', 'Department', 'Dept'],
+      episode: ['Episode', 'Episode of Care'],
+      noteType: ['Note Type', 'Document Type'],
+      arrival: ['Arrival', 'Arrival Time', 'Arrival Date', 'ED Arrival'],
+      departure: ['Departure', 'Departure Time', 'ED Departure'],
+      acuity: ['Acuity', 'ESI', 'Triage Acuity', 'Triage Level'],
+      disposition: ['ED Disposition', 'Disposition'],
+    },
+    // EPISODE block: one episode of care (pregnancy, therapy, oncology, surgery + follow-ups …).
+    episode: {
+      name: ['Name', 'Episode', 'Episode Name'],
+      type: ['Type', 'Episode Type'],
+      status: ['Status'],
+      start: ['Start', 'Start Date', 'Onset'],
+      end: ['End', 'End Date', 'Resolved Date'],
+      provider: ['Provider', 'Responsible Provider'],
+      dx: ['Diagnosis', 'Dx', 'Problem'],
+      note: ['Note', 'Comment', 'Notes'],
+    },
+    // NOTE block: one clinical note of this visit; the other lines are the note's text.
+    note: {
+      type: ['Type', 'Note Type', 'Document Type'],
+      title: ['Title', 'Note Title'],
+      author: ['Author', 'Provider', 'Signed By', 'Written By'],
+      specialty: ['Specialty'],
+      date: ['Date', 'Note Date', 'Date of Service', 'DOS'],
+      status: ['Status', 'Note Status'],
+      recipient: ['To', 'Recipient', 'Addressed To'], // letters: who it was sent to
     },
     original: {
       disp: ['Discharge Disposition', 'Disposition'],
@@ -92,6 +140,10 @@ const CHART_IMPORT = Object.freeze({
     difficulty: { beginner: ['beginner', 'easy', 'basic'], moderate: ['moderate', 'medium', 'intermediate'], advanced: ['advanced', 'hard', 'difficult'] },
     ptype: { new: ['new', 'new patient'], est: ['est', 'established', 'established patient'] },
     decision: { correct: ['correct', 'correct and resubmit', 'resubmit'], appeal: ['appeal'], writeoff: ['writeoff', 'write off', 'write-off'] },
+    episodeStatus: {
+      Active: ['active', 'open', 'ongoing', 'current'],
+      Resolved: ['resolved', 'closed', 'complete', 'completed', 'ended', 'inactive'],
+    },
     yes: ['y', 'yes', 'true', '1'],
   },
 
@@ -105,6 +157,18 @@ const CHART_IMPORT = Object.freeze({
     MOD: ['mod', 'modifier'],
     PCS: ['pcs', 'icd-10-pcs'],
     DRG: ['drg', 'ms-drg'],
+  },
+  // Structured rows → chart.clinical[kind] (Chart Review tabs Labs, Meds, Other Orders, LDAs, Proc,
+  // Anes, Media). "KIND | cell | cell …": the first cell names the kind, the others fill `fields` in
+  // order (blank cells allowed). E.g. LAB | Hemoglobin | 10.2 | g/dL | 12.0-16.0 | L | 11/20/2026 | Final
+  clinicalRows: {
+    labs: { label: 'Labs', words: ['lab', 'labs', 'lab result'], fields: ['test', 'value', 'units', 'range', 'flag', 'collected', 'status'] },
+    meds: { label: 'Medications', words: ['med', 'meds', 'medication', 'rx'], fields: ['name', 'dose', 'route', 'frequency', 'prescriber', 'start', 'status', 'end'] },
+    orders: { label: 'Other orders', words: ['order', 'other order'], fields: ['order', 'type', 'status', 'orderedBy', 'date'] },
+    ldas: { label: 'LDAs', words: ['lda', 'device', 'drain', 'airway'], fields: ['device', 'site', 'inserted', 'removed', 'status'] },
+    procedures: { label: 'Procedures', words: ['proc', 'procedure'], fields: ['procedure', 'date', 'performedBy', 'status'] },
+    anesthesia: { label: 'Anesthesia', words: ['anes', 'anesthesia', 'anaesthesia'], fields: ['type', 'asa', 'start', 'stop', 'provider', 'procedure'] },
+    media: { label: 'Media', words: ['media', 'scan', 'attachment'], fields: ['document', 'type', 'date', 'from'] },
   },
   notReported: ['not reported', 'do not report', 'not coded'], // "NOT REPORTED | CODE | reason"
   // Original-coding rows: DX | code | POA   ·   LINE | code | mods | units | pointers | remit | billed   ·   PCS | code

@@ -42,6 +42,8 @@ const toView = (u, deptName) => ({
   original: u.original || null,
   denial: u.denial || null,
   previousRecords: u.previousRecords || [],
+  episodes: u.episodes || [],
+  clinical: u.clinical || null,
   keyMeta: u.keyMeta || null,
   cdiResponse: u.cdiResponse || '',
   sourceName: u.sourceName,
@@ -222,6 +224,8 @@ const chartFields = (u) => {
     original: type !== WORK_TYPES.CODE ? u.original || undefined : undefined,
     denial: type === WORK_TYPES.DENIAL ? u.denial || undefined : undefined,
     previousRecords: u.previousRecords && u.previousRecords.length ? u.previousRecords : undefined,
+    episodes: u.episodes && u.episodes.length ? u.episodes : undefined,
+    clinical: u.clinical && Object.keys(u.clinical).length ? u.clinical : undefined,
     keyMeta: u.keyMeta || undefined,
     cdiResponse: u.cdiResponse || undefined,
   };
@@ -231,11 +235,12 @@ const chartFields = (u) => {
 // that are missing were cleared by the admin. Patient fields are merged (blank = keep).
 const REQUIRED_EDITS = ['title', 'record', 'answerKey', 'difficulty', 'workType', 'encounterType'];
 const OPTIONAL_EDITS = ['documents', 'encounter', 'original', 'denial', 'keyMeta', 'cdiResponse', 'billingType'];
-const KEPT_WHEN_ABSENT = ['previousRecords']; // the edit form may not send these yet
+const KEPT_WHEN_ABSENT = ['previousRecords', 'episodes', 'clinical']; // the edit form may not send these yet
 const applyUploadEdits = (upload, body) => {
   REQUIRED_EDITS.forEach((k) => body[k] !== undefined && upload.set(k, body[k]));
   OPTIONAL_EDITS.forEach((k) => upload.set(k, body[k] === undefined || body[k] === '' ? undefined : body[k]));
-  KEPT_WHEN_ABSENT.forEach((k) => body[k] !== undefined && upload.set(k, body[k] && body[k].length ? body[k] : undefined));
+  const filled = (v) => !!v && (Array.isArray(v) ? v.length > 0 : Object.keys(v).length > 0);
+  KEPT_WHEN_ABSENT.forEach((k) => body[k] !== undefined && upload.set(k, filled(body[k]) ? body[k] : undefined));
   if (body.patient) upload.set('patient', { ...(upload.toObject().patient || {}), ...body.patient });
 };
 

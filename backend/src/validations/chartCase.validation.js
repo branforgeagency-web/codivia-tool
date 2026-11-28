@@ -1,5 +1,6 @@
 const Joi = require('joi');
 const { CASE_LIMITS: L } = require('../config/chartUploads');
+const { CHART_IMPORT } = require('../config/chartImport');
 const { DENIAL_DECISIONS, POA_VALUES, WORK_TYPE_LIST } = require('../config/workQueue');
 const { BILLING_TYPE_LIST, ENCOUNTER_TYPE_LIST } = require('../config/encounter');
 
@@ -16,10 +17,36 @@ const documents = Joi.array()
       key: Joi.string().trim().pattern(/^[a-z0-9_-]{1,30}$/i).required(),
       title: Joi.string().trim().min(1).max(L.docTitle).required(),
       sub: text(L.short),
+      // Note details (NOTE blocks of an uploaded file): shown in Notes/Trans and the Notes activity.
+      type: text(L.short),
+      author: text(L.short),
+      specialty: text(L.short),
+      date: text(L.short),
+      status: text(L.short),
+      recipient: text(L.short), // letters: who the letter was sent to
       body: Joi.string().trim().min(1).max(L.docBody).required(),
     })
   )
   .max(L.documents)
+  .unique('key');
+
+// Episodes of care (pregnancy, therapy, oncology, a surgery and its follow-ups …). Visits join one
+// by name: encounter.episode (this visit) and previousRecords[].episode.
+const episodes = Joi.array()
+  .items(
+    Joi.object({
+      key: Joi.string().trim().pattern(/^[a-z0-9_-]{1,30}$/i).required(),
+      name: Joi.string().trim().min(1).max(L.short).required(),
+      type: text(L.short),
+      status: text(L.short),
+      start: text(L.short),
+      end: text(L.short),
+      provider: text(L.short),
+      dx: text(L.desc),
+      note: text(L.why),
+    })
+  )
+  .max(L.episodes)
   .unique('key');
 
 // The patient's previous medical records (earlier visits) and the codes billed on them.
@@ -31,6 +58,12 @@ const previousRecords = Joi.array()
       dos: text(L.short),
       provider: text(L.short),
       facility: text(L.short),
+      episode: text(L.short), // name of the episode this visit belongs to
+      noteType: text(L.short), // e.g. Operative Report; default Progress Notes
+      arrival: text(L.short), // ED visit details
+      departure: text(L.short),
+      acuity: text(L.short),
+      disposition: text(L.short),
       body: Joi.string().trim().min(1).max(L.docBody).required(),
       codes: Joi.array()
         .items(
@@ -68,6 +101,11 @@ const encounter = Joi.object({
   ptype: Joi.string().valid('', 'new', 'est'),
   lastSeen: text(L.short),
   allergy: text(L.short),
+  episode: text(L.short), // name of the episode this visit belongs to
+  arrival: text(L.short), // ED visit: arrival, departure, triage acuity (ESI), disposition
+  departure: text(L.short),
+  acuity: text(L.short),
+  disposition: text(L.short),
 });
 
 const original = Joi.object({
@@ -134,7 +172,20 @@ const answerRow = Joi.object({
 const encounterType = Joi.string().trim().uppercase().valid(...ENCOUNTER_TYPE_LIST);
 const billingType = Joi.string().trim().lowercase().valid(...BILLING_TYPE_LIST).allow('', null);
 
+// Structured results / orders, one list per kind; the fields come from config/chartImport.js.
+const clinical = Joi.object(
+  Object.fromEntries(
+    Object.entries(CHART_IMPORT.clinicalRows).map(([kind, { fields }]) => [
+      kind,
+      Joi.array()
+        .items(Joi.object(Object.fromEntries(fields.map((f) => [f, text(L.short)]))))
+        .max(L.clinicalRows),
+    ])
+  )
+);
+
 const caseFields = {
+  clinical,
   encounterType,
   billingType,
   workType: Joi.string().valid(...WORK_TYPE_LIST).default('code'),
@@ -143,6 +194,7 @@ const caseFields = {
   original,
   denial,
   previousRecords,
+  episodes,
   keyMeta,
   cdiResponse: text(L.why),
 };

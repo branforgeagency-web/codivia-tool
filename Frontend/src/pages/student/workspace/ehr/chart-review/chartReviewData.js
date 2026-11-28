@@ -6,6 +6,21 @@
    - "Abnormal" = the text has an abnormal-result word (abnormal, positive, elevated, high, low …);
    - current-visit documents are dated with the encounter's date of service (or admit date). */
 import { parseRecordSections } from '../../recordSections.js';
+import { VITAL_LIST, vitalsOf } from '../lib/chartText.js';
+
+const ED_WORDS = /emergency|\bED\b|\bER\b/;
+// Minutes between two times ("07:42", "03/10/2026 09:17"); past midnight counts on. null if unknown.
+const minutesBetween = (a, b) => {
+  const t = (s) => {
+    const m = String(s || '').match(/(\d{1,2}):(\d{2})(?!.*\d{1,2}:\d{2})/);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const x = t(a);
+  const y = t(b);
+  if (x === null || y === null) return null;
+  return (y - x + 1440) % 1440;
+};
+const isDxCode = (c) => /dx/i.test(c.type || '') || /^[A-Z]\d/.test(c.code || '');
 
 // Chart Review sub-tabs and their columns. Tabs without rows still show ("No records found").
 // color = the thin line over the tab name.
@@ -45,17 +60,56 @@ export const CR_TABS = [
       ['spec', 'Specialty'],
     ],
   },
-  { key: 'letters', label: 'Letters', cols: DOC_COLS },
-  { key: 'ed', label: 'ED Visits', color: '#c0281b', cols: DOC_COLS },
-  { key: 'anes', label: 'Anes', cols: DOC_COLS },
+  {
+    key: 'letters',
+    label: 'Letters',
+    cols: [
+      ['when', 'Date'],
+      ['type', 'Letter Type'],
+      ['desc', 'Description'],
+      ['author', 'From'],
+      ['to', 'To'],
+      ['status', 'Status'],
+    ],
+  },
+  {
+    key: 'ed',
+    label: 'ED Visits',
+    color: '#c0281b',
+    cols: [
+      ['when', 'Arrival'],
+      ['departure', 'Departure'],
+      ['cc', 'Chief Complaint'],
+      ['acuity', 'Acuity'],
+      ['dx', 'ED Diagnoses'],
+      ['disp', 'Disposition'],
+      ['with', 'Provider'],
+      ['dept', 'Dept'],
+    ],
+  },
+  {
+    key: 'anes',
+    label: 'Anes',
+    cols: [
+      ['when', 'Date'],
+      ['desc', 'Procedure'],
+      ['type', 'Anesthesia Type'],
+      ['asa', 'ASA'],
+      ['start', 'Start'],
+      ['stop', 'Stop'],
+      ['dur', 'Duration'],
+      ['author', 'Anesthesia Provider'],
+    ],
+  },
   {
     key: 'proc',
     label: 'Proc',
     cols: [
       ['when', 'Date'],
       ['desc', 'Procedure'],
+      ['author', 'Performed By'],
+      ['type', 'Type'],
       ['status', 'Status'],
-      ['author', 'Provider'],
     ],
   },
   {
@@ -74,12 +128,14 @@ export const CR_TABS = [
     label: 'Labs',
     color: '#e2c400',
     cols: [
-      ['when', 'Date/Time'],
+      ['when', 'Collected'],
       ['desc', 'Test'],
-      ['abn', 'Abnormal?'],
+      ['value', 'Value'],
+      ['units', 'Units'],
+      ['range', 'Ref Range'],
+      ['abn', 'Flag'],
       ['status', 'Status'],
       ['author', 'Auth Prov'],
-      ['etype', 'Encounter Type'],
     ],
   },
   {
@@ -111,10 +167,14 @@ export const CR_TABS = [
     label: 'Meds',
     color: '#1f2f6b',
     cols: [
-      ['when', 'Date'],
-      ['desc', 'Medications'],
-      ['status', 'Status'],
+      ['when', 'Start'],
+      ['desc', 'Medication'],
+      ['dose', 'Dose'],
+      ['route', 'Route'],
+      ['freq', 'Frequency'],
       ['author', 'Prescriber'],
+      ['status', 'Status'],
+      ['end', 'End'],
     ],
   },
   {
@@ -140,25 +200,51 @@ export const CR_TABS = [
       ['author', 'From'],
     ],
   },
-  { key: 'orders', label: 'Other Orders', cols: DOC_COLS },
+  {
+    key: 'orders',
+    label: 'Other Orders',
+    cols: [
+      ['when', 'Date'],
+      ['desc', 'Order'],
+      ['type', 'Order Type'],
+      ['status', 'Status'],
+      ['author', 'Ordered By'],
+    ],
+  },
   {
     key: 'episodes',
     label: 'Episodes',
     cols: [
-      ['when', 'Start'],
       ['desc', 'Episode'],
       ['type', 'Type'],
-      ['with', 'Provider'],
+      ['status', 'Status'],
+      ['when', 'Start Date'],
+      ['end', 'End Date'],
+      ['with', 'Responsible Provider'],
+      ['visits', 'Encounters'],
+    ],
+  },
+  {
+    key: 'ldas',
+    label: 'LDAs',
+    cols: [
+      ['when', 'Inserted'],
+      ['desc', 'Device'],
+      ['site', 'Site'],
+      ['removed', 'Removed'],
       ['status', 'Status'],
     ],
   },
-  { key: 'ldas', label: 'LDAs', cols: DOC_COLS },
 ];
 
 // Most specific first: a title is put in the first tab whose words it has.
 const TAB_OF_TITLE = [
-  ['letters', /\bletter|correspondence/i],
-  ['ed', /emergency|\bED\b|triage/],
+  // Correspondence: letters, certificates, approvals, authorizations, clearances.
+  [
+    'letters',
+    /\bletter|correspondence|certificate|clearance|approval|authori[sz]ation|notification/i,
+  ],
+  // (ED Visits lists emergency visits, not documents: ED notes go to Notes/Trans.)
   ['anes', /anesth|anaesth/i],
   ['card', /cardio|\bekg\b|\becg\b|echo|stress test|holter/i],
   ['labs', /\blab|patholog|specimen|blood work|biopsy|cytolog|urinalysis|culture/i],
@@ -270,6 +356,59 @@ export const CR_FILTERS = {
     },
   ],
   labs: [{ key: 'abn', label: 'Abnormal', mode: 'only', test: (r) => !!r.cells.abn }],
+  meds: [
+    { key: 'active', label: 'Active', mode: 'only', test: (r) => /active/i.test(r.cells.status) },
+    {
+      key: 'disc',
+      label: 'Hide Discontinued',
+      mode: 'hide',
+      test: (r) => /discontinu|stopped|inactive|completed/i.test(r.cells.status),
+    },
+  ],
+  orders: [
+    {
+      key: 'canceled',
+      label: 'Hide Canceled',
+      mode: 'hide',
+      default: true,
+      test: (r) => /cancel/i.test(r.cells.status),
+    },
+    {
+      key: 'done',
+      label: 'Completed',
+      mode: 'only',
+      test: (r) => /complet|done|resulted/i.test(r.cells.status),
+    },
+  ],
+  ldas: [
+    {
+      key: 'active',
+      label: 'Active Only',
+      mode: 'only',
+      test: (r) => !r.cells.removed && !/removed/i.test(r.cells.status),
+    },
+  ],
+  // ED Visits: by disposition.
+  ed: [
+    ['admitted', 'Admitted', /admit/i],
+    ['discharged', 'Discharged', /discharg|home/i],
+    ['transferred', 'Transferred', /transfer/i],
+    ['left', 'Left / AMA', /\bAMA\b|against medical|left without|\blwbs\b|elope/i],
+  ].map(([key, label, re]) => ({
+    key,
+    label,
+    mode: 'only',
+    test: (r) =>
+      re.test(r.cells.disp || '') && !(key === 'discharged' && /admit/i.test(r.cells.disp)),
+  })),
+  episodes: [
+    {
+      key: 'resolved',
+      label: 'Hide Resolved',
+      mode: 'hide',
+      test: (r) => /resolved/i.test(r.cells.status),
+    },
+  ],
   // Imaging: hide canceled orders (on by default), then one box per modality, read from the
   // procedure name.
   rad: [
@@ -302,6 +441,20 @@ export const CR_FILTERS = {
   ],
 };
 
+const RESULT_TABS = ['labs', 'rad', 'card', 'meds', 'letters', 'media'];
+// The tab of a note with a type (NOTE block / earlier visit's Note Type). The type decides:
+// H&P, Consult, Operative Report … are clinical notes (Notes/Trans) whatever the title says
+// ("Cardiology consult" is a note, not a cardiology study); results and letters go to their tab.
+// A generic type ("Report", "Result") lets the title decide.
+const noteTabOf = (type, title) => {
+  const byType = tabOf(type);
+  if (RESULT_TABS.includes(byType)) return byType;
+  if (/^(report|result|study|document|other)s?$/i.test(String(type).trim())) {
+    const byTitle = tabOf(title);
+    return RESULT_TABS.includes(byTitle) ? byTitle : 'notes';
+  }
+  return 'notes';
+};
 const tabOf = (title) => (TAB_OF_TITLE.find(([, re]) => re.test(title)) || ['notes'])[0];
 const ABNORMAL =
   /\babnormal|\bpositive\b|elevated|\bhigh\b|\blow\b|critical|\(H\)|\(L\)|\bmass\b|fracture|opacity|effusion/i;
@@ -354,6 +507,7 @@ export function chartReviewRows(chart, docs) {
     id: 'enc-current',
     tab: 'enc',
     current: true,
+    episode: e.episode || '', // the episode of care this visit belongs to (by name)
     date: visit,
     when: visitText,
     sections: (docs.find((d) => d.key === 'full') || docs[0] || { sections: [] }).sections,
@@ -374,7 +528,7 @@ export function chartReviewRows(chart, docs) {
   // procedure and medication groups are also listed under their own tab, one row per section.
   docs.forEach((d) => {
     const isGroup = plain && d.key !== 'full' && !d.isQuery;
-    const tab = d.isQuery ? 'notes' : tabOf(d.title);
+    const tab = d.isQuery ? 'notes' : d.type ? noteTabOf(d.type, d.title) : tabOf(d.title);
     if (isGroup && tab === 'notes') return; // CC, HPI, Exam … are parts of the visit note
     const list = isGroup
       ? d.sections.map((s, i) => ({
@@ -388,8 +542,8 @@ export function chartReviewRows(chart, docs) {
         id: 'doc-' + x.id,
         tab,
         current: true,
-        date: visit,
-        when: d.isQuery ? (d.sub || '').split(' · ')[0] : visitText,
+        date: parseDate(d.date) || visit,
+        when: d.isQuery ? (d.sub || '').split(' · ')[0] : d.date || visitText,
         sections: x.sections,
         doc: d.key,
         imaging:
@@ -399,16 +553,18 @@ export function chartReviewRows(chart, docs) {
         cells: {
           type: d.isQuery
             ? 'Query Response'
-            : d.key === 'full'
-              ? 'Progress Notes'
-              : d.sub || 'Note',
+            : d.type || (d.key === 'full' ? 'Progress Notes' : d.sub || 'Note'),
           desc: x.title,
-          author: d.isQuery ? (d.sub || '').split(' · ')[1] || '' : provider,
+          author: d.isQuery ? (d.sub || '').split(' · ')[1] || '' : d.author || provider,
           status: d.isQuery
             ? 'Answered'
-            : tab === 'labs' || tab === 'rad'
-              ? 'Final result'
-              : 'Signed',
+            : d.status ||
+              (tab === 'labs' || tab === 'rad'
+                ? 'Final result'
+                : tab === 'letters'
+                  ? 'Sent'
+                  : 'Signed'),
+          to: d.recipient || '', // letters
           abn:
             (tab === 'labs' || tab === 'rad') && ABNORMAL.test(bodyOf(x.sections))
               ? 'Abnormal'
@@ -419,11 +575,31 @@ export function chartReviewRows(chart, docs) {
           etype,
           encDate: visitText,
           dept: e.facility || chart.deptName || '',
-          spec: e.specialty || '',
+          // The note's own specialty; a note by another author does not take the visit's.
+          spec: d.specialty || (d.author && d.author !== provider ? '' : e.specialty || ''),
         },
       }),
     );
   });
+  // Letters: the preview shows the letter's header (type, date, from, to, status) above its text.
+  rows
+    .filter((r) => r.tab === 'letters' && r.current)
+    .forEach((r) => {
+      r.sourceTitle = 'Letter';
+      r.detail = [
+        {
+          title: '',
+          rows: [
+            ['Letter Type', r.cells.type],
+            ['Description', r.cells.desc],
+            ['Date', r.when],
+            ['From', r.cells.author],
+            ['To', r.cells.to],
+            ['Status', r.cells.status],
+          ],
+        },
+      ];
+    });
 
   // Earlier encounters: one Encounters row each (with their codes, like "Needs flu shot (Primary Dx) [Z23]"),
   // plus a Notes row for the record itself.
@@ -437,6 +613,7 @@ export function chartReviewRows(chart, docs) {
       ...base,
       id: 'prev-enc-' + (r.key || i),
       tab: 'enc',
+      episode: r.episode || '',
       cells: {
         type: /admi|inpatient|hospital/i.test(r.title) ? 'Hospital Encounter' : 'Office Visit',
         with: r.provider || '',
@@ -449,7 +626,7 @@ export function chartReviewRows(chart, docs) {
     rows.push({
       ...base,
       id: 'prev-note-' + (r.key || i),
-      tab: tabOf(r.title) === 'notes' ? 'notes' : tabOf(r.title),
+      tab: r.noteType ? noteTabOf(r.noteType, r.title) : tabOf(r.title),
       imaging:
         tabOf(r.title) === 'rad'
           ? imagingOf({
@@ -460,7 +637,7 @@ export function chartReviewRows(chart, docs) {
             })
           : undefined,
       cells: {
-        type: 'Progress Notes',
+        type: r.noteType || 'Progress Notes',
         desc: r.title,
         author: r.provider || '',
         status: /^(labs|rad)$/.test(tabOf(r.title)) ? 'Final result' : 'Signed',
@@ -549,29 +726,356 @@ export function chartReviewRows(chart, docs) {
     });
   });
 
-  // One care episode: this department's visits, from the earliest encounter on the chart.
-  const encs = rows.filter((r) => r.tab === 'enc');
-  const start = encs.reduce((m, r) => (r.date && (!m || r.date < m.date) ? r : m), null);
-  rows.push({
-    id: 'episode',
-    tab: 'episodes',
-    current: true,
-    date: start ? start.date : visit,
-    when: start ? start.when : visitText,
-    sections: [
+  // Structured results and orders (chart.clinical, from LAB | … / MED | … rows of the upload).
+  // structured = not a note (kept out of the Notes activity). Each row's preview is its form.
+  const cl = chart.clinical || {};
+  const opNote = docs.find((d) =>
+    /operative|op note|procedure note/i.test(`${d.type || ''} ${d.title}`),
+  );
+  const addRow = (tab, i, x, form, text) =>
+    rows.push({
+      id: tab + '-s' + i,
+      tab,
+      current: true,
+      structured: true,
+      date: parseDate(x.when) || visit,
+      when: x.when || visitText,
+      sections: [{ head: 'RECORD', body: text }],
+      cells: x.cells,
+      detail: [{ title: '', rows: form }],
+      sourceTitle: 'As documented',
+      ...(x.doc ? { doc: x.doc } : {}),
+    });
+  (cl.labs || []).forEach((l, i) =>
+    addRow(
+      'labs',
+      i,
       {
-        head: 'EPISODE',
-        body: encs
-          .map((r) => [r.when, r.cells.type, r.cells.desc].filter(Boolean).join(' · '))
-          .join('\n'),
+        when: l.collected,
+        cells: {
+          desc: l.test,
+          value: l.value || '',
+          units: l.units || '',
+          range: l.range || '',
+          abn: l.flag || '',
+          status: l.status || 'Final',
+          author: provider,
+        },
       },
-    ],
-    cells: {
-      desc: (chart.deptName || 'Care') + ' episode',
-      type: 'Episode',
-      with: provider,
-      status: 'Active · ' + encs.length + ' visit' + (encs.length === 1 ? '' : 's'),
-    },
+      [
+        ['Test', l.test],
+        ['Value', [l.value, l.units].filter(Boolean).join(' ')],
+        ['Reference Range', l.range],
+        [
+          'Flag',
+          l.flag && `${l.flag} (abnormal — not a diagnosis unless the provider documents one)`,
+        ],
+        ['Collected', l.collected],
+        ['Status', l.status || 'Final'],
+      ],
+      [l.test, [l.value, l.units].filter(Boolean).join(' '), l.range && `(ref ${l.range})`, l.flag]
+        .filter(Boolean)
+        .join(' '),
+    ),
+  );
+  (cl.meds || []).forEach((m, i) =>
+    addRow(
+      'meds',
+      i,
+      {
+        when: m.start,
+        cells: {
+          desc: m.name,
+          dose: m.dose || '',
+          route: m.route || '',
+          freq: m.frequency || '',
+          author: m.prescriber || '',
+          status: m.status || 'Active',
+          end: m.end || '',
+        },
+      },
+      [
+        ['Medication', m.name],
+        ['Dose', m.dose],
+        ['Route', m.route],
+        ['Frequency', m.frequency],
+        ['Prescriber', m.prescriber],
+        ['Start', m.start],
+        ['End', m.end],
+        ['Status', m.status || 'Active'],
+      ],
+      [m.name, m.dose, m.route, m.frequency].filter(Boolean).join(' '),
+    ),
+  );
+  (cl.orders || []).forEach((o, i) =>
+    addRow(
+      'orders',
+      i,
+      {
+        when: o.date,
+        cells: {
+          desc: o.order,
+          type: o.type || '',
+          status: o.status || 'Ordered',
+          author: o.orderedBy || '',
+        },
+      },
+      [
+        ['Order', o.order],
+        ['Order Type', o.type],
+        ['Status', o.status || 'Ordered'],
+        ['Ordered By', o.orderedBy],
+        ['Date', o.date],
+        ['Note', 'An order alone does not show the service was performed.'],
+      ],
+      [o.order, o.type].filter(Boolean).join(' · '),
+    ),
+  );
+  (cl.ldas || []).forEach((l, i) =>
+    addRow(
+      'ldas',
+      i,
+      {
+        when: l.inserted,
+        cells: {
+          desc: l.device,
+          site: l.site || '',
+          removed: l.removed || '',
+          status: l.status || (l.removed ? 'Removed' : 'Active'),
+        },
+      },
+      [
+        ['Device', l.device],
+        ['Site', l.site],
+        ['Inserted', l.inserted],
+        ['Removed', l.removed],
+        ['Status', l.status || (l.removed ? 'Removed' : 'Active')],
+      ],
+      [l.device, l.site].filter(Boolean).join(' · '),
+    ),
+  );
+  (cl.procedures || []).forEach((p, i) =>
+    addRow(
+      'proc',
+      i,
+      {
+        when: p.date,
+        doc: opNote && opNote.key, // "Open Note" opens the operative note
+        cells: {
+          desc: p.procedure,
+          author: p.performedBy || provider,
+          type: 'Procedure',
+          status: p.status || 'Completed',
+        },
+      },
+      [
+        ['Procedure', p.procedure],
+        ['Date', p.date],
+        ['Performed By', p.performedBy || provider],
+        ['Status', p.status || 'Completed'],
+        ['Operative Note', opNote ? opNote.title : ''],
+      ],
+      p.procedure,
+    ),
+  );
+  (cl.anesthesia || []).forEach((a, i) => {
+    const dur = minutesBetween(a.start, a.stop);
+    addRow(
+      'anes',
+      i,
+      {
+        when: visitText,
+        cells: {
+          desc: a.procedure || '',
+          type: a.type || '',
+          asa: a.asa || '',
+          start: a.start || '',
+          stop: a.stop || '',
+          dur: dur === null ? '' : dur + ' min',
+          author: a.provider || '',
+        },
+      },
+      [
+        ['Procedure', a.procedure],
+        ['Anesthesia Type', a.type],
+        ['ASA Class', a.asa],
+        ['Anesthesia Start', a.start],
+        ['Anesthesia Stop', a.stop],
+        ['Duration', dur === null ? '' : dur + ' minutes'],
+        ['Anesthesia Provider', a.provider],
+      ],
+      [a.type, a.procedure].filter(Boolean).join(' · '),
+    );
+  });
+  (cl.media || []).forEach((m, i) =>
+    addRow(
+      'media',
+      i,
+      {
+        when: m.date,
+        cells: { desc: m.document, type: m.type || '', author: m.from || '' },
+      },
+      [
+        ['Document', m.document],
+        ['Type', m.type],
+        ['Date', m.date],
+        ['From', m.from],
+      ],
+      [m.document, m.type].filter(Boolean).join(' · '),
+    ),
+  );
+  // Operative / procedure notes and anesthesia records are notes (Notes/Trans) and are also listed
+  // in Proc / Anes. copy = a second listing (kept out of the Notes activity).
+  rows
+    .filter((r) => r.tab === 'notes' && !r.structured)
+    .forEach((r) => {
+      const t = `${r.cells.type} ${r.cells.desc}`;
+      const tab = /anesth|anaesth/i.test(t)
+        ? 'anes'
+        : /operative|procedure note|op note|procedure report/i.test(t)
+          ? 'proc'
+          : '';
+      if (tab) rows.push({ ...r, id: tab + '-' + r.id, tab, copy: true });
+    });
+
+  // ED Visits: one row per emergency visit (this visit and earlier ones), with arrival /
+  // departure, chief complaint, triage acuity, the ED impression, disposition, triage vitals and
+  // discharge instructions. The preview shows these, then the visit report.
+  rows
+    .filter((r) => r.tab === 'enc')
+    .forEach((enc) => {
+      const src = enc.current ? e : enc.prev || {};
+      const ed = enc.current
+        ? /^ED/.test(chart.dept || '') ||
+          String(e.pos || '').trim() === '23' ||
+          ED_WORDS.test(e.visitType || '') ||
+          !!(e.arrival || e.acuity)
+        : ED_WORDS.test(src.title || '') || !!(src.arrival || src.acuity);
+      if (!ed) return;
+      const secs = enc.sections || [];
+      const dxCodes = enc.current ? [] : (src.codes || []).filter(isDxCode);
+      const dx =
+        dxCodes.map((c) => c.desc || c.code).join('; ') ||
+        firstLine(secs.filter((s) => /IMPRESSION|DIAGNOS|ASSESSMENT/i.test(s.head)));
+      const vitals = vitalsOf(bodyOf(secs));
+      const acuity = /^[1-5]$/.test(String(src.acuity || '').trim())
+        ? 'ESI ' + String(src.acuity).trim()
+        : src.acuity || '';
+      const cells = {
+        type: 'Emergency',
+        departure: src.departure || (enc.current ? e.discharge || '' : ''),
+        cc: enc.cells.cc,
+        acuity,
+        dx,
+        disp: src.disposition || '',
+        with: enc.cells.with,
+        dept: enc.cells.dept,
+      };
+      rows.push({
+        ...enc,
+        id: 'ed-' + enc.id,
+        structured: true, // a visit, not a note
+        tab: 'ed',
+        when: src.arrival || enc.when,
+        cells,
+        detail: [
+          {
+            title: 'ED Visit',
+            rows: [
+              ['Arrival', src.arrival || enc.when],
+              ['Departure', cells.departure],
+              ['Acuity', acuity],
+              ['Chief Complaint', cells.cc],
+              ['ED Diagnoses', dx],
+              ['Disposition', cells.disp],
+              ['Provider', cells.with],
+              ['Department', cells.dept],
+            ],
+          },
+          {
+            title: 'Triage Vitals',
+            rows: VITAL_LIST.map((v) => [v.label, vitals[v.key]]),
+          },
+          {
+            title: 'Discharge',
+            rows: [
+              [
+                'Instructions / Follow-up',
+                firstLine(
+                  secs.filter((s) =>
+                    /DISCHARGE INSTRUCTION|PATIENT INSTRUCTION|FOLLOW.?UP/i.test(s.head),
+                  ),
+                ),
+              ],
+            ],
+          },
+        ],
+      });
+    });
+
+  // Episodes of care (chart.episodes): each lists the encounters linked to it by name
+  // (encounter.episode / previousRecords[].episode). Charts without episodes get one episode of
+  // all their visits, as before.
+  const encs = rows.filter((r) => r.tab === 'enc');
+  const named = chart.episodes || [];
+  const episodes = named.length
+    ? named.map((ep) => ({
+        ...ep,
+        visits: encs.filter((r) => r.episode && r.episode.toLowerCase() === ep.name.toLowerCase()),
+      }))
+    : [
+        {
+          key: 'all',
+          name: (chart.deptName || 'Care') + ' episode',
+          type: 'Episode',
+          status: 'Active',
+          provider,
+          visits: encs,
+        },
+      ];
+  episodes.forEach((ep) => {
+    const first = ep.visits.reduce((m, r) => (r.date && (!m || r.date < m.date) ? r : m), null);
+    const start = ep.start || (first ? first.when : '');
+    const visitList = ep.visits
+      .slice()
+      .sort((a, b) => (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0))
+      .map((r) => [r.when, r.cells.type, r.cells.desc].filter(Boolean).join(' · '))
+      .join('\n');
+    rows.push({
+      id: 'episode-' + ep.key,
+      tab: 'episodes',
+      current: ep.visits.some((r) => r.current),
+      date: parseDate(start) || (first ? first.date : visit),
+      when: start,
+      episode: { ...ep, visitIds: ep.visits.map((r) => r.id) },
+      sections: [{ head: 'LINKED ENCOUNTERS', body: visitList || 'No encounters linked yet.' }],
+      sourceTitle: 'Linked Encounters',
+      cells: {
+        desc: ep.name,
+        type: ep.type || 'Episode',
+        status: ep.status || 'Active',
+        end: ep.end || '',
+        with: ep.provider || '',
+        visits: String(ep.visits.length),
+      },
+      // The episode form shown in the preview.
+      detail: [
+        {
+          title: '',
+          rows: [
+            ['Episode', ep.name],
+            ['Type', ep.type],
+            ['Status', ep.status || 'Active'],
+            ['Start Date', start],
+            ['End Date', ep.end],
+            ['Responsible Provider', ep.provider],
+            ['Diagnosis', ep.dx],
+            ['Note', ep.note],
+            ['Linked Encounters', String(ep.visits.length)],
+          ],
+        },
+      ],
+    });
   });
 
   rows.forEach((r) => (r.group = timeGroup(r.date, visit, r.current)));

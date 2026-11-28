@@ -2173,3 +2173,98 @@ body.ehr-resizing-y * {
 .ehr-imaging .img-link {
   color: #1f4e8c;
 }
+
+/* Coding in the narrow right panel: nothing wider than the panel. Below ~480px the E/M form
+   stacks (label above field), the Patient buttons wrap and the code box takes the full width. */
+.wsx.ehr .ehr-sidecoding {
+  container-type: inline-size;
+}
+.wsx.ehr .ehr-sidecoding .ehr-steps {
+  overflow-x: hidden;
+}
+.wsx.ehr .ehr-step-body {
+  min-width: 0;
+}
+.wsx.ehr .ehr-step-body .sec {
+  padding: 10px 12px;
+}
+.wsx.ehr .ehr-sidecoding .inp,
+.wsx.ehr .ehr-sidecoding .seg {
+  max-width: 100%;
+}
+.wsx.ehr .ehr-sidecoding .seg {
+  flex-wrap: wrap;
+}
+@container (max-width: 480px) {
+  .wsx.ehr .wsx-los {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .wsx.ehr .wsx-los .lbl {
+    margin-top: 6px;
+  }
+  .wsx.ehr .wsx-los .seg {
+    display: flex;
+    width: 100%;
+  }
+  .wsx.ehr .wsx-los .seg button {
+    flex: 1 1 auto;
+    padding: 5px 8px;
+  }
+  .wsx.ehr .wsx-emcode {
+    flex: 1 1 120px;
+    width: auto;
+    min-width: 0;
+  }
+  .wsx.ehr .ehr-step-body .sh .hint {
+    display: block;
+  }
+}
+
+/* Wide coding tables (charge lines with modifiers, Dx links, diagnosis list) in the narrow right
+   panel: scroll sideways inside the step instead of being cut off. */
+.wsx.ehr .ehr-sidecoding table.wsx-lines,
+.wsx.ehr .ehr-sidecoding table.wsx-simple {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+/* Code entry boxes (ICD-10-CM with its diagnosis-type dropdown, CPT, HCPCS …) in the narrow
+   right panel: one box per row, and the dropdown / code / Save wrap instead of overflowing. */
+.wsx.ehr .ehr-sidecoding .wsx-entries {
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  padding: 10px;
+}
+.wsx.ehr .ehr-sidecoding .wsx-entry {
+  min-width: 0;
+}
+.wsx.ehr .ehr-sidecoding .wsx-entry .row {
+  flex-wrap: wrap;
+}
+.wsx.ehr .ehr-sidecoding .wsx-entry .row > select {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.wsx.ehr .ehr-sidecoding .wsx-entry .inp.code {
+  flex: 1 1 120px;
+}
+.wsx.ehr .ehr-sidecoding .sh .r {
+  margin-left: 0;
+}
+
+/* Episode activity: the encounter being coded, inside its episode's list. */
+.wsx.ehr .ehr-act tr.cur td {
+  background: #fff7d6;
+}
+.wsx.ehr .ehr-tag {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #1f4e8c;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+}

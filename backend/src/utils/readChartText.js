@@ -26,6 +26,7 @@ const EXTRAS = lookup(C.keyExtras);
 const YES = new Set(C.values.yes.map(norm));
 const NOT_REPORTED = new Set(C.notReported.map(norm));
 const HISTORY = new Set(C.historyRow.map(norm));
+const CLINICAL_KINDS = lookup(Object.fromEntries(Object.entries(C.clinicalRows).map(([k, v]) => [k, v.words])));
 
 const pick = (kind, v) => VALUES[kind].get(norm(v)) || '';
 const int = (v) => {
@@ -50,20 +51,122 @@ const days = (a, b) => {
 };
 
 // File text → { name: [lines] }; text outside any known block belongs to the chart.
+// Repeatable blocks (config repeatBlocks) are kept apart: out.lists[name] = [[lines], [lines] …].
 function splitBlocks(text) {
-  const out = { chart: [] };
-  let cur = 'chart';
+  const out = { chart: [], lists: {} };
+  let cur = out.chart;
   String(text || '')
     .split('\n')
     .forEach((line) => {
       const m = line.match(MARKER);
       if (m) {
-        cur = BLOCKS.get(norm(m[1])) || 'chart';
-        out[cur] = out[cur] || [];
+        const name = BLOCKS.get(norm(m[1])) || 'chart';
+        if (C.repeatBlocks.includes(name)) {
+          cur = [];
+          (out.lists[name] = out.lists[name] || []).push(cur);
+        } else cur = out[name] = out[name] || [];
         return;
       }
-      (out[cur] = out[cur] || []).push(line);
+      cur.push(line);
     });
+  return out;
+}
+
+// PREVIOUS RECORD blocks → chart.previousRecords: labels, "TYPE | CODE | desc" code rows, and the
+// rest of the lines as the visit's note.
+function readPrevious(list) {
+  return list.slice(0, CASE_LIMITS.previousRecords).map((lines, i) => {
+    const used = new Set();
+    const P = readLabels(lines, ['previous'], (li) => used.add(li));
+    const codesBilled = [];
+    lines.forEach((line, li) => {
+      if (!line.includes('|')) return;
+      const row = keyRow(cells(line));
+      if (!row) return;
+      used.add(li);
+      if (codesBilled.length >= CASE_LIMITS.previousCodes) return;
+      const c = { code: clip(row.code, CASE_LIMITS.code), desc: clip(row.desc, CASE_LIMITS.desc), type: row.type };
+      if (row.poa) c.poa = row.poa;
+      if (row.mods && row.mods.length) c.mods = row.mods;
+      if (row.units) c.units = row.units;
+      codesBilled.push(c);
+    });
+    const title = clip(P['previous.title'], CASE_LIMITS.docTitle) || 'Office Visit';
+    const body = lines
+      .filter((_, li) => !used.has(li))
+      .join('\n')
+      .replace(/^\s*\n+|\n+\s*$/g, '')
+      .slice(0, CASE_LIMITS.docBody);
+    const rec = { key: 'prev' + (i + 1), title, body: body || title, codes: codesBilled };
+    ['dos', 'provider', 'facility', 'episode', 'noteType', 'arrival', 'departure', 'acuity', 'disposition'].forEach((k) => P['previous.' + k] && (rec[k] = clip(P['previous.' + k])));
+    return rec;
+  });
+}
+
+// "KIND | cell | cell …" rows → { labs: [{ test, value … }], meds: […] … } (config clinicalRows).
+// lines = [[text, onUsed?]]; onUsed() is called for each row read.
+function readClinical(lines) {
+  const out = {};
+  lines.forEach(([line, onUsed]) => {
+    if (!line.includes('|')) return;
+    const c = cells(line);
+    const kind = CLINICAL_KINDS.get(norm(c[0]));
+    if (!kind || !c.slice(1).some(Boolean)) return;
+    if (onUsed) onUsed();
+    const list = (out[kind] = out[kind] || []);
+    if (list.length >= CASE_LIMITS.clinicalRows) return;
+    const row = {};
+    C.clinicalRows[kind].fields.forEach((f, i) => c[i + 1] && c[i + 1] !== '-' && (row[f] = clip(c[i + 1])));
+    list.push(row);
+  });
+  return out;
+}
+
+// One note as a chart document. Missing author / specialty / date come from the visit.
+function noteDoc(key, n, visit) {
+  const author = clip(n.author) || visit.provider || '';
+  const date = clip(n.date) || visit.date || '';
+  const type = clip(n.type) || 'Progress Notes';
+  const doc = { key, title: clip(n.title, CASE_LIMITS.docTitle) || type, sub: [date, author].filter(Boolean).join(' · '), type, author, specialty: clip(n.specialty) || (n.author ? '' : visit.specialty || ''), date, status: clip(n.status), recipient: clip(n.recipient), body: String(n.body).slice(0, CASE_LIMITS.docBody) };
+  Object.keys(doc).forEach((k) => doc[k] === '' && k !== 'sub' && delete doc[k]);
+  return doc;
+}
+
+// NOTE blocks → chart.documents (one note each); the lines that are not labels are its text.
+function readNotes(list, visit) {
+  return list
+    .map((lines, i) => {
+      const used = new Set();
+      const N = readLabels(lines, ['note'], (li) => used.add(li));
+      const body = lines
+        .filter((_, li) => !used.has(li))
+        .join('\n')
+        .trim();
+      if (!body) return null;
+      return noteDoc('n' + (i + 1), { type: N['note.type'], title: N['note.title'], author: N['note.author'], specialty: N['note.specialty'], date: N['note.date'], status: N['note.status'], recipient: N['note.recipient'], body }, visit);
+    })
+    .filter(Boolean);
+}
+
+// EPISODE blocks → chart.episodes. An episode named by a visit but not described gets a plain
+// Active entry, so every visit's episode is listed.
+function readEpisodes(list, named) {
+  const out = [];
+  const seen = new Set();
+  const add = (ep) => {
+    if (!ep.name || seen.has(norm(ep.name)) || out.length >= CASE_LIMITS.episodes) return;
+    seen.add(norm(ep.name));
+    out.push({ key: 'ep' + (out.length + 1), ...ep });
+  };
+  list.forEach((lines) => {
+    const E = readLabels(lines, ['episode']);
+    const ep = { name: clip(E['episode.name']), status: pick('episodeStatus', E['episode.status']) || clip(E['episode.status']) || 'Active' };
+    ['type', 'start', 'end', 'provider'].forEach((k) => E['episode.' + k] && (ep[k] = clip(E['episode.' + k])));
+    if (E['episode.dx']) ep.dx = clip(E['episode.dx'], CASE_LIMITS.desc);
+    if (E['episode.note']) ep.note = clip(E['episode.note'], CASE_LIMITS.why);
+    add(ep);
+  });
+  named.filter(Boolean).forEach((name) => add({ name, status: 'Active' }));
   return out;
 }
 
@@ -120,8 +223,11 @@ function readChartText(text, { departments = [] } = {}) {
 
   // Setup labels are for the admin: dropped from the record even when written inside the chart.
   const setupLines = new Set();
-  const chartLabels = readLabels(blocks.chart, ['setup', 'patient', 'encounter', 'demographics'], (i, g) => g === 'setup' && setupLines.add(i));
+  const bannerLines = new Set(); // patient / encounter / demographic lines: the banner, not a note's text
+  const chartLabels = readLabels(blocks.chart, ['setup', 'patient', 'encounter', 'demographics'], (i, g) => (g === 'setup' ? setupLines : bannerLines).add(i));
   const L = { ...chartLabels, ...readLabels(blocks.setup || [], ['setup', 'patient', 'encounter', 'demographics']) };
+  // LAB | … / MED | … rows: structured data, shown in their Chart Review tab, so kept out of the record.
+  const clinical = readClinical([...blocks.chart.map((line, i) => [line, () => setupLines.add(i)]), ...(blocks.clinical || []).map((line) => [line])]);
   const record = blocks.chart
     .filter((_, i) => !setupLines.has(i))
     .join('\n')
@@ -218,6 +324,23 @@ function readChartText(text, { departments = [] } = {}) {
     if (L['demographics.' + k]) details[k] = clip(L['demographics.' + k], 300);
   });
   const patient = { name: clip(L['patient.name'], UPLOAD_LIMITS.patientName), sex: pick('sex', L['patient.sex']), age: int(L['patient.age']) };
+  // Notes of this visit (NOTE blocks). The CHART block's own narrative, if any, is the first note.
+  const notes = readNotes(blocks.lists.note || [], { provider, specialty, date: encounter.dos || encounter.admit || '' });
+  if (notes.length) {
+    const lead = blocks.chart
+      .filter((_, i) => !setupLines.has(i) && !bannerLines.has(i))
+      .join('\n')
+      .trim();
+    if (lead) notes.unshift(noteDoc('n0', { type: 'Progress Notes', title: 'Progress Note', body: lead }, { provider, specialty, date: encounter.dos || encounter.admit || '' }));
+  }
+  const documents = notes.slice(0, CASE_LIMITS.documents);
+  // The record keeps every note's text too (admin preview, search, audits).
+  const fullRecord = [record, ...documents.filter((d) => d.key !== 'n0').map((d) => `${d.type.toUpperCase()}: ${d.title}\n${d.body}`)]
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, UPLOAD_LIMITS.record);
+  const previousRecords = readPrevious(blocks.lists.previous || []);
+  const episodes = readEpisodes(blocks.lists.episode || [], [encounter.episode, ...previousRecords.map((r) => r.episode)]);
   const fields = {
     dept: dept ? dept.id : '',
     title: clip(L['setup.title'], UPLOAD_LIMITS.title),
@@ -232,6 +355,10 @@ function readChartText(text, { departments = [] } = {}) {
     keyMeta,
     cdiResponse: clip((blocks.cdi || []).join('\n'), CASE_LIMITS.why),
     answerKey,
+    previousRecords,
+    episodes,
+    ...(documents.length ? { documents } : {}),
+    ...(Object.keys(clinical).length ? { clinical } : {}),
   };
 
   note('Department', fields.dept);
@@ -245,7 +372,11 @@ function readChartText(text, { departments = [] } = {}) {
   if (answerKey.length) found.push(`Answer key (${answerKey.length} codes)`);
   if (original.dx.length || original.lines.length || original.pcs.length) found.push('Original coding');
   if (denLines.length) found.push('Denial details');
-  return { record, fields, found };
+  if (previousRecords.length) found.push(`Earlier visits (${previousRecords.length})`);
+  if (episodes.length) found.push(`Episodes (${episodes.length})`);
+  if (documents.length) found.push(`Notes (${documents.length})`);
+  Object.entries(clinical).forEach(([kind, list]) => found.push(`${C.clinicalRows[kind].label} (${list.length})`));
+  return { record: fullRecord, fields, found };
 }
 
 module.exports = { readChartText };

@@ -117,7 +117,9 @@ export function ChartReview({
   const pane = open && (
     <PreviewPane
       row={selected}
-      visit={selected.tab === 'enc' && visitOf ? visitOf(selected) : null}
+      visit={
+        (selected.tab === 'enc' || selected.tab === 'ed') && visitOf ? visitOf(selected) : null
+      }
       onPin={onPin}
       find={find}
       onClose={() => setSelRaw(null)}
@@ -178,7 +180,10 @@ export function ChartReview({
               role="tab"
               aria-selected={tab === t.key}
               className={tab === t.key ? 'on' : ''}
-              style={t.color ? { boxShadow: `inset 0 2px 0 ${t.color}` } : undefined}
+              // Only the selected tab shows its colour line on top (blue when the tab has no colour).
+              style={
+                tab === t.key ? { boxShadow: `inset 0 3px 0 ${t.color || '#2a5ea8'}` } : undefined
+              }
               onClick={() => (setTab(t.key), setSel(null))}
             >
               {t.label}
@@ -291,7 +296,7 @@ export function ChartReview({
               aria-label="Filter rows"
             />
           )}
-          {(tab === 'enc' || tab === 'notes') && check('Hide Other Enc', hideOther, setHideOther)}
+          {['enc', 'notes', 'ed'].includes(tab) && check('Hide Other Enc', hideOther, setHideOther)}
           {filters.map((f) =>
             check(
               f.label,

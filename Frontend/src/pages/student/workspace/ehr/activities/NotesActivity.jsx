@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ReportView } from '../ui/index.js';
 
-const NOTE_ROW_TABS = ['notes', 'letters', 'ed', 'anes', 'proc'];
+const NOTE_ROW_TABS = ['notes', 'letters', 'anes', 'proc'];
 const text = (r) => `${r.cells.type} ${r.cells.desc}`;
 const has = (re) => (r) => re.test(text(r));
 const NOTE_TABS = [
@@ -51,7 +51,8 @@ export function NotesActivity({
   const notes = useMemo(
     () =>
       rows
-        .filter((r) => NOTE_ROW_TABS.includes(r.tab))
+        // Notes only: not structured rows (results, ED visits) nor second listings (op note in Proc).
+        .filter((r) => NOTE_ROW_TABS.includes(r.tab) && !r.structured && !r.copy)
         .sort((a, b) =>
           a.current === b.current
             ? (b.date ? b.date.getTime() : 0) - (a.date ? a.date.getTime() : 0)

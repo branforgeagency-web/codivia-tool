@@ -170,7 +170,8 @@ export function demographicsOf(chart) {
 export function documentsOf(chart, queries = []) {
   let docs;
   if (chart.documents && chart.documents.length) {
-    docs = chart.documents.map((d) => ({ key: d.key, title: d.title, sub: d.sub || '', sections: parseRecordSections(d.body) }));
+    // type / author / specialty / date / status: the note's details (NOTE blocks of an uploaded file).
+    docs = chart.documents.map((d) => ({ key: d.key, title: d.title, sub: d.sub || '', type: d.type, author: d.author, specialty: d.specialty, date: d.date, status: d.status, recipient: d.recipient, sections: parseRecordSections(d.body) }));
   } else {
     let tabs = groupSectionsIntoTabs(parseRecordSections(chart.record));
     // Demographics go in the patient header (see demographicsOf), not in the document list —
